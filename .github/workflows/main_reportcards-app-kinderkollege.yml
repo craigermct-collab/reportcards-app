@@ -2,9 +2,12 @@ name: Build and deploy to Azure Web App
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
 
 env:
   AZURE_WEBAPP_NAME: reportcards-app-kinderkollege
@@ -13,13 +16,9 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -42,6 +41,5 @@ jobs:
       - name: Deploy
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ env.reportcards-app-kinderkollege }}
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: ./publish
-
