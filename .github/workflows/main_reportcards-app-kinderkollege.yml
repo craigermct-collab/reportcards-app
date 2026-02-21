@@ -27,7 +27,7 @@ jobs:
         run: dotnet build ./ReportCards.Web/ReportCards.Web.csproj -c Release
 
       - name: Publish
-        run: dotnet publish ./ReportCards.Web/ReportCards.Web.csproj -c Release -o ${{ env.DOTNET_ROOT }}/myapp
+        run: dotnet publish ./ReportCards.Web/ReportCards.Web.csproj -c Release -o ./publish
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -59,7 +59,8 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: reportcards-app-kinderkollege
-          package: ${{ env.DOTNET_ROOT }}/myapp
+          package: ./publish
 
           
+
 
