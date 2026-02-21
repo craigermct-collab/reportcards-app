@@ -26,8 +26,8 @@ jobs:
       - name: Build
         run: dotnet build ./ReportCards.Web/ReportCards.Web.csproj -c Release
 
-      - name: dotnet publish
-        run: dotnet publish -c Release -o ${{env.DOTNET_ROOT}}/myapp
+      - name: Publish
+        run: dotnet publish ./ReportCards.Web/ReportCards.Web.csproj -c Release -o ${{ env.DOTNET_ROOT }}/myapp
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -56,11 +56,10 @@ jobs:
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_B266E1F80B424074AFF4858DAC5514B7 }}
 
       - name: Deploy to Azure Web App
-        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'reportcards-app-kinderkollege'
-          slot-name: 'Production'
-          package: .
+          app-name: reportcards-app-kinderkollege
+          package: ${{ env.DOTNET_ROOT }}/myapp
 
           
+
