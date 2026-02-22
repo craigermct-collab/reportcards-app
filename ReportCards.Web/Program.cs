@@ -33,6 +33,7 @@ builder.Services.AddAuthentication(options =>
 {
     options.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
     options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
+    options.CallbackPath = "/auth/google-callback";
 });
 
 builder.Services.AddAuthorization();
@@ -96,54 +97,37 @@ app.MapGet("/health/db", async (IConfiguration config) =>
     return Results.Ok(new { db = "ok", result });
 });
 
-// Google OAuth callback — maps Google identity to AppUser role
-app.MapGet("/signin-google", async (HttpContext ctx, SchoolDbContext db) =>
-{
-    var result = await ctx.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-    if (result?.Principal == null) return Results.Redirect("/login");
-
-    var email = result.Principal.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
-    if (email == null) return Results.Redirect("/access-denied");
-
-    var appUser = await db.AppUsers.FirstOrDefaultAsync(u => u.Email == email);
-    if (appUser == null) return Results.Redirect("/access-denied");
-
-    return Results.Redirect("/");
-});
-
 app.MapGet("/login", () => Results.Redirect("/auth/google-login"));
 
 app.MapGet("/auth/google-login", async (HttpContext ctx) =>
 {
     await ctx.ChallengeAsync(GoogleDefaults.AuthenticationScheme,
-        new Microsoft.AspNetCore.Authentication.AuthenticationProperties
+        new AuthenticationProperties
         {
-            RedirectUri = "/auth/google-callback"
+            RedirectUri = "/auth/complete"
         });
 });
 
-app.MapGet("/auth/google-callback", async (HttpContext ctx, SchoolDbContext db) =>
+// This route is called AFTER Google redirects back and the cookie middleware
+// has already authenticated the user — we just need to add the role claim
+app.MapGet("/auth/complete", async (HttpContext ctx, SchoolDbContext db) =>
 {
-    var result = await ctx.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-    if (result?.Principal == null) return Results.Redirect("/access-denied");
-
-    var email = result.Principal.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+    var email = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
     if (email == null) return Results.Redirect("/access-denied");
 
     var appUser = await db.AppUsers.FirstOrDefaultAsync(u => u.Email == email);
     if (appUser == null) return Results.Redirect("/access-denied");
 
-    // Re-sign in with role claim
+    // Re-sign in with role claim added
     var claims = new List<System.Security.Claims.Claim>
     {
         new(System.Security.Claims.ClaimTypes.Email, email),
         new(System.Security.Claims.ClaimTypes.Role, appUser.Role),
-        new(System.Security.Claims.ClaimTypes.Name, result.Principal.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? email)
+        new(System.Security.Claims.ClaimTypes.Name, ctx.User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? email)
     };
 
     var identity = new System.Security.Claims.ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
     var principal = new System.Security.Claims.ClaimsPrincipal(identity);
-
     await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
 
     return Results.Redirect("/");
