@@ -3,12 +3,13 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using ReportCards.Web.Data;
 using ReportCards.Web.Components;
-using Microsoft.AspNetCore.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+builder.Services.AddControllers();
 
 builder.Services.AddDbContext<SchoolDbContext>(options =>
     options.UseSqlServer(
@@ -58,7 +59,6 @@ using (var scope = app.Services.CreateScope())
         await db.SaveChangesAsync();
     }
 
-    // Seed default admin user (your email)
     if (!await db.AppUsers.AnyAsync())
     {
         db.AppUsers.Add(new AppUser
@@ -97,47 +97,7 @@ app.MapGet("/health/db", async (IConfiguration config) =>
     return Results.Ok(new { db = "ok", result });
 });
 
-app.MapGet("/login", () => Results.Redirect("/auth/google-login"));
-
-app.MapGet("/auth/google-login", async (HttpContext ctx) =>
-{
-    await ctx.ChallengeAsync(GoogleDefaults.AuthenticationScheme,
-        new AuthenticationProperties
-        {
-            RedirectUri = "/auth/complete"
-        });
-});
-
-// This route is called AFTER Google redirects back and the cookie middleware
-// has already authenticated the user — we just need to add the role claim
-app.MapGet("/auth/complete", async (HttpContext ctx, SchoolDbContext db) =>
-{
-    var email = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
-    if (email == null) return Results.Redirect("/access-denied");
-
-    var appUser = await db.AppUsers.FirstOrDefaultAsync(u => u.Email == email);
-    if (appUser == null) return Results.Redirect("/access-denied");
-
-    // Re-sign in with role claim added
-    var claims = new List<System.Security.Claims.Claim>
-    {
-        new(System.Security.Claims.ClaimTypes.Email, email),
-        new(System.Security.Claims.ClaimTypes.Role, appUser.Role),
-        new(System.Security.Claims.ClaimTypes.Name, ctx.User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? email)
-    };
-
-    var identity = new System.Security.Claims.ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-    var principal = new System.Security.Claims.ClaimsPrincipal(identity);
-    await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
-
-    return Results.Redirect("/");
-});
-
-app.MapGet("/logout", async (HttpContext ctx) =>
-{
-    await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-    return Results.Redirect("/login");
-});
+app.MapControllers();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
