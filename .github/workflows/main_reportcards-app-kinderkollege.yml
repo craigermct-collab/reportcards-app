@@ -29,7 +29,7 @@ jobs:
         run: dotnet build ./ReportCards.Web/ReportCards.Web.csproj -c Release --no-restore
 
       - name: Publish
-        run: dotnet publish ./ReportCards.Web/ReportCards.Web.csproj -c Release -o ./publish --no-build
+        run: dotnet publish ./ReportCards.Web/ReportCards.Web.csproj -c Release -o ./publish
 
       - name: Azure Login
         uses: azure/login@v2
