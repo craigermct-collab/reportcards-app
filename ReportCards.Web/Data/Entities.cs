@@ -43,3 +43,12 @@ public class Enrollment
 
     public DateTimeOffset EnrolledOn { get; set; } = DateTimeOffset.UtcNow;
 }
+
+public class AppUser
+{
+    public int Id { get; set; }
+    public required string Email { get; set; }
+    public required string Role { get; set; } // "Admin" or "Teacher"
+    public int? TeacherId { get; set; }
+    public Teacher? Teacher { get; set; }
+}
