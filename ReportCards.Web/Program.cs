@@ -102,12 +102,6 @@ app.MapGet("/health/db", async (IConfiguration config) =>
     return Results.Ok(new { db = "ok", result });
 });
 
-app.MapGet("/", (HttpContext ctx) =>
-{
-    if (ctx.User.Identity?.IsAuthenticated != true)
-        return Results.Redirect("/login");
-    return Results.Redirect("/home");
-});
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
