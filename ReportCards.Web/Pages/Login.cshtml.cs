@@ -8,7 +8,7 @@ public class LoginModel : PageModel
     public IActionResult OnGet()
     {
         if (User.Identity?.IsAuthenticated == true)
-            return Redirect("/");
+            return Redirect("/home");
 
         return Page();
     }
