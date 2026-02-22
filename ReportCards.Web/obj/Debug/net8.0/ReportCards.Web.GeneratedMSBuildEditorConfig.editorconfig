@@ -67,3 +67,19 @@ build_metadata.AdditionalFiles.CssScope = b-66gae1p7ys
 [C:/Users/CraigM/reportcards-app/ReportCards.Web/Components/Layout/NavMenu.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xMYXlvdXRcTmF2TWVudS5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = b-pgykvjynw1
+
+[C:/Users/CraigM/reportcards-app/ReportCards.Web/Pages/GoogleCallback.cshtml]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcR29vZ2xlQ2FsbGJhY2suY3NodG1s
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/CraigM/reportcards-app/ReportCards.Web/Pages/GoogleLogin.cshtml]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcR29vZ2xlTG9naW4uY3NodG1s
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/CraigM/reportcards-app/ReportCards.Web/Pages/Login.cshtml]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcTG9naW4uY3NodG1s
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/CraigM/reportcards-app/ReportCards.Web/Pages/Logout.cshtml]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcTG9nb3V0LmNzaHRtbA==
+build_metadata.AdditionalFiles.CssScope = 
