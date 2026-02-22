@@ -9,7 +9,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddControllers();
+// Add Razor Pages for login/logout handling
+builder.Services.AddRazorPages();
 
 builder.Services.AddDbContext<SchoolDbContext>(options =>
     options.UseSqlServer(
@@ -34,7 +35,6 @@ builder.Services.AddAuthentication(options =>
 {
     options.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
     options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
-    // Use a different path so it doesn't conflict with our controller route
     options.CallbackPath = "/signin-google";
 });
 
@@ -86,8 +86,8 @@ app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// MapControllers BEFORE UseAntiforgery so auth routes are not intercepted by Blazor
-app.MapControllers();
+// Map Razor Pages BEFORE antiforgery so login/logout work correctly
+app.MapRazorPages();
 
 app.UseAntiforgery();
 
