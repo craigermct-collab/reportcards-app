@@ -39,6 +39,6 @@ public class GoogleCallbackModel : PageModel
         var principal = new ClaimsPrincipal(identity);
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
 
-        return Redirect("/");
+        return Redirect("/home");
     }
 }
