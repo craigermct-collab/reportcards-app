@@ -19,6 +19,39 @@ builder.Services.AddDbContext<SchoolDbContext>(options =>
 
 var app = builder.Build();
 
+// ===============================
+// Seed minimal data (dev-friendly)
+// ===============================
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<SchoolDbContext>();
+
+    // Ensure DB exists / migrations are applied (optional in dev; safe)
+    await db.Database.MigrateAsync();
+
+    // Seed a default teacher + class if DB is empty
+    if (!await db.Teachers.AnyAsync())
+    {
+        var teacher = new Teacher
+        {
+            DisplayName = "Craig (Teacher)",
+            Email = "teacher1@example.com"
+        };
+
+        db.Teachers.Add(teacher);
+        await db.SaveChangesAsync();
+
+        db.Classes.Add(new Class
+        {
+            Name = "Grade 3",
+            SchoolYear = "2025-2026",
+            TeacherId = teacher.Id
+        });
+
+        await db.SaveChangesAsync();
+    }
+}
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {

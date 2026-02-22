@@ -1,0 +1,160 @@
+@page "/admin"
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@inject SchoolDbContext Db
+
+<h1>Admin</h1>
+
+<h3>Teachers</h3>
+
+<div style="max-width: 520px;">
+    <div class="mb-2">
+        <label class="form-label">Display Name</label>
+        <input class="form-control" @bind="NewTeacherName" />
+    </div>
+    <div class="mb-2">
+        <label class="form-label">Email</label>
+        <input class="form-control" @bind="NewTeacherEmail" />
+    </div>
+    <button class="btn btn-primary" @onclick="AddTeacher" disabled="@(!CanAddTeacher)">Add Teacher</button>
+</div>
+
+<table class="table table-striped mt-3" style="max-width: 900px;">
+    <thead>
+        <tr>
+            <th>Id</th>
+            <th>Display Name</th>
+            <th>Email</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var t in Teachers)
+        {
+            <tr>
+                <td>@t.Id</td>
+                <td>@t.DisplayName</td>
+                <td>@t.Email</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<hr />
+
+<h3>Classes</h3>
+
+<div style="max-width: 520px;">
+    <div class="mb-2">
+        <label class="form-label">Class Name</label>
+        <input class="form-control" @bind="NewClassName" placeholder="e.g., Grade 3" />
+    </div>
+    <div class="mb-2">
+        <label class="form-label">School Year</label>
+        <input class="form-control" @bind="NewClassYear" placeholder="e.g., 2025-2026" />
+    </div>
+    <div class="mb-2">
+        <label class="form-label">Teacher</label>
+        <select class="form-select" @bind="NewClassTeacherId">
+            <option value="0">-- select --</option>
+            @foreach (var t in Teachers)
+            {
+                <option value="@t.Id">@t.DisplayName (@t.Email)</option>
+            }
+        </select>
+    </div>
+
+    <button class="btn btn-primary" @onclick="AddClass" disabled="@(!CanAddClass)">Add Class</button>
+</div>
+
+<table class="table table-striped mt-3" style="max-width: 900px;">
+    <thead>
+        <tr>
+            <th>Id</th>
+            <th>Name</th>
+            <th>School Year</th>
+            <th>Teacher</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var c in Classes)
+        {
+            <tr>
+                <td>@c.Id</td>
+                <td>@c.Name</td>
+                <td>@c.SchoolYear</td>
+                <td>@(c.Teacher?.DisplayName ?? "(none)")</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<Teacher> Teachers = new();
+    private List<Class> Classes = new();
+
+    private string NewTeacherName = "";
+    private string NewTeacherEmail = "";
+
+    private string NewClassName = "";
+    private string NewClassYear = "";
+    private int NewClassTeacherId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        Teachers = await Db.Teachers
+            .OrderBy(t => t.DisplayName)
+            .ToListAsync();
+
+        Classes = await Db.Classes
+            .Include(c => c.Teacher)
+            .OrderBy(c => c.Name)
+            .ToListAsync();
+    }
+
+    private bool CanAddTeacher =>
+        !string.IsNullOrWhiteSpace(NewTeacherName) &&
+        !string.IsNullOrWhiteSpace(NewTeacherEmail);
+
+    private async Task AddTeacher()
+    {
+        Db.Teachers.Add(new Teacher
+        {
+            DisplayName = NewTeacherName.Trim(),
+            Email = NewTeacherEmail.Trim()
+        });
+
+        await Db.SaveChangesAsync();
+
+        NewTeacherName = "";
+        NewTeacherEmail = "";
+
+        await LoadAsync();
+    }
+
+    private bool CanAddClass =>
+        !string.IsNullOrWhiteSpace(NewClassName) &&
+        NewClassTeacherId > 0;
+
+    private async Task AddClass()
+    {
+        Db.Classes.Add(new Class
+        {
+            Name = NewClassName.Trim(),
+            SchoolYear = string.IsNullOrWhiteSpace(NewClassYear) ? null : NewClassYear.Trim(),
+            TeacherId = NewClassTeacherId
+        });
+
+        await Db.SaveChangesAsync();
+
+        NewClassName = "";
+        NewClassYear = "";
+        NewClassTeacherId = 0;
+
+        await LoadAsync();
+    }
+}
