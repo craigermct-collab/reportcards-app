@@ -12,11 +12,11 @@
 <div style="max-width: 520px;">
     <div class="mb-2">
         <label class="form-label">Display Name</label>
-        <input class="form-control" value="@NewTeacherName" @oninput="(e) => { NewTeacherName = e.Value?.ToString() ?? string.Empty; }" />
+        <input class="form-control" @bind="NewTeacherName" @bind:event="oninput" />
     </div>
     <div class="mb-2">
         <label class="form-label">Email</label>
-        <input class="form-control" value="@NewTeacherEmail" @oninput="(e) => { NewTeacherEmail = e.Value?.ToString() ?? string.Empty; }" />
+        <input class="form-control" @bind="NewTeacherEmail" @bind:event="oninput" />
     </div>
     <button class="btn btn-primary" @onclick="AddTeacher" disabled="@(!CanAddTeacher)">Add Teacher</button>
 </div>
@@ -52,11 +52,11 @@
 <div style="max-width: 520px;">
     <div class="mb-2">
         <label class="form-label">Class Name</label>
-        <input class="form-control" value="@NewClassName" @oninput="(e) => { NewClassName = e.Value?.ToString() ?? string.Empty; }" placeholder="e.g., Grade 3" />
+        <input class="form-control" @bind="NewClassName" @bind:event="oninput" placeholder="e.g., Grade 3" />
     </div>
     <div class="mb-2">
         <label class="form-label">School Year</label>
-        <input class="form-control" value="@NewClassYear" @oninput="(e) => { NewClassYear = e.Value?.ToString() ?? string.Empty; }" placeholder="e.g., 2025-2026" />
+        <input class="form-control" @bind="NewClassYear" @bind:event="oninput" placeholder="e.g., 2025-2026" />
     </div>
     <div class="mb-2">
         <label class="form-label">Teacher</label>
@@ -107,30 +107,6 @@
     private string NewClassName = "";
     private string NewClassYear = "";
     private int NewClassTeacherId = 0;
-
-private void OnTeacherNameInput(ChangeEventArgs e)
-{
-    NewTeacherName = e.Value?.ToString() ?? "";
-    StateHasChanged();
-}
-
-private void OnTeacherEmailInput(ChangeEventArgs e)
-{
-    NewTeacherEmail = e.Value?.ToString() ?? "";
-    StateHasChanged();
-}
-
-private void OnClassNameInput(ChangeEventArgs e)
-{
-    NewClassName = e.Value?.ToString() ?? "";
-    StateHasChanged();
-}
-
-private void OnClassYearInput(ChangeEventArgs e)
-{
-    NewClassYear = e.Value?.ToString() ?? "";
-    StateHasChanged();
-}
 
     protected override async Task OnInitializedAsync()
     {
