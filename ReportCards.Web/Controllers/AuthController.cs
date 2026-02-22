@@ -28,18 +28,22 @@ public class AuthController : Controller
     [HttpGet("google-callback")]
     public async Task<IActionResult> GoogleCallback()
     {
-        var email = User.FindFirst(ClaimTypes.Email)?.Value;
+        // Explicitly authenticate using the Google scheme to get the result
+        var result = await HttpContext.AuthenticateAsync(GoogleDefaults.AuthenticationScheme);
+        if (result?.Principal == null) return Redirect("/access-denied");
+
+        var email = result.Principal.FindFirst(ClaimTypes.Email)?.Value;
         if (email == null) return Redirect("/access-denied");
 
         var appUser = await _db.AppUsers.FirstOrDefaultAsync(u => u.Email == email);
         if (appUser == null) return Redirect("/access-denied");
 
-        // Re-sign in with role claim added
+        // Sign in with cookie + role claim
         var claims = new List<Claim>
         {
             new(ClaimTypes.Email, email),
             new(ClaimTypes.Role, appUser.Role),
-            new(ClaimTypes.Name, User.FindFirst(ClaimTypes.Name)?.Value ?? email)
+            new(ClaimTypes.Name, result.Principal.FindFirst(ClaimTypes.Name)?.Value ?? email)
         };
 
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
