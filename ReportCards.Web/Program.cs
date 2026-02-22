@@ -34,7 +34,8 @@ builder.Services.AddAuthentication(options =>
 {
     options.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
     options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
-    options.CallbackPath = "/auth/google-callback";
+    // Use a different path so it doesn't conflict with our controller route
+    options.CallbackPath = "/signin-google";
 });
 
 builder.Services.AddAuthorization();
@@ -84,6 +85,10 @@ if (!app.Environment.IsProduction())
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// MapControllers BEFORE UseAntiforgery so auth routes are not intercepted by Blazor
+app.MapControllers();
+
 app.UseAntiforgery();
 
 app.MapGet("/health/db", async (IConfiguration config) =>
@@ -96,8 +101,6 @@ app.MapGet("/health/db", async (IConfiguration config) =>
     var result = await cmd.ExecuteScalarAsync();
     return Results.Ok(new { db = "ok", result });
 });
-
-app.MapControllers();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
