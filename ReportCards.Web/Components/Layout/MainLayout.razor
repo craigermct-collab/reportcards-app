@@ -1,4 +1,6 @@
 ﻿@inherits LayoutComponentBase
+@inject NavigationManager Nav
+@inject IHttpContextAccessor HttpContextAccessor
 
 <div class="page">
     <div class="sidebar">
@@ -6,8 +8,21 @@
     </div>
 
     <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        <div class="top-row px-4 d-flex justify-content-end align-items-center">
+            @{
+                var user = HttpContextAccessor.HttpContext?.User;
+                var name = user?.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+                var isLoggedIn = user?.Identity?.IsAuthenticated ?? false;
+            }
+            @if (isLoggedIn)
+            {
+                <span class="me-3 text-muted small">👤 @name</span>
+                <a href="/logout" class="btn btn-sm btn-outline-secondary">Sign Out</a>
+            }
+            else
+            {
+                <a href="/login" class="btn btn-sm btn-outline-primary">Sign In</a>
+            }
         </div>
 
         <article class="content px-4">

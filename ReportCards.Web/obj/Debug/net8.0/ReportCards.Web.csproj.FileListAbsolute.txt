@@ -148,3 +148,9 @@ C:\Users\CraigM\reportcards-app\ReportCards.Web\obj\Debug\net8.0\refint\ReportCa
 C:\Users\CraigM\reportcards-app\ReportCards.Web\obj\Debug\net8.0\ReportCards.Web.pdb
 C:\Users\CraigM\reportcards-app\ReportCards.Web\obj\Debug\net8.0\ReportCards.Web.genruntimeconfig.cache
 C:\Users\CraigM\reportcards-app\ReportCards.Web\obj\Debug\net8.0\ref\ReportCards.Web.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\Microsoft.AspNetCore.Authentication.Google.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\Microsoft.Extensions.Diagnostics.Abstractions.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\Microsoft.Extensions.Hosting.Abstractions.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\Microsoft.Extensions.ObjectPool.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\Microsoft.Extensions.WebEncoders.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\System.Security.Cryptography.Xml.dll
