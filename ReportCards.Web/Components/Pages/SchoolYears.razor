@@ -1,0 +1,274 @@
+@page "/school-years"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@inject SchoolDbContext Db
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" Class="mb-1" Style="font-family:'DM Serif Display',serif;">School Years</MudText>
+<MudText Typo="Typo.body2" Class="mb-6" Style="color:var(--mud-palette-text-secondary);">
+    Manage school years and their reporting terms.
+</MudText>
+
+<!-- ── Add School Year ─────────────────────────────────── -->
+<MudCard Class="mb-6" Elevation="1">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">Add School Year</MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="4">
+                <MudTextField @bind-Value="_newYearName"
+                              Label="School Year Name"
+                              Placeholder="e.g. 2025-2026"
+                              Variant="Variant.Outlined"
+                              FullWidth="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="2" Class="d-flex align-end">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="AddSchoolYearAsync"
+                           Disabled="@(string.IsNullOrWhiteSpace(_newYearName))"
+                           FullWidth="true">
+                    Add Year
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+<!-- ── School Years List ───────────────────────────────── -->
+@if (_schoolYears.Count == 0)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+        No school years yet. Add one above to get started.
+    </MudAlert>
+}
+else
+{
+    @foreach (var year in _schoolYears)
+    {
+        <MudCard Class="mb-4" Elevation="1">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <div class="d-flex align-center gap-3">
+                        <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Color="Color.Primary" />
+                        <MudText Typo="Typo.h6" Style="font-family:'DM Serif Display',serif;">@year.Name</MudText>
+                        @if (year.IsActive)
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">Active</MudChip>
+                        }
+                        @if (year.IsLocked)
+                        {
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled"
+                                     Icon="@Icons.Material.Filled.Lock">Locked</MudChip>
+                        }
+                    </div>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    @if (!year.IsActive)
+                    {
+                        <MudTooltip Text="Set as active year">
+                            <MudIconButton Icon="@Icons.Material.Filled.CheckCircle"
+                                           Color="Color.Success"
+                                           OnClick="@(() => SetActiveAsync(year))" />
+                        </MudTooltip>
+                    }
+                    <MudTooltip Text="@(year.IsLocked ? "Unlock year" : "Lock year")">
+                        <MudIconButton Icon="@(year.IsLocked ? Icons.Material.Filled.LockOpen : Icons.Material.Filled.Lock)"
+                                       Color="Color.Warning"
+                                       OnClick="@(() => ToggleLockAsync(year))" />
+                    </MudTooltip>
+                </CardHeaderActions>
+            </MudCardHeader>
+
+            <MudCardContent>
+                <!-- Terms table -->
+                @if (year.TermInstances.Count > 0)
+                {
+                    <MudTable Items="year.TermInstances.OrderBy(t => t.SortOrder)"
+                              Dense="true" Hover="true" Elevation="0"
+                              Class="mb-4"
+                              Style="border:1px solid var(--mud-palette-divider); border-radius:8px;">
+                        <HeaderContent>
+                            <MudTh>Term</MudTh>
+                            <MudTh>Start Date</MudTh>
+                            <MudTh>End Date</MudTh>
+                            <MudTh></MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>@context.Name</MudTd>
+                            <MudTd>@context.StartDate.ToString("MMM d, yyyy")</MudTd>
+                            <MudTd>@context.EndDate.ToString("MMM d, yyyy")</MudTd>
+                            <MudTd Style="text-align:right;">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               Size="Size.Small"
+                                               Color="Color.Error"
+                                               OnClick="@(() => DeleteTermAsync(context))" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
+                        No terms yet. Add a term below.
+                    </MudText>
+                }
+
+                <!-- Add term inline -->
+                <MudGrid>
+                    <MudItem xs="12" sm="3">
+                        <MudTextField @bind-Value="_newTermNames[year.Id]"
+                                      Label="Term Name"
+                                      Placeholder="e.g. Term 1"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="3">
+                        <MudDatePicker @bind-Date="_newTermStarts[year.Id]"
+                                       Label="Start Date"
+                                       Variant="Variant.Outlined"
+                                       Margin="Margin.Dense"
+                                       DateFormat="yyyy-MM-dd" />
+                    </MudItem>
+                    <MudItem xs="12" sm="3">
+                        <MudDatePicker @bind-Date="_newTermEnds[year.Id]"
+                                       Label="End Date"
+                                       Variant="Variant.Outlined"
+                                       Margin="Margin.Dense"
+                                       DateFormat="yyyy-MM-dd" />
+                    </MudItem>
+                    <MudItem xs="12" sm="3" Class="d-flex align-end">
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="@(() => AddTermAsync(year))"
+                                   Disabled="@(!CanAddTerm(year.Id))"
+                                   FullWidth="true">
+                            Add Term
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    }
+}
+
+@code {
+    private List<SchoolYear> _schoolYears = new();
+    private string _newYearName = "";
+
+    // Per-year term form state
+    private Dictionary<int, string> _newTermNames = new();
+    private Dictionary<int, DateTime?> _newTermStarts = new();
+    private Dictionary<int, DateTime?> _newTermEnds = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _schoolYears = await Db.SchoolYears
+            .Include(y => y.TermInstances)
+            .OrderByDescending(y => y.Name)
+            .ToListAsync();
+
+        // Ensure dictionaries have entries for every year
+        foreach (var y in _schoolYears)
+        {
+            _newTermNames.TryAdd(y.Id, "");
+            _newTermStarts.TryAdd(y.Id, null);
+            _newTermEnds.TryAdd(y.Id, null);
+        }
+    }
+
+    private async Task AddSchoolYearAsync()
+    {
+        var name = _newYearName.Trim();
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        if (await Db.SchoolYears.AnyAsync(y => y.Name == name))
+        {
+            Snackbar.Add($"School year '{name}' already exists.", Severity.Warning);
+            return;
+        }
+
+        Db.SchoolYears.Add(new SchoolYear { Name = name });
+        await Db.SaveChangesAsync();
+        _newYearName = "";
+        Snackbar.Add($"School year '{name}' added.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private bool CanAddTerm(int yearId) =>
+        _newTermNames.TryGetValue(yearId, out var n) && !string.IsNullOrWhiteSpace(n) &&
+        _newTermStarts.TryGetValue(yearId, out var s) && s.HasValue &&
+        _newTermEnds.TryGetValue(yearId, out var e) && e.HasValue;
+
+    private async Task AddTermAsync(SchoolYear year)
+    {
+        if (!CanAddTerm(year.Id)) return;
+
+        var name = _newTermNames[year.Id].Trim();
+        var start = DateOnly.FromDateTime(_newTermStarts[year.Id]!.Value);
+        var end = DateOnly.FromDateTime(_newTermEnds[year.Id]!.Value);
+
+        if (start >= end)
+        {
+            Snackbar.Add("End date must be after start date.", Severity.Warning);
+            return;
+        }
+
+        var sortOrder = year.TermInstances.Count + 1;
+
+        Db.TermInstances.Add(new TermInstance
+        {
+            SchoolYearId = year.Id,
+            Name = name,
+            SortOrder = sortOrder,
+            StartDate = start,
+            EndDate = end
+        });
+
+        await Db.SaveChangesAsync();
+
+        _newTermNames[year.Id] = "";
+        _newTermStarts[year.Id] = null;
+        _newTermEnds[year.Id] = null;
+
+        Snackbar.Add($"Term '{name}' added to {year.Name}.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task DeleteTermAsync(TermInstance term)
+    {
+        Db.TermInstances.Remove(term);
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"Term '{term.Name}' deleted.", Severity.Info);
+        await LoadAsync();
+    }
+
+    private async Task SetActiveAsync(SchoolYear year)
+    {
+        // Clear all active flags first
+        await Db.SchoolYears.ExecuteUpdateAsync(s =>
+            s.SetProperty(y => y.IsActive, false));
+
+        year.IsActive = true;
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"'{year.Name}' is now the active school year.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task ToggleLockAsync(SchoolYear year)
+    {
+        year.IsLocked = !year.IsLocked;
+        await Db.SaveChangesAsync();
+        Snackbar.Add(year.IsLocked ? $"'{year.Name}' locked." : $"'{year.Name}' unlocked.", Severity.Info);
+        await LoadAsync();
+    }
+}
