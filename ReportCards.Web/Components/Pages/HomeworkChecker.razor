@@ -40,32 +40,30 @@
             </CardHeaderContent>
         </MudCardHeader>
         <MudCardContent>
-            <!-- Hidden file inputs: one for camera, one for library -->
-            <input id="cameraInput" type="file" accept="image/*" capture="environment"
-                   multiple style="display:none"
-                   @onchange="OnCameraSelected" />
-            <input id="libraryInput" type="file" accept="image/*"
-                   multiple style="display:none"
-                   @onchange="OnLibrarySelected" />
-
             <MudGrid Class="mb-4">
                 <MudItem xs="6">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                               StartIcon="@Icons.Material.Filled.CameraAlt"
-                               FullWidth="true"
-                               Style="height:56px; font-size:15px;"
-                               OnClick="@(() => JS.InvokeVoidAsync("imageHelper.clickElement", "cameraInput"))">
-                        Camera
-                    </MudButton>
+                    <label style="display:block; width:100%; cursor:pointer;">
+                        <InputFile OnChange="OnCameraSelected" accept="image/*" capture="environment"
+                                   multiple style="display:none" />
+                        <div style="display:flex; align-items:center; justify-content:center; gap:8px;
+                                    height:56px; border-radius:4px; font-size:15px; font-weight:500;
+                                    background:#1B4F72; color:white;">
+                            <span class="material-icons" style="font-size:20px;">photo_camera</span>
+                            Camera
+                        </div>
+                    </label>
                 </MudItem>
                 <MudItem xs="6">
-                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
-                               StartIcon="@Icons.Material.Filled.PhotoLibrary"
-                               FullWidth="true"
-                               Style="height:56px; font-size:15px;"
-                               OnClick="@(() => JS.InvokeVoidAsync("imageHelper.clickElement", "libraryInput"))">
-                        Library
-                    </MudButton>
+                    <label style="display:block; width:100%; cursor:pointer;">
+                        <InputFile OnChange="OnLibrarySelected" accept="image/*"
+                                   multiple style="display:none" />
+                        <div style="display:flex; align-items:center; justify-content:center; gap:8px;
+                                    height:56px; border-radius:4px; font-size:15px; font-weight:500;
+                                    border:1px solid #1B4F72; color:#1B4F72; background:transparent;">
+                            <span class="material-icons" style="font-size:20px;">photo_library</span>
+                            Library
+                        </div>
+                    </label>
                 </MudItem>
             </MudGrid>
 
@@ -381,19 +379,30 @@ else
             .ToListAsync();
     }
 
-    private async Task OnCameraSelected(ChangeEventArgs e)
-        => await ProcessInput("cameraInput");
+    private async Task OnCameraSelected(InputFileChangeEventArgs e)
+        => await ProcessFiles(e);
 
-    private async Task OnLibrarySelected(ChangeEventArgs e)
-        => await ProcessInput("libraryInput");
+    private async Task OnLibrarySelected(InputFileChangeEventArgs e)
+        => await ProcessFiles(e);
 
-    private async Task ProcessInput(string inputId)
+    private async Task ProcessFiles(InputFileChangeEventArgs e)
     {
         try
         {
-            var compressed = await JS.InvokeAsync<string[]>(
-                "imageHelper.readAndCompressFiles", inputId, 1600, 0.78);
-            _images.AddRange(compressed);
+            foreach (var file in e.GetMultipleFiles(10))
+            {
+                // Read file as stream, convert to base64 data URL
+                var buffer = new byte[file.Size];
+                await using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                await stream.ReadExactlyAsync(buffer);
+                var base64 = Convert.ToBase64String(buffer);
+                var dataUrl = $"data:{file.ContentType};base64,{base64}";
+
+                // Compress via JS canvas before storing
+                var compressed = await JS.InvokeAsync<string>(
+                    "imageHelper.compressImage", dataUrl, 1600, 0.78);
+                _images.Add(compressed);
+            }
             StateHasChanged();
         }
         catch (Exception ex)
