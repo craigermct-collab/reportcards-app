@@ -1,0 +1,286 @@
+@page "/enrollments"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@inject SchoolDbContext Db
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" Class="mb-1" Style="font-family:'DM Serif Display',serif;">Enrollments</MudText>
+<MudText Typo="Typo.body2" Class="mb-6" Style="color:var(--mud-palette-text-secondary);">
+    Enroll students into class groups per term.
+</MudText>
+
+<!-- Year / Term / Class Group Selector -->
+<MudCard Class="mb-6" Elevation="1">
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" sm="4">
+                <MudSelect T="int?" @bind-Value="_selectedYearId"
+                           Label="School Year" Variant="Variant.Outlined"
+                           AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var y in _schoolYears)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)y.Id)">
+                            @y.Name @(y.IsActive ? "★" : "")
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudSelect T="int?" @bind-Value="_selectedTermId"
+                           Label="Term" Variant="Variant.Outlined"
+                           Disabled="@(_selectedYearId == null)"
+                           AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var t in TermsForYear)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)t.Id)">@t.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudSelect T="int?" @bind-Value="_selectedClassGroupId"
+                           Label="Class Group" Variant="Variant.Outlined"
+                           Disabled="@(_selectedTermId == null)"
+                           AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var cgi in ClassGroupsForTerm)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)cgi.Id)">
+                            @cgi.DisplayName (@cgi.ClassGroupType?.Name)
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+@if (_selectedClassGroupId != null)
+{
+    <MudGrid>
+        <!-- Left: Enroll a student -->
+        <MudItem xs="12" md="5">
+            <MudCard Elevation="1">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Enroll Student</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudSelect T="int?" @bind-Value="_newStudentId"
+                               Label="Student" Variant="Variant.Outlined" Class="mb-3"
+                               AnchorOrigin="Origin.BottomCenter">
+                        @foreach (var s in AvailableStudents)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)s.Id)">
+                                @s.LastName, @s.FirstName
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudSelect T="int?" @bind-Value="_newGradeId"
+                               Label="Grade" Variant="Variant.Outlined" Class="mb-4"
+                               AnchorOrigin="Origin.BottomCenter">
+                        @foreach (var g in GradesForSelectedGroup)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)g.Id)">@g.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.PersonAdd"
+                               OnClick="EnrollStudentAsync"
+                               Disabled="@(!CanEnroll)" FullWidth="true">
+                        Enroll
+                    </MudButton>
+                    @if (AvailableStudents.Count == 0)
+                    {
+                        <MudText Typo="Typo.caption" Class="mt-2"
+                                 Style="color:var(--mud-palette-text-secondary);">
+                            All active students are already enrolled in this class group.
+                        </MudText>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Right: Current enrollments -->
+        <MudItem xs="12" md="7">
+            <MudCard Elevation="1">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">
+                            Enrolled Students
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary"
+                                     Variant="Variant.Filled" Class="ml-2">
+                                @_enrollments.Count
+                            </MudChip>
+                        </MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent Class="pa-0">
+                    @if (_enrollments.Count == 0)
+                    {
+                        <div class="pa-4">
+                            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                                No students enrolled yet.
+                            </MudAlert>
+                        </div>
+                    }
+                    else
+                    {
+                        <MudTable Items="_enrollments" Hover="true" Dense="false" Elevation="0">
+                            <HeaderContent>
+                                <MudTh>Student</MudTh>
+                                <MudTh>Grade</MudTh>
+                                <MudTh>Enrolled</MudTh>
+                                <MudTh></MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>
+                                    <div class="d-flex align-center gap-2">
+                                        <MudAvatar Style="background:#1B4F72; color:white; width:30px; height:30px; font-size:11px; font-weight:700;">
+                                            @GetInitials(context.Student?.FirstName, context.Student?.LastName)
+                                        </MudAvatar>
+                                        <MudText Typo="Typo.body2" Style="font-weight:600;">
+                                            @context.Student?.LastName, @context.Student?.FirstName
+                                        </MudText>
+                                    </div>
+                                </MudTd>
+                                <MudTd>@context.Grade?.Name</MudTd>
+                                <MudTd>
+                                    <MudText Typo="Typo.caption">
+                                        @context.EnrolledOn.ToString("MMM d, yyyy")
+                                    </MudText>
+                                </MudTd>
+                                <MudTd Style="text-align:right;">
+                                    <MudTooltip Text="Unenroll student">
+                                        <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
+                                                       Color="Color.Error" Size="Size.Small"
+                                                       OnClick="@(() => UnenrollAsync(context))" />
+                                    </MudTooltip>
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private List<SchoolYear> _schoolYears = new();
+    private List<ClassGroupInstance> _allClassGroups = new();
+    private List<Student> _activeStudents = new();
+    private List<Enrollment> _enrollments = new();
+
+    private int? _selectedYearId;
+    private int? _selectedTermId;
+    private int? _selectedClassGroupId;
+    private int? _newStudentId;
+    private int? _newGradeId;
+
+    private bool CanEnroll => _newStudentId != null && _newGradeId != null;
+
+    private List<TermInstance> TermsForYear =>
+        _schoolYears.FirstOrDefault(y => y.Id == _selectedYearId)?.TermInstances
+            .OrderBy(t => t.SortOrder).ToList() ?? new();
+
+    private List<ClassGroupInstance> ClassGroupsForTerm =>
+        _allClassGroups.Where(c => c.TermInstanceId == _selectedTermId)
+            .OrderBy(c => c.ClassGroupType?.SortOrder).ThenBy(c => c.DisplayName)
+            .ToList();
+
+    private ClassGroupInstance? SelectedGroup =>
+        _allClassGroups.FirstOrDefault(c => c.Id == _selectedClassGroupId);
+
+    private List<Grade> GradesForSelectedGroup =>
+        SelectedGroup?.ClassGroupType?.Grades.OrderBy(g => g.SortOrder).ToList() ?? new();
+
+    private List<Student> AvailableStudents
+    {
+        get
+        {
+            var enrolledIds = _enrollments.Select(e => e.StudentId).ToHashSet();
+            return _activeStudents.Where(s => !enrolledIds.Contains(s.Id))
+                .OrderBy(s => s.LastName).ThenBy(s => s.FirstName).ToList();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _schoolYears = await Db.SchoolYears
+            .Include(y => y.TermInstances)
+            .OrderByDescending(y => y.Name)
+            .ToListAsync();
+
+        _allClassGroups = await Db.ClassGroupInstances
+            .Include(c => c.ClassGroupType)
+                .ThenInclude(ct => ct.Grades)
+            .ToListAsync();
+
+        _activeStudents = await Db.Students
+            .Where(s => s.IsActive)
+            .ToListAsync();
+
+        var activeYear = _schoolYears.FirstOrDefault(y => y.IsActive);
+        if (activeYear != null)
+        {
+            _selectedYearId = activeYear.Id;
+            _selectedTermId = activeYear.TermInstances.OrderBy(t => t.SortOrder).FirstOrDefault()?.Id;
+        }
+
+        await LoadEnrollmentsAsync();
+    }
+
+    private async Task LoadEnrollmentsAsync()
+    {
+        if (_selectedClassGroupId == null) { _enrollments = new(); return; }
+
+        _enrollments = await Db.Enrollments
+            .Where(e => e.ClassGroupInstanceId == _selectedClassGroupId)
+            .Include(e => e.Student)
+            .Include(e => e.Grade)
+            .OrderBy(e => e.Student!.LastName).ThenBy(e => e.Student!.FirstName)
+            .ToListAsync();
+    }
+
+    private async Task EnrollStudentAsync()
+    {
+        if (!CanEnroll) return;
+
+        var exists = await Db.Enrollments.AnyAsync(e =>
+            e.StudentId == _newStudentId &&
+            e.ClassGroupInstanceId == _selectedClassGroupId);
+
+        if (exists) { Snackbar.Add("Student is already enrolled in this class group.", Severity.Warning); return; }
+
+        Db.Enrollments.Add(new Enrollment
+        {
+            StudentId = _newStudentId!.Value,
+            TermInstanceId = _selectedTermId!.Value,
+            ClassGroupInstanceId = _selectedClassGroupId!.Value,
+            GradeId = _newGradeId!.Value
+        });
+
+        await Db.SaveChangesAsync();
+        _newStudentId = null;
+        _newGradeId = null;
+        Snackbar.Add("Student enrolled.", Severity.Success);
+        await LoadEnrollmentsAsync();
+    }
+
+    private async Task UnenrollAsync(Enrollment enrollment)
+    {
+        Db.Enrollments.Remove(enrollment);
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"{enrollment.Student?.FirstName} {enrollment.Student?.LastName} unenrolled.", Severity.Info);
+        await LoadEnrollmentsAsync();
+    }
+
+    private static string GetInitials(string? first, string? last)
+    {
+        var f = string.IsNullOrWhiteSpace(first) ? "?" : first[0].ToString().ToUpper();
+        var l = string.IsNullOrWhiteSpace(last) ? "" : last[0].ToString().ToUpper();
+        return f + l;
+    }
+}
