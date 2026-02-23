@@ -1,38 +1,205 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 @inject NavigationManager Nav
-@inject IHttpContextAccessor HttpContextAccessor
+@inject AuthenticationStateProvider AuthStateProvider
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+<MudThemeProvider Theme="@AppTheme.Theme" />
+<MudDialogProvider />
+<MudSnackbarProvider />
 
-    <main>
-        <div class="top-row px-4 d-flex justify-content-end align-items-center">
+<MudLayout>
+
+    <!-- ─── SIDEBAR ─────────────────────────────────────── -->
+    <MudDrawer @bind-Open="_drawerOpen"
+               Elevation="0"
+               Variant="DrawerVariant.Persistent"
+               ClipMode="DrawerClipMode.Never">
+
+        <!-- Logo -->
+        <MudDrawerHeader Class="pa-4" Style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+            <div class="d-flex align-center gap-3">
+                <MudIcon Icon="@Icons.Material.Filled.Assignment"
+                         Style="background:#E67E22; color:white; padding:6px; border-radius:8px; font-size:20px;" />
+                <div>
+                    <MudText Typo="Typo.h6" Style="color:white; font-family:'DM Serif Display',serif; line-height:1.1;">
+                        Report Cards
+                    </MudText>
+                    <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.45); letter-spacing:0.06em; text-transform:uppercase;">
+                        Builder
+                    </MudText>
+                </div>
+            </div>
+        </MudDrawerHeader>
+
+        <!-- Nav -->
+        <MudNavMenu Class="px-2 py-3">
+
+            <MudText Typo="Typo.overline" Class="px-3 mb-1" Style="color:rgba(255,255,255,0.35);">
+                Admin
+            </MudText>
+            <MudNavLink Href="/"
+                        Match="NavLinkMatch.All"
+                        Icon="@Icons.Material.Filled.Dashboard">
+                Dashboard
+            </MudNavLink>
+            <MudNavLink Href="/school-years"
+                        Icon="@Icons.Material.Filled.CalendarMonth">
+                School Years
+            </MudNavLink>
+            <MudNavLink Href="/curriculum"
+                        Icon="@Icons.Material.Filled.MenuBook">
+                Curriculum
+            </MudNavLink>
+            <MudNavLink Href="/grading-scales"
+                        Icon="@Icons.Material.Filled.Scale">
+                Grading Scales
+            </MudNavLink>
+
+            <MudDivider Class="my-3" Style="border-color:rgba(255,255,255,0.08);" />
+
+            <MudText Typo="Typo.overline" Class="px-3 mb-1" Style="color:rgba(255,255,255,0.35);">
+                People
+            </MudText>
+            <MudNavLink Href="/teachers"
+                        Icon="@Icons.Material.Filled.Person">
+                Teachers
+            </MudNavLink>
+            <MudNavLink Href="/students"
+                        Icon="@Icons.Material.Filled.School">
+                Students
+            </MudNavLink>
+            <MudNavLink Href="/enrollments"
+                        Icon="@Icons.Material.Filled.EditNote">
+                Enrollments
+            </MudNavLink>
+
+            <MudDivider Class="my-3" Style="border-color:rgba(255,255,255,0.08);" />
+
+            <MudText Typo="Typo.overline" Class="px-3 mb-1" Style="color:rgba(255,255,255,0.35);">
+                Reports
+            </MudText>
+            <MudNavLink Href="/grade-entry"
+                        Icon="@Icons.Material.Filled.Grading">
+                Grade Entry
+            </MudNavLink>
+            <MudNavLink Href="/generate-reports"
+                        Icon="@Icons.Material.Filled.Print">
+                Generate Reports
+            </MudNavLink>
+
+        </MudNavMenu>
+
+        <!-- User footer -->
+        <MudSpacer />
+        <div style="padding:12px 16px; border-top:1px solid rgba(255,255,255,0.08);">
             @{
-                var user = HttpContextAccessor.HttpContext?.User;
-                var name = user?.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
-                var isLoggedIn = user?.Identity?.IsAuthenticated ?? false;
+                var initials = GetInitials(_userName);
             }
             @if (isLoggedIn)
             {
-                <span class="me-3 text-muted small">👤 @name</span>
-                <a href="/logout" class="btn btn-sm btn-outline-secondary">Sign Out</a>
+                <div class="d-flex align-center gap-2">
+                    <MudAvatar Style="background:#E67E22; color:white; width:32px; height:32px; font-size:13px; font-weight:700;">
+                        @initials
+                    </MudAvatar>
+                    <div style="flex:1; min-width:0;">
+                        <MudText Typo="Typo.body2" Style="color:white; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            @_userName
+                        </MudText>
+                        <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.45); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            @_userEmail
+                        </MudText>
+                    </div>
+                    <MudIconButton Icon="@Icons.Material.Filled.Logout"
+                                   Size="Size.Small"
+                                   Style="color:rgba(255,255,255,0.45);"
+                                   Href="/logout" />
+                </div>
             }
             else
             {
-                <a href="/login" class="btn btn-sm btn-outline-primary">Sign In</a>
+                <MudButton Href="/login"
+                           Variant="Variant.Outlined"
+                           Size="Size.Small"
+                           Style="color:white; border-color:rgba(255,255,255,0.3); width:100%;">
+                    Sign In
+                </MudButton>
             }
         </div>
 
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
+    </MudDrawer>
 
-<div id="blazor-error-ui">
-    An unhandled error has occurred.
-    <a href="" class="reload">Reload</a>
-    <a class="dismiss">🗙</a>
-</div>
+    <!-- ─── TOPBAR ─────────────────────────────────────── -->
+    <MudAppBar Elevation="1" Dense="false">
+
+        <!-- Hamburger toggle -->
+        <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                       Color="Color.Default"
+                       Edge="Edge.Start"
+                       OnClick="ToggleDrawer" />
+
+        <!-- Breadcrumb -->
+        <MudBreadcrumbs Items="_breadcrumbs" Class="ml-2" />
+
+        <MudSpacer />
+
+        <!-- Working Year Badge -->
+        <MudChip T="string"
+                 Icon="@Icons.Material.Filled.CalendarMonth"
+                 Color="Color.Primary"
+                 Variant="Variant.Outlined"
+                 Size="Size.Small"
+                 Class="mr-2"
+                 Style="font-weight:600;">
+            2026–2027
+        </MudChip>
+
+        <MudIconButton Icon="@Icons.Material.Filled.Notifications"
+                       Color="Color.Default"
+                       Size="Size.Medium" />
+
+        <MudIconButton Icon="@Icons.Material.Filled.Settings"
+                       Color="Color.Default"
+                       Size="Size.Medium" />
+
+    </MudAppBar>
+
+    <!-- ─── MAIN CONTENT ──────────────────────────────── -->
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.ExtraExtraLarge" Class="pa-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+    private bool isLoggedIn = false;
+    private string? _userName;
+    private string? _userEmail;
+
+    private List<BreadcrumbItem> _breadcrumbs = new()
+    {
+        new BreadcrumbItem("Admin", href: null, disabled: true),
+        new BreadcrumbItem("Dashboard", href: "/", icon: Icons.Material.Filled.Home),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        isLoggedIn = user.Identity?.IsAuthenticated ?? false;
+        _userName = user.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+        _userEmail = user.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+    }
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private static string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{parts[0][0]}{parts[^1][0]}".ToUpper()
+            : parts[0][0].ToString().ToUpper();
+    }
+}

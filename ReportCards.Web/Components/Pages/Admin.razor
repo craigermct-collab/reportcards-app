@@ -6,6 +6,7 @@
 @inject SchoolDbContext Db
 
 <h1>Admin</h1>
+<p class="text-muted">This page is a temporary scaffold — full admin UI is coming via MudBlazor pages.</p>
 
 <h3>Teachers</h3>
 
@@ -21,16 +22,13 @@
     <button class="btn btn-primary" @onclick="AddTeacher" disabled="@(!CanAddTeacher)">Add Teacher</button>
 </div>
 
-<div class="text-muted mt-2" style="font-size: 0.9rem;">
-    Debug: CanAddTeacher=@CanAddTeacher | Name="@NewTeacherName" | Email="@NewTeacherEmail"
-</div>
-
 <table class="table table-striped mt-3" style="max-width: 900px;">
     <thead>
         <tr>
             <th>Id</th>
             <th>Display Name</th>
             <th>Email</th>
+            <th>Active</th>
         </tr>
     </thead>
     <tbody>
@@ -40,58 +38,7 @@
                 <td>@t.Id</td>
                 <td>@t.DisplayName</td>
                 <td>@t.Email</td>
-            </tr>
-        }
-    </tbody>
-</table>
-
-<hr />
-
-<h3>Classes</h3>
-
-<div style="max-width: 520px;">
-    <div class="mb-2">
-        <label class="form-label">Class Name</label>
-        <input class="form-control" @bind="NewClassName" @bind:event="oninput" placeholder="e.g., Grade 3" />
-    </div>
-    <div class="mb-2">
-        <label class="form-label">School Year</label>
-        <input class="form-control" @bind="NewClassYear" @bind:event="oninput" placeholder="e.g., 2025-2026" />
-    </div>
-    <div class="mb-2">
-        <label class="form-label">Teacher</label>
-        <select class="form-select" @bind="NewClassTeacherId">
-            <option value="0">-- select --</option>
-            @foreach (var t in Teachers)
-            {
-                <option value="@t.Id">@t.DisplayName (@t.Email)</option>
-            }
-        </select>
-    </div>
-
-    <button class="btn btn-primary" @onclick="AddClass" disabled="@(!CanAddClass)">Add Class</button>
-</div>
-
-<div class="text-muted mt-2" style="font-size: 0.9rem;">
-    Debug: CanAddClass=@CanAddClass | Class="@NewClassName" | TeacherId=@NewClassTeacherId
-</div>
-<table class="table table-striped mt-3" style="max-width: 900px;">
-    <thead>
-        <tr>
-            <th>Id</th>
-            <th>Name</th>
-            <th>School Year</th>
-            <th>Teacher</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var c in Classes)
-        {
-            <tr>
-                <td>@c.Id</td>
-                <td>@c.Name</td>
-                <td>@c.SchoolYear</td>
-                <td>@(c.Teacher?.DisplayName ?? "(none)")</td>
+                <td>@(t.IsActive ? "Yes" : "No")</td>
             </tr>
         }
     </tbody>
@@ -99,30 +46,14 @@
 
 @code {
     private List<Teacher> Teachers = new();
-    private List<Class> Classes = new();
-
     private string NewTeacherName = "";
     private string NewTeacherEmail = "";
 
-    private string NewClassName = "";
-    private string NewClassYear = "";
-    private int NewClassTeacherId = 0;
-
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadAsync();
-    }
+    protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task LoadAsync()
     {
-        Teachers = await Db.Teachers
-            .OrderBy(t => t.DisplayName)
-            .ToListAsync();
-
-        Classes = await Db.Classes
-            .Include(c => c.Teacher)
-            .OrderBy(c => c.Name)
-            .ToListAsync();
+        Teachers = await Db.Teachers.OrderBy(t => t.DisplayName).ToListAsync();
     }
 
     private bool CanAddTeacher =>
@@ -136,34 +67,9 @@
             DisplayName = NewTeacherName.Trim(),
             Email = NewTeacherEmail.Trim()
         });
-
         await Db.SaveChangesAsync();
-
         NewTeacherName = "";
         NewTeacherEmail = "";
-
-        await LoadAsync();
-    }
-
-    private bool CanAddClass =>
-        !string.IsNullOrWhiteSpace(NewClassName) &&
-        NewClassTeacherId > 0;
-
-    private async Task AddClass()
-    {
-        Db.Classes.Add(new Class
-        {
-            Name = NewClassName.Trim(),
-            SchoolYear = string.IsNullOrWhiteSpace(NewClassYear) ? null : NewClassYear.Trim(),
-            TeacherId = NewClassTeacherId
-        });
-
-        await Db.SaveChangesAsync();
-
-        NewClassName = "";
-        NewClassYear = "";
-        NewClassTeacherId = 0;
-
         await LoadAsync();
     }
 }
