@@ -69,25 +69,25 @@ public class HomeworkAnalysisService
             if (request.CheckRubric) checks.Add($"rubric evaluation for {request.GradeName} / {request.ClassGroupName} (score out of 10)");
             if (request.CheckAiGenerated) checks.Add("AI-generated content likelihood (Low/Medium/High with reasoning)");
 
-            var systemPrompt = $"""
-                You are an expert educator reviewing student homework for a {request.GradeName} student
-                at KinderKollege Private Primary School ({request.ClassGroupName} class group).
-
-                Analyze the provided homework image(s) and respond in valid JSON only.
-                No markdown fences, no preamble, just raw JSON.
-
-                Use this exact structure:
-                {{
-                  "spelling": {{ "score": <int 0-10 or null>, "summary": "<string or null>" }},
-                  "grammar": {{ "score": <int 0-10 or null>, "summary": "<string or null>" }},
-                  "rubric": {{ "score": <int 0-10 or null>, "summary": "<string or null>" }},
-                  "aiDetection": {{ "likelihood": "<Low|Medium|High or null>", "summary": "<string or null>" }},
+            var jsonSchema =
+                """
+                {
+                  "spelling": { "score": <int 0-10 or null>, "summary": "<string or null>" },
+                  "grammar": { "score": <int 0-10 or null>, "summary": "<string or null>" },
+                  "rubric": { "score": <int 0-10 or null>, "summary": "<string or null>" },
+                  "aiDetection": { "likelihood": "<Low|Medium|High or null>", "summary": "<string or null>" },
                   "overallSummary": "<2-3 sentence encouraging but honest summary>"
-                }}
-
-                Only populate requested sections. Set unrequested sections to null values.
-                Be encouraging but accurate. Use language appropriate for the student's grade level.
+                }
                 """;
+
+            var systemPrompt =
+                $"You are an expert educator reviewing student homework for a {request.GradeName} student " +
+                $"at KinderKollege Private Primary School ({request.ClassGroupName} class group).\n\n" +
+                "Analyze the provided homework image(s) and respond in valid JSON only.\n" +
+                "No markdown fences, no preamble, just raw JSON.\n\n" +
+                "Use this exact structure:\n" + jsonSchema + "\n\n" +
+                "Only populate requested sections. Set unrequested sections to null values.\n" +
+                "Be encouraging but accurate. Use language appropriate for the student's grade level.";
 
             var userContent = new List<ChatMessageContentPart>();
             userContent.Add(ChatMessageContentPart.CreateTextPart(
