@@ -10,9 +10,10 @@
 <MudLayout>
 
     <!-- ─── SIDEBAR ─────────────────────────────────────── -->
-    <MudDrawer @bind-Open="_drawerOpen"
+    <MudDrawer Open="_drawerOpen"
+               OpenChanged="OnDrawerOpenChanged"
                Elevation="2"
-               Variant="DrawerVariant.Responsive"
+               Variant="DrawerVariant.Persistent"
                ClipMode="DrawerClipMode.Always">
 
         <div style="display:flex; flex-direction:column; height:100%">
@@ -27,11 +28,11 @@
                         Report Card Builder
                     </MudText>
                 </div>
-                <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft"
+                <MudIconButton Icon="@(_drawerOpen ? Icons.Material.Filled.ChevronLeft : Icons.Material.Filled.ChevronRight)"
                                Size="Size.Small"
                                Style="color:rgba(255,255,255,0.5); margin-right:-8px;"
                                OnClick="ToggleDrawer"
-                               title="Close menu" />
+                               title="@(_drawerOpen ? "Hide menu" : "Show menu")" />
             </div>
         </MudDrawerHeader>
 
@@ -209,7 +210,17 @@
         _userEmail = user.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
     }
 
-    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+    private void ToggleDrawer()
+    {
+        _drawerOpen = !_drawerOpen;
+        StateHasChanged();
+    }
+
+    private void OnDrawerOpenChanged(bool value)
+    {
+        _drawerOpen = value;
+        StateHasChanged();
+    }
 
     private static string GetInitials(string? name)
     {
