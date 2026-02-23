@@ -81,8 +81,7 @@
                 <MudItem xs="6" sm="3">
                     <MudPaper Outlined="true" Class="pa-3 d-flex flex-column align-center"
                               Style="@CheckCardStyle(_checkSpelling)"
-                              @onclick="@(() => _checkSpelling = !_checkSpelling)"
-                              Style2="cursor:pointer;">
+                              @onclick="@(() => _checkSpelling = !_checkSpelling)">
                         <MudIcon Icon="@Icons.Material.Filled.Spellcheck"
                                  Color="@(_checkSpelling ? Color.Primary : Color.Default)"
                                  Style="font-size:32px; margin-bottom:4px;" />
@@ -231,10 +230,11 @@ else
                 @_result.ClassGroupName • @_result.GradeName • @_result.AnalyzedAt.ToString("MMM d, yyyy h:mm tt")
             </MudText>
         </div>
-        <MudIconButton Icon="@Icons.Material.Filled.Refresh"
-                       Color="Color.Default"
-                       OnClick="Reset"
-                       Tooltip="Start new analysis" />
+        <MudTooltip Text="Start new analysis">
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                           Color="Color.Default"
+                           OnClick="Reset" />
+        </MudTooltip>
     </div>
 
     @if (!_result.Success)
@@ -474,23 +474,29 @@ else
             ? "cursor:pointer; border-color:#1B4F72; background:rgba(27,79,114,0.06);"
             : "cursor:pointer;";
 
-    private RenderFragment ScoreCard(string label, int score, string icon) =>
-        @<MudCard Elevation="0" Style="@ScoreCardStyle(score); border-radius:12px; text-align:center;">
+    private RenderFragment ScoreCard(string label, int score, string icon)
+    {
+        var style = ScoreCardStyle(score) + " border-radius:12px; text-align:center;";
+        return @<MudCard Elevation="0" Style="@style">
             <MudCardContent Class="pa-3">
                 <MudIcon Icon="@icon" Style="font-size:24px; margin-bottom:4px;" />
                 <MudText Typo="Typo.h4" Style="font-weight:700; line-height:1;">@score<span style="font-size:14px;">/10</span></MudText>
                 <MudText Typo="Typo.caption">@label</MudText>
             </MudCardContent>
         </MudCard>;
+    }
 
-    private RenderFragment AiCard(string likelihood) =>
-        @<MudCard Elevation="0" Style="@AiCardStyle(likelihood); border-radius:12px; text-align:center;">
+    private RenderFragment AiCard(string likelihood)
+    {
+        var style = AiCardStyle(likelihood) + " border-radius:12px; text-align:center;";
+        return @<MudCard Elevation="0" Style="@style">
             <MudCardContent Class="pa-3">
                 <MudIcon Icon="@Icons.Material.Filled.SmartToy" Style="font-size:24px; margin-bottom:4px;" />
                 <MudText Typo="Typo.h6" Style="font-weight:700; line-height:1.2;">@likelihood</MudText>
                 <MudText Typo="Typo.caption">AI Likelihood</MudText>
             </MudCardContent>
         </MudCard>;
+    }
 
     private RenderFragment DetailCard(string title, string content, string icon) =>
         @<MudCard Elevation="1" Class="mb-3">
