@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
+using MudBlazor.Services;
 using ReportCards.Web.Data;
 using ReportCards.Web.Components;
 
@@ -8,6 +9,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+builder.Services.AddMudServices();
 
 // Add Razor Pages for login/logout handling
 builder.Services.AddRazorPages();
@@ -52,11 +55,7 @@ using (var scope = app.Services.CreateScope())
 
     if (!await db.Teachers.AnyAsync())
     {
-        var teacher = new Teacher { DisplayName = "Craig (Teacher)", Email = "teacher1@example.com" };
-        db.Teachers.Add(teacher);
-        await db.SaveChangesAsync();
-
-        db.Classes.Add(new Class { Name = "Grade 3", SchoolYear = "2025-2026", TeacherId = teacher.Id });
+        db.Teachers.Add(new Teacher { DisplayName = "Craig (Teacher)", Email = "teacher1@example.com" });
         await db.SaveChangesAsync();
     }
 
