@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.Google;
 using MudBlazor.Services;
 using ReportCards.Web.Data;
 using ReportCards.Web.Components;
+using ReportCards.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -41,6 +42,7 @@ builder.Services.AddAuthentication(options =>
     options.CallbackPath = "/signin-google";
 });
 
+builder.Services.AddSingleton<HomeworkAnalysisService>();
 builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddHttpContextAccessor();

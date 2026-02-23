@@ -1,0 +1,520 @@
+@page "/homework-checker"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@using ReportCards.Web.Services
+@inject SchoolDbContext Db
+@inject HomeworkAnalysisService AnalysisService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<PageTitle>Homework Checker</PageTitle>
+
+<!-- Mobile-first: compact header -->
+<div class="d-flex align-center gap-3 mb-4">
+    <MudIcon Icon="@Icons.Material.Filled.DocumentScanner"
+             Style="background:#1B4F72; color:white; padding:8px; border-radius:10px; font-size:24px;" />
+    <div>
+        <MudText Typo="Typo.h5" Style="font-family:'DM Serif Display',serif; line-height:1.1;">
+            Homework Checker
+        </MudText>
+        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+            AI-powered homework analysis
+        </MudText>
+    </div>
+</div>
+
+@if (_result == null)
+{
+    <!-- ══ SETUP FORM ══════════════════════════════════════ -->
+
+    <!-- Step 1: Context -->
+    <MudCard Elevation="1" Class="mb-4">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <div class="d-flex align-center gap-2">
+                    <MudAvatar Style="background:#1B4F72; color:white; width:28px; height:28px; font-size:13px; font-weight:700;">1</MudAvatar>
+                    <MudText Typo="Typo.h6">Select Class Context</MudText>
+                </div>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int?" @bind-Value="_selectedClassGroupTypeId"
+                               Label="Class Group" Variant="Variant.Outlined"
+                               AnchorOrigin="Origin.BottomCenter">
+                        @foreach (var cgt in _classGroupTypes)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)cgt.Id)">@cgt.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int?" @bind-Value="_selectedGradeId"
+                               Label="Grade" Variant="Variant.Outlined"
+                               Disabled="@(_selectedClassGroupTypeId == null)"
+                               AnchorOrigin="Origin.BottomCenter">
+                        @foreach (var g in GradesForSelectedGroup)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)g.Id)">@g.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
+    <!-- Step 2: Checks -->
+    <MudCard Elevation="1" Class="mb-4">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <div class="d-flex align-center gap-2">
+                    <MudAvatar Style="background:#1B4F72; color:white; width:28px; height:28px; font-size:13px; font-weight:700;">2</MudAvatar>
+                    <MudText Typo="Typo.h6">What to Check</MudText>
+                </div>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudGrid>
+                <MudItem xs="6" sm="3">
+                    <MudPaper Outlined="true" Class="pa-3 d-flex flex-column align-center"
+                              Style="@CheckCardStyle(_checkSpelling)"
+                              @onclick="@(() => _checkSpelling = !_checkSpelling)"
+                              Style2="cursor:pointer;">
+                        <MudIcon Icon="@Icons.Material.Filled.Spellcheck"
+                                 Color="@(_checkSpelling ? Color.Primary : Color.Default)"
+                                 Style="font-size:32px; margin-bottom:4px;" />
+                        <MudText Typo="Typo.body2" Style="font-weight:600; text-align:center;">Spelling</MudText>
+                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">@(_checkSpelling ? "ON" : "OFF")</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudPaper Outlined="true" Class="pa-3 d-flex flex-column align-center"
+                              Style="@CheckCardStyle(_checkGrammar)"
+                              @onclick="@(() => _checkGrammar = !_checkGrammar)">
+                        <MudIcon Icon="@Icons.Material.Filled.RateReview"
+                                 Color="@(_checkGrammar ? Color.Primary : Color.Default)"
+                                 Style="font-size:32px; margin-bottom:4px;" />
+                        <MudText Typo="Typo.body2" Style="font-weight:600; text-align:center;">Grammar</MudText>
+                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">@(_checkGrammar ? "ON" : "OFF")</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudPaper Outlined="true" Class="pa-3 d-flex flex-column align-center"
+                              Style="@CheckCardStyle(_checkRubric)"
+                              @onclick="@(() => _checkRubric = !_checkRubric)">
+                        <MudIcon Icon="@Icons.Material.Filled.Checklist"
+                                 Color="@(_checkRubric ? Color.Primary : Color.Default)"
+                                 Style="font-size:32px; margin-bottom:4px;" />
+                        <MudText Typo="Typo.body2" Style="font-weight:600; text-align:center;">Rubric</MudText>
+                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">@(_checkRubric ? "ON" : "OFF")</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudPaper Outlined="true" Class="pa-3 d-flex flex-column align-center"
+                              Style="@CheckCardStyle(_checkAi)"
+                              @onclick="@(() => _checkAi = !_checkAi)">
+                        <MudIcon Icon="@Icons.Material.Filled.SmartToy"
+                                 Color="@(_checkAi ? Color.Primary : Color.Default)"
+                                 Style="font-size:32px; margin-bottom:4px;" />
+                        <MudText Typo="Typo.body2" Style="font-weight:600; text-align:center;">AI Check</MudText>
+                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">@(_checkAi ? "ON" : "OFF")</MudText>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
+    <!-- Step 3: Photos -->
+    <MudCard Elevation="1" Class="mb-4">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <div class="d-flex align-center gap-2">
+                    <MudAvatar Style="background:#1B4F72; color:white; width:28px; height:28px; font-size:13px; font-weight:700;">3</MudAvatar>
+                    <MudText Typo="Typo.h6">Add Photos</MudText>
+                </div>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            <!-- Hidden file inputs: one for camera, one for library -->
+            <input id="cameraInput" type="file" accept="image/*" capture="environment"
+                   multiple style="display:none"
+                   @onchange="OnCameraSelected" />
+            <input id="libraryInput" type="file" accept="image/*"
+                   multiple style="display:none"
+                   @onchange="OnLibrarySelected" />
+
+            <MudGrid Class="mb-4">
+                <MudItem xs="6">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.CameraAlt"
+                               FullWidth="true"
+                               Style="height:56px; font-size:15px;"
+                               OnClick="@(() => JS.InvokeVoidAsync("imageHelper.clickElement", "cameraInput"))">
+                        Camera
+                    </MudButton>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.PhotoLibrary"
+                               FullWidth="true"
+                               Style="height:56px; font-size:15px;"
+                               OnClick="@(() => JS.InvokeVoidAsync("imageHelper.clickElement", "libraryInput"))">
+                        Library
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+
+            @if (_images.Count > 0)
+            {
+                <MudText Typo="Typo.caption" Class="mb-2"
+                         Style="color:var(--mud-palette-text-secondary);">
+                    @_images.Count photo(s) added
+                </MudText>
+                <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                    @for (int i = 0; i < _images.Count; i++)
+                    {
+                        var idx = i;
+                        <div style="position:relative; display:inline-block;">
+                            <img src="@_images[idx]"
+                                 style="width:80px; height:80px; object-fit:cover; border-radius:8px; border:2px solid var(--mud-palette-divider);" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Cancel"
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           Style="position:absolute; top:-8px; right:-8px; background:white; padding:2px;"
+                                           OnClick="@(() => RemoveImage(idx))" />
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+                    Tap Camera to photograph homework, or Library to pick existing photos.
+                </MudAlert>
+            }
+        </MudCardContent>
+    </MudCard>
+
+    <!-- Sticky bottom action -->
+    <div style="position:sticky; bottom:16px; z-index:10;">
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Size="Size.Large"
+                   StartIcon="@Icons.Material.Filled.AutoAwesome"
+                   FullWidth="true"
+                   Style="height:56px; font-size:16px; font-weight:700; border-radius:12px; box-shadow: 0 4px 16px rgba(27,79,114,0.4);"
+                   OnClick="RunAnalysisAsync"
+                   Disabled="@(!CanAnalyze)">
+            @if (_analyzing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Analyzing...</span>
+            }
+            else
+            {
+                <span>Analyze Homework</span>
+            }
+        </MudButton>
+    </div>
+}
+else
+{
+    <!-- ══ RESULTS ════════════════════════════════════════ -->
+
+    <div class="d-flex align-center justify-space-between mb-4">
+        <div>
+            <MudText Typo="Typo.h6" Style="font-family:'DM Serif Display',serif;">Analysis Results</MudText>
+            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                @_result.ClassGroupName • @_result.GradeName • @_result.AnalyzedAt.ToString("MMM d, yyyy h:mm tt")
+            </MudText>
+        </div>
+        <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                       Color="Color.Default"
+                       OnClick="Reset"
+                       Tooltip="Start new analysis" />
+    </div>
+
+    @if (!_result.Success)
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">
+            Analysis failed: @_result.ErrorMessage
+        </MudAlert>
+    }
+    else
+    {
+        <!-- Overall Summary -->
+        @if (!string.IsNullOrWhiteSpace(_result.OverallSummary))
+        {
+            <MudCard Elevation="1" Class="mb-4" Style="border-left: 4px solid #1B4F72;">
+                <MudCardContent Class="pa-4">
+                    <div class="d-flex gap-3">
+                        <MudIcon Icon="@Icons.Material.Filled.Summarize" Color="Color.Primary" />
+                        <div>
+                            <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);">Overall Summary</MudText>
+                            <MudText Typo="Typo.body1">@_result.OverallSummary</MudText>
+                        </div>
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        }
+
+        <!-- Score cards -->
+        <MudGrid Class="mb-4">
+            @if (_result.SpellingScore.HasValue)
+            {
+                <MudItem xs="6" sm="3">
+                    @ScoreCard("Spelling", _result.SpellingScore.Value, Icons.Material.Filled.Spellcheck)
+                </MudItem>
+            }
+            @if (_result.GrammarScore.HasValue)
+            {
+                <MudItem xs="6" sm="3">
+                    @ScoreCard("Grammar", _result.GrammarScore.Value, Icons.Material.Filled.RateReview)
+                </MudItem>
+            }
+            @if (_result.RubricScore.HasValue)
+            {
+                <MudItem xs="6" sm="3">
+                    @ScoreCard("Rubric", _result.RubricScore.Value, Icons.Material.Filled.Checklist)
+                </MudItem>
+            }
+            @if (!string.IsNullOrWhiteSpace(_result.AiLikelihood))
+            {
+                <MudItem xs="6" sm="3">
+                    @AiCard(_result.AiLikelihood)
+                </MudItem>
+            }
+        </MudGrid>
+
+        <!-- Detail cards -->
+        @if (!string.IsNullOrWhiteSpace(_result.SpellingSummary))
+        {
+            @DetailCard("Spelling Details", _result.SpellingSummary, Icons.Material.Filled.Spellcheck)
+        }
+        @if (!string.IsNullOrWhiteSpace(_result.GrammarSummary))
+        {
+            @DetailCard("Grammar Details", _result.GrammarSummary, Icons.Material.Filled.RateReview)
+        }
+        @if (!string.IsNullOrWhiteSpace(_result.RubricSummary))
+        {
+            @DetailCard("Rubric Evaluation", _result.RubricSummary, Icons.Material.Filled.Checklist)
+        }
+        @if (!string.IsNullOrWhiteSpace(_result.AiDetectionSummary))
+        {
+            @DetailCard("AI Detection Details", _result.AiDetectionSummary, Icons.Material.Filled.SmartToy)
+        }
+
+        <!-- Optional save -->
+        @if (!_saved)
+        {
+            <MudCard Elevation="1" Class="mb-4" Style="border: 2px dashed var(--mud-palette-divider);">
+                <MudCardContent Class="pa-4">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Save this result? (optional)</MudText>
+                    <MudTextField @bind-Value="_teacherNote"
+                                  Label="Teacher note (optional)"
+                                  Placeholder="e.g. Strong effort, needs practice with punctuation"
+                                  Variant="Variant.Outlined"
+                                  Lines="2"
+                                  Class="mb-3" />
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Save"
+                               OnClick="SaveResultAsync"
+                               FullWidth="true">
+                        Save Result
+                    </MudButton>
+                </MudCardContent>
+            </MudCard>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Success" Class="mb-4">Result saved.</MudAlert>
+        }
+    }
+
+    <!-- Bottom action -->
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.AddAPhoto"
+               FullWidth="true"
+               Style="height:56px; font-size:15px; font-weight:700; border-radius:12px;"
+               OnClick="Reset">
+        Analyze Another
+    </MudButton>
+}
+
+@code {
+    private List<ClassGroupType> _classGroupTypes = new();
+    private int? _selectedClassGroupTypeId;
+    private int? _selectedGradeId;
+
+    private bool _checkSpelling = true;
+    private bool _checkGrammar = true;
+    private bool _checkRubric = true;
+    private bool _checkAi = true;
+
+    private List<string> _images = new(); // base64 data URLs (compressed)
+    private bool _analyzing;
+    private HomeworkAnalysisResult? _result;
+    private string _teacherNote = "";
+    private bool _saved;
+
+    private bool CanAnalyze =>
+        !_analyzing &&
+        _images.Count > 0 &&
+        _selectedClassGroupTypeId != null &&
+        _selectedGradeId != null &&
+        (_checkSpelling || _checkGrammar || _checkRubric || _checkAi);
+
+    private List<Grade> GradesForSelectedGroup =>
+        _classGroupTypes.FirstOrDefault(c => c.Id == _selectedClassGroupTypeId)
+            ?.Grades.OrderBy(g => g.SortOrder).ToList() ?? new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _classGroupTypes = await Db.ClassGroupTypes
+            .Include(c => c.Grades)
+            .OrderBy(c => c.SortOrder)
+            .ToListAsync();
+    }
+
+    private async Task OnCameraSelected(ChangeEventArgs e)
+        => await ProcessInput("cameraInput");
+
+    private async Task OnLibrarySelected(ChangeEventArgs e)
+        => await ProcessInput("libraryInput");
+
+    private async Task ProcessInput(string inputId)
+    {
+        try
+        {
+            var compressed = await JS.InvokeAsync<string[]>(
+                "imageHelper.readAndCompressFiles", inputId, 1600, 0.78);
+            _images.AddRange(compressed);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error reading image: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void RemoveImage(int index)
+    {
+        if (index >= 0 && index < _images.Count)
+            _images.RemoveAt(index);
+    }
+
+    private async Task RunAnalysisAsync()
+    {
+        if (!CanAnalyze) return;
+        _analyzing = true;
+        StateHasChanged();
+
+        var grade = GradesForSelectedGroup.FirstOrDefault(g => g.Id == _selectedGradeId);
+        var classGroup = _classGroupTypes.FirstOrDefault(c => c.Id == _selectedClassGroupTypeId);
+
+        var request = new HomeworkAnalysisRequest
+        {
+            ImageDataUrls = _images.ToList(),
+            GradeName = grade?.Name ?? "",
+            ClassGroupName = classGroup?.Name ?? "",
+            CheckSpelling = _checkSpelling,
+            CheckGrammar = _checkGrammar,
+            CheckRubric = _checkRubric,
+            CheckAiGenerated = _checkAi
+        };
+
+        _result = await AnalysisService.AnalyzeAsync(request);
+        _analyzing = false;
+        StateHasChanged();
+    }
+
+    private async Task SaveResultAsync()
+    {
+        if (_result == null) return;
+
+        Db.HomeworkAnalyses.Add(new HomeworkAnalysis
+        {
+            AnalyzedAt = _result.AnalyzedAt,
+            GradeName = _result.GradeName,
+            ClassGroupName = _result.ClassGroupName,
+            CheckedSpelling = _checkSpelling,
+            CheckedGrammar = _checkGrammar,
+            CheckedRubric = _checkRubric,
+            CheckedAiGenerated = _checkAi,
+            SpellingScore = _result.SpellingScore,
+            SpellingSummary = _result.SpellingSummary,
+            GrammarScore = _result.GrammarScore,
+            GrammarSummary = _result.GrammarSummary,
+            RubricScore = _result.RubricScore,
+            RubricSummary = _result.RubricSummary,
+            AiLikelihood = _result.AiLikelihood,
+            AiDetectionSummary = _result.AiDetectionSummary,
+            OverallSummary = _result.OverallSummary,
+            TeacherNote = string.IsNullOrWhiteSpace(_teacherNote) ? null : _teacherNote.Trim()
+        });
+
+        await Db.SaveChangesAsync();
+        _saved = true;
+        Snackbar.Add("Result saved.", Severity.Success);
+    }
+
+    private void Reset()
+    {
+        _result = null;
+        _images = new();
+        _saved = false;
+        _teacherNote = "";
+    }
+
+    private string CheckCardStyle(bool active) =>
+        active
+            ? "cursor:pointer; border-color:#1B4F72; background:rgba(27,79,114,0.06);"
+            : "cursor:pointer;";
+
+    private RenderFragment ScoreCard(string label, int score, string icon) =>
+        @<MudCard Elevation="0" Style="@ScoreCardStyle(score); border-radius:12px; text-align:center;">
+            <MudCardContent Class="pa-3">
+                <MudIcon Icon="@icon" Style="font-size:24px; margin-bottom:4px;" />
+                <MudText Typo="Typo.h4" Style="font-weight:700; line-height:1;">@score<span style="font-size:14px;">/10</span></MudText>
+                <MudText Typo="Typo.caption">@label</MudText>
+            </MudCardContent>
+        </MudCard>;
+
+    private RenderFragment AiCard(string likelihood) =>
+        @<MudCard Elevation="0" Style="@AiCardStyle(likelihood); border-radius:12px; text-align:center;">
+            <MudCardContent Class="pa-3">
+                <MudIcon Icon="@Icons.Material.Filled.SmartToy" Style="font-size:24px; margin-bottom:4px;" />
+                <MudText Typo="Typo.h6" Style="font-weight:700; line-height:1.2;">@likelihood</MudText>
+                <MudText Typo="Typo.caption">AI Likelihood</MudText>
+            </MudCardContent>
+        </MudCard>;
+
+    private RenderFragment DetailCard(string title, string content, string icon) =>
+        @<MudCard Elevation="1" Class="mb-3">
+            <MudCardContent Class="pa-4">
+                <div class="d-flex gap-3">
+                    <MudIcon Icon="@icon" Color="Color.Primary" Style="margin-top:2px;" />
+                    <div>
+                        <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);">@title</MudText>
+                        <MudText Typo="Typo.body2">@content</MudText>
+                    </div>
+                </div>
+            </MudCardContent>
+        </MudCard>;
+
+    private string ScoreCardStyle(int score)
+    {
+        var color = score >= 8 ? "#27AE60" : score >= 5 ? "#E67E22" : "#E74C3C";
+        return $"border: 2px solid {color}; background: {color}18; color:{color};";
+    }
+
+    private string AiCardStyle(string likelihood) => likelihood switch
+    {
+        "High" => "border: 2px solid #E74C3C; background: #E74C3C18; color:#E74C3C;",
+        "Medium" => "border: 2px solid #E67E22; background: #E67E2218; color:#E67E22;",
+        _ => "border: 2px solid #27AE60; background: #27AE6018; color:#27AE60;"
+    };
+}
