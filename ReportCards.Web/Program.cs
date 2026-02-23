@@ -53,6 +53,9 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<SchoolDbContext>();
     await db.Database.MigrateAsync();
 
+    // Seed immutable reference data (ClassGroupTypes, Grades, GradingScales)
+    await DbSeeder.SeedReferenceDataAsync(db);
+
     if (!await db.Teachers.AnyAsync())
     {
         db.Teachers.Add(new Teacher { DisplayName = "Craig (Teacher)", Email = "teacher1@example.com" });
