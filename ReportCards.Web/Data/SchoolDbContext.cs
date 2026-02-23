@@ -42,6 +42,7 @@ public class SchoolDbContext : DbContext
 
     // Report mapping
     public DbSet<ReportTemplateFieldMap> ReportTemplateFieldMaps => Set<ReportTemplateFieldMap>();
+    public DbSet<HomeworkAnalysis> HomeworkAnalyses => Set<HomeworkAnalysis>();
 
     protected override void OnModelCreating(ModelBuilder m)
     {

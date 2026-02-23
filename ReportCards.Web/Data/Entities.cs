@@ -378,6 +378,42 @@ public class YearSubjectOffering
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// H) HOMEWORK ANALYSIS (ephemeral AI results, no student PII)
+// ═══════════════════════════════════════════════════════════════════
+
+/// <summary>
+/// Saved AI analysis result. No student name, no photo stored.
+/// Teacher optionally saves after reviewing.
+/// </summary>
+public class HomeworkAnalysis
+{
+    public int Id { get; set; }
+    public DateTimeOffset AnalyzedAt { get; set; } = DateTimeOffset.UtcNow;
+    public string? GradeName { get; set; }
+    public string? ClassGroupName { get; set; }
+
+    // Which checks were run
+    public bool CheckedSpelling { get; set; }
+    public bool CheckedGrammar { get; set; }
+    public bool CheckedRubric { get; set; }
+    public bool CheckedAiGenerated { get; set; }
+
+    // Results
+    public int? SpellingScore { get; set; }
+    public string? SpellingSummary { get; set; }
+    public int? GrammarScore { get; set; }
+    public string? GrammarSummary { get; set; }
+    public int? RubricScore { get; set; }
+    public string? RubricSummary { get; set; }
+    public string? AiLikelihood { get; set; }
+    public string? AiDetectionSummary { get; set; }
+    public string? OverallSummary { get; set; }
+
+    // Optional teacher note
+    public string? TeacherNote { get; set; }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // G) REPORT TEMPLATE FIELD MAPPING
 // ═══════════════════════════════════════════════════════════════════
 
