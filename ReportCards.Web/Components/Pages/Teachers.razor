@@ -1,0 +1,185 @@
+@page "/teachers"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@inject SchoolDbContext Db
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" Class="mb-1" Style="font-family:'DM Serif Display',serif;">Teachers</MudText>
+<MudText Typo="Typo.body2" Class="mb-6" Style="color:var(--mud-palette-text-secondary);">
+    Manage teacher accounts and active status.
+</MudText>
+
+<!-- ── Add Teacher ─────────────────────────────────────── -->
+<MudCard Class="mb-6" Elevation="1">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">Add Teacher</MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_newName"
+                              Label="Display Name"
+                              Placeholder="e.g. Ms. Johnson"
+                              Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_newEmail"
+                              Label="Email"
+                              Placeholder="e.g. johnson@school.ca"
+                              Variant="Variant.Outlined"
+                              InputType="InputType.Email" />
+            </MudItem>
+            <MudItem xs="12" sm="4" Class="d-flex align-end">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.PersonAdd"
+                           OnClick="AddTeacherAsync"
+                           Disabled="@(!CanAdd)"
+                           FullWidth="true">
+                    Add Teacher
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+<!-- ── Teachers Table ─────────────────────────────────── -->
+<MudCard Elevation="1">
+    <MudCardContent Class="pa-0">
+        @if (_teachers.Count == 0)
+        {
+            <div class="pa-6">
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">No teachers yet.</MudAlert>
+            </div>
+        }
+        else
+        {
+            <MudTable Items="_teachers" Hover="true" Dense="false" Elevation="0">
+                <HeaderContent>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Email</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh Style="text-align:right;">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>
+                        <div class="d-flex align-center gap-2">
+                            <MudAvatar Style="background:#1B4F72; color:white; width:32px; height:32px; font-size:12px; font-weight:700;">
+                                @GetInitials(context.DisplayName)
+                            </MudAvatar>
+                            <MudText Typo="Typo.body2" Style="font-weight:600;">@context.DisplayName</MudText>
+                        </div>
+                    </MudTd>
+                    <MudTd>@context.Email</MudTd>
+                    <MudTd>
+                        @if (context.IsActive)
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">Active</MudChip>
+                        }
+                        else
+                        {
+                            <MudTooltip Text="@($"Inactivated: {context.InactivatedReason}")">
+                                <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Filled">Inactive</MudChip>
+                            </MudTooltip>
+                        }
+                    </MudTd>
+                    <MudTd Style="text-align:right;">
+                        @if (context.IsActive)
+                        {
+                            <MudTooltip Text="Deactivate teacher">
+                                <MudIconButton Icon="@Icons.Material.Filled.PersonOff"
+                                               Color="Color.Warning"
+                                               Size="Size.Small"
+                                               OnClick="@(() => DeactivateAsync(context))" />
+                            </MudTooltip>
+                        }
+                        else
+                        {
+                            <MudTooltip Text="Reactivate teacher">
+                                <MudIconButton Icon="@Icons.Material.Filled.PersonAdd"
+                                               Color="Color.Success"
+                                               Size="Size.Small"
+                                               OnClick="@(() => ReactivateAsync(context))" />
+                            </MudTooltip>
+                        }
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    private List<Teacher> _teachers = new();
+    private string _newName = "";
+    private string _newEmail = "";
+
+    private bool CanAdd =>
+        !string.IsNullOrWhiteSpace(_newName) &&
+        !string.IsNullOrWhiteSpace(_newEmail);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _teachers = await Db.Teachers
+            .OrderBy(t => t.DisplayName)
+            .ToListAsync();
+    }
+
+    private async Task AddTeacherAsync()
+    {
+        var email = _newEmail.Trim().ToLower();
+        if (await Db.Teachers.AnyAsync(t => t.Email == email))
+        {
+            Snackbar.Add("A teacher with that email already exists.", Severity.Warning);
+            return;
+        }
+
+        Db.Teachers.Add(new Teacher
+        {
+            DisplayName = _newName.Trim(),
+            Email = email,
+            IsActive = true
+        });
+
+        await Db.SaveChangesAsync();
+        _newName = "";
+        _newEmail = "";
+        Snackbar.Add("Teacher added.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task DeactivateAsync(Teacher teacher)
+    {
+        teacher.IsActive = false;
+        teacher.InactivatedOn = DateTimeOffset.UtcNow;
+        teacher.InactivatedReason = "Manually deactivated";
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"{teacher.DisplayName} deactivated.", Severity.Info);
+        await LoadAsync();
+    }
+
+    private async Task ReactivateAsync(Teacher teacher)
+    {
+        teacher.IsActive = true;
+        teacher.InactivatedOn = null;
+        teacher.InactivatedReason = null;
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"{teacher.DisplayName} reactivated.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private static string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{parts[0][0]}{parts[^1][0]}".ToUpper()
+            : parts[0][0].ToString().ToUpper();
+    }
+}
