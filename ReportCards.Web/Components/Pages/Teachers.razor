@@ -11,6 +11,11 @@
     Manage teacher accounts and active status.
 </MudText>
 
+@if (_error != null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
 <!-- ── Add Teacher ─────────────────────────────────────── -->
 <MudCard Class="mb-6" Elevation="1">
     <MudCardHeader>
@@ -117,6 +122,7 @@
     private List<Teacher> _teachers = new();
     private string _newName = "";
     private string _newEmail = "";
+    private string? _error;
 
     private bool CanAdd =>
         !string.IsNullOrWhiteSpace(_newName) &&
@@ -126,9 +132,16 @@
 
     private async Task LoadAsync()
     {
-        _teachers = await Db.Teachers
-            .OrderBy(t => t.DisplayName)
-            .ToListAsync();
+        try
+        {
+            _teachers = await Db.Teachers
+                .OrderBy(t => t.DisplayName)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
     }
 
     private async Task AddTeacherAsync()
