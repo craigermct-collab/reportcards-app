@@ -165,3 +165,5 @@ C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\Microsoft.Exten
 C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\Microsoft.Extensions.Localization.Abstractions.dll
 C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\Microsoft.JSInterop.dll
 C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\MudBlazor.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\Azure.AI.OpenAI.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\OpenAI.dll

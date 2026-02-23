@@ -1,7 +1,212 @@
-﻿@page "/home"
+@page "/"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@inject SchoolDbContext Db
 
-<PageTitle>Home</PageTitle>
+<div class="d-flex align-center gap-4 mb-6">
+    <img src="https://www.kinderkollege.ca/images/logo_4.png"
+         alt="KinderKollege"
+         style="height:64px; object-fit:contain;" />
+    <div>
+        <MudText Typo="Typo.h4" Style="font-family:'DM Serif Display',serif; line-height:1.1;">
+            Report Card Builder
+        </MudText>
+        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+            KinderKollege Private Primary School — @DateTime.Now.ToString("MMMM d, yyyy")
+        </MudText>
+    </div>
+</div>
 
-<h1>Hello, world!</h1>
+<!-- ── Summary Cards ───────────────────────────────────── -->
+<MudGrid Class="mb-6">
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="1" Style="border-top: 4px solid #1B4F72;">
+            <MudCardContent Class="pa-4">
+                <div class="d-flex align-center justify-space-between">
+                    <div>
+                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary); text-transform:uppercase; letter-spacing:0.06em;">
+                            Active Students
+                        </MudText>
+                        <MudText Typo="Typo.h3" Style="font-weight:700; font-family:'DM Serif Display',serif;">
+                            @_activeStudents
+                        </MudText>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.School"
+                             Style="font-size:40px; color:#1B4F72; opacity:0.2;" />
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="1" Style="border-top: 4px solid #E67E22;">
+            <MudCardContent Class="pa-4">
+                <div class="d-flex align-center justify-space-between">
+                    <div>
+                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary); text-transform:uppercase; letter-spacing:0.06em;">
+                            Active Teachers
+                        </MudText>
+                        <MudText Typo="Typo.h3" Style="font-weight:700; font-family:'DM Serif Display',serif;">
+                            @_activeTeachers
+                        </MudText>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.Person"
+                             Style="font-size:40px; color:#E67E22; opacity:0.2;" />
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="1" Style="border-top: 4px solid #27AE60;">
+            <MudCardContent Class="pa-4">
+                <div class="d-flex align-center justify-space-between">
+                    <div>
+                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary); text-transform:uppercase; letter-spacing:0.06em;">
+                            Enrollments
+                        </MudText>
+                        <MudText Typo="Typo.h3" Style="font-weight:700; font-family:'DM Serif Display',serif;">
+                            @_totalEnrollments
+                        </MudText>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.EditNote"
+                             Style="font-size:40px; color:#27AE60; opacity:0.2;" />
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="1" Style="border-top: 4px solid #8E44AD;">
+            <MudCardContent Class="pa-4">
+                <div class="d-flex align-center justify-space-between">
+                    <div>
+                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary); text-transform:uppercase; letter-spacing:0.06em;">
+                            Class Groups
+                        </MudText>
+                        <MudText Typo="Typo.h3" Style="font-weight:700; font-family:'DM Serif Display',serif;">
+                            @_classGroups
+                        </MudText>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.Groups"
+                             Style="font-size:40px; color:#8E44AD; opacity:0.2;" />
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
 
-Welcome to your new app.
+<!-- ── Active Year Info + School Years ────────────────── -->
+<MudGrid>
+    <MudItem xs="12" md="6">
+        <MudCard Elevation="1" Style="height:100%;">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Active School Year</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                @if (_activeYear == null)
+                {
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+                        No active school year set. Go to
+                        <MudLink Href="/school-years">School Years</MudLink>
+                        to set one.
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudText Typo="Typo.h5" Class="mb-1"
+                             Style="font-family:'DM Serif Display',serif;">
+                        @_activeYear.Name
+                    </MudText>
+                    @if (_activeYear.IsLocked)
+                    {
+                        <MudChip T="string" Color="Color.Warning" Size="Size.Small"
+                                 Icon="@Icons.Material.Filled.Lock" Class="mb-3">Locked</MudChip>
+                    }
+
+                    @if (_activeYear.TermInstances.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+                            No terms defined yet.
+                        </MudText>
+                    }
+                    else
+                    {
+                        <MudList T="string" Dense="true">
+                            @foreach (var term in _activeYear.TermInstances.OrderBy(t => t.SortOrder))
+                            {
+                                <MudListItem T="string" Icon="@Icons.Material.Filled.CalendarMonth">
+                                    <div class="d-flex justify-space-between align-center" style="width:100%;">
+                                        <MudText Typo="Typo.body2" Style="font-weight:600;">@term.Name</MudText>
+                                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                            @term.StartDate.ToString("MMM d") – @term.EndDate.ToString("MMM d, yyyy")
+                                        </MudText>
+                                    </div>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    }
+                }
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" md="6">
+        <MudCard Elevation="1" Style="height:100%;">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Quick Actions</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudList T="string">
+                    <MudListItem T="string" Icon="@Icons.Material.Filled.CalendarMonth"
+                                 Href="/school-years">
+                        Manage School Years &amp; Terms
+                    </MudListItem>
+                    <MudListItem T="string" Icon="@Icons.Material.Filled.Groups"
+                                 Href="/class-setup">
+                        Set Up Class Groups
+                    </MudListItem>
+                    <MudListItem T="string" Icon="@Icons.Material.Filled.Person"
+                                 Href="/teachers">
+                        Manage Teachers
+                    </MudListItem>
+                    <MudListItem T="string" Icon="@Icons.Material.Filled.School"
+                                 Href="/students">
+                        Manage Students
+                    </MudListItem>
+                    <MudListItem T="string" Icon="@Icons.Material.Filled.EditNote"
+                                 Href="/enrollments">
+                        Enroll Students
+                    </MudListItem>
+                    <MudListItem T="string" Icon="@Icons.Material.Filled.Scale"
+                                 Href="/grading-scales">
+                        Grading Scales
+                    </MudListItem>
+                </MudList>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private int _activeStudents;
+    private int _activeTeachers;
+    private int _totalEnrollments;
+    private int _classGroups;
+    private SchoolYear? _activeYear;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _activeStudents = await Db.Students.CountAsync(s => s.IsActive);
+        _activeTeachers = await Db.Teachers.CountAsync(t => t.IsActive);
+        _totalEnrollments = await Db.Enrollments.CountAsync();
+        _classGroups = await Db.ClassGroupInstances.CountAsync();
+
+        _activeYear = await Db.SchoolYears
+            .Include(y => y.TermInstances)
+            .FirstOrDefaultAsync(y => y.IsActive);
+    }
+}
