@@ -1,0 +1,271 @@
+@page "/grading-scales"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@inject SchoolDbContext Db
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" Class="mb-1" Style="font-family:'DM Serif Display',serif;">Grading Scales</MudText>
+<MudText Typo="Typo.body2" Class="mb-6" Style="color:var(--mud-palette-text-secondary);">
+    View and manage grading scales and their options.
+</MudText>
+
+<!-- ── Add Scale ───────────────────────────────────────── -->
+<MudCard Class="mb-6" Elevation="1">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">Add Grading Scale</MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_newName"
+                              Label="Scale Name"
+                              Placeholder="e.g. Kindergarten 3-Level"
+                              Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                <MudSelect T="GradingValueType" @bind-Value="_newValueType"
+                           Label="Type" Variant="Variant.Outlined"
+                           AnchorOrigin="Origin.BottomCenter">
+                    <MudSelectItem T="GradingValueType" Value="GradingValueType.OptionList">Option List</MudSelectItem>
+                    <MudSelectItem T="GradingValueType" Value="GradingValueType.Numeric">Numeric</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            @if (_newValueType == GradingValueType.Numeric)
+            {
+                <MudItem xs="6" sm="1">
+                    <MudNumericField @bind-Value="_newMin" Label="Min" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="6" sm="1">
+                    <MudNumericField @bind-Value="_newMax" Label="Max" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="6" sm="1">
+                    <MudNumericField @bind-Value="_newStep" Label="Step" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="6" sm="1">
+                    <MudTextField @bind-Value="_newSuffix" Label="Suffix" Placeholder="%" Variant="Variant.Outlined" />
+                </MudItem>
+            }
+            <MudItem xs="12" sm="2" Class="d-flex align-end">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="AddScaleAsync"
+                           Disabled="@(string.IsNullOrWhiteSpace(_newName))"
+                           FullWidth="true">
+                    Add Scale
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+<!-- ── Scales List ─────────────────────────────────────── -->
+@if (_scales.Count == 0)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">No grading scales yet.</MudAlert>
+}
+else
+{
+    @foreach (var scale in _scales)
+    {
+        <MudCard Class="mb-4" Elevation="1">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <div class="d-flex align-center gap-3">
+                        <MudIcon Icon="@Icons.Material.Filled.Scale" Color="Color.Primary" />
+                        <div>
+                            <MudText Typo="Typo.h6" Style="font-family:'DM Serif Display',serif;">
+                                @scale.Name
+                            </MudText>
+                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                @if (scale.ValueType == GradingValueType.Numeric)
+                                {
+                                    @($"Numeric  {scale.MinValue} – {scale.MaxValue}, step {scale.Step}{scale.DisplaySuffix}")
+                                }
+                                else
+                                {
+                                    @($"Option List  ·  {scale.Options.Count} option(s)")
+                                }
+                            </MudText>
+                        </div>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                                 Color="@(scale.ValueType == GradingValueType.OptionList ? Color.Secondary : Color.Tertiary)">
+                            @scale.ValueType.ToString()
+                        </MudChip>
+                    </div>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudTooltip Text="Delete scale">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Color="Color.Error" Size="Size.Small"
+                                       OnClick="@(() => DeleteScaleAsync(scale))" />
+                    </MudTooltip>
+                </CardHeaderActions>
+            </MudCardHeader>
+
+            @if (scale.ValueType == GradingValueType.OptionList)
+            {
+                <MudCardContent>
+                    <!-- Options list -->
+                    @if (scale.Options.Count > 0)
+                    {
+                        <div class="d-flex flex-wrap gap-2 mb-4">
+                            @foreach (var opt in scale.Options.OrderBy(o => o.SortOrder))
+                            {
+                                <MudChip T="string"
+                                         Variant="Variant.Filled"
+                                         Color="Color.Default"
+                                         OnClose="@(() => DeleteOptionAsync(opt))"
+                                         Style="font-weight:600;">
+                                    @if (!string.IsNullOrWhiteSpace(opt.Code))
+                                    {
+                                        <span style="opacity:0.6; margin-right:4px;">@opt.Code</span>
+                                    }
+                                    @opt.Label
+                                </MudChip>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Class="mb-3"
+                                 Style="color:var(--mud-palette-text-secondary);">
+                            No options yet.
+                        </MudText>
+                    }
+
+                    <!-- Add option -->
+                    <MudGrid>
+                        <MudItem xs="12" sm="4">
+                            <MudTextField @bind-Value="_newOptionLabels[scale.Id]"
+                                          Label="Label"
+                                          Placeholder="e.g. At Class Level"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3">
+                            <MudTextField @bind-Value="_newOptionCodes[scale.Id]"
+                                          Label="Code (optional)"
+                                          Placeholder="e.g. CL"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3" Class="d-flex align-end">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.Add"
+                                       OnClick="@(() => AddOptionAsync(scale))"
+                                       Disabled="@(!CanAddOption(scale.Id))"
+                                       FullWidth="true">
+                                Add Option
+                            </MudButton>
+                        </MudItem>
+                    </MudGrid>
+                </MudCardContent>
+            }
+        </MudCard>
+    }
+}
+
+@code {
+    private List<GradingScale> _scales = new();
+
+    // New scale form
+    private string _newName = "";
+    private GradingValueType _newValueType = GradingValueType.OptionList;
+    private decimal? _newMin;
+    private decimal? _newMax;
+    private decimal? _newStep;
+    private string _newSuffix = "";
+
+    // Per-scale option form
+    private Dictionary<int, string> _newOptionLabels = new();
+    private Dictionary<int, string> _newOptionCodes = new();
+
+    private bool CanAddOption(int scaleId) =>
+        _newOptionLabels.TryGetValue(scaleId, out var l) && !string.IsNullOrWhiteSpace(l);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _scales = await Db.GradingScales
+            .Include(s => s.Options)
+            .OrderBy(s => s.Name)
+            .ToListAsync();
+
+        foreach (var s in _scales)
+        {
+            _newOptionLabels.TryAdd(s.Id, "");
+            _newOptionCodes.TryAdd(s.Id, "");
+        }
+    }
+
+    private async Task AddScaleAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newName)) return;
+
+        var scale = new GradingScale
+        {
+            Name = _newName.Trim(),
+            ValueType = _newValueType
+        };
+
+        if (_newValueType == GradingValueType.Numeric)
+        {
+            scale.MinValue = _newMin;
+            scale.MaxValue = _newMax;
+            scale.Step = _newStep;
+            scale.DisplaySuffix = string.IsNullOrWhiteSpace(_newSuffix) ? null : _newSuffix.Trim();
+        }
+
+        Db.GradingScales.Add(scale);
+        await Db.SaveChangesAsync();
+
+        _newName = "";
+        _newMin = null; _newMax = null; _newStep = null; _newSuffix = "";
+        Snackbar.Add("Grading scale added.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task DeleteScaleAsync(GradingScale scale)
+    {
+        Db.GradingScales.Remove(scale);
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"'{scale.Name}' deleted.", Severity.Info);
+        await LoadAsync();
+    }
+
+    private async Task AddOptionAsync(GradingScale scale)
+    {
+        if (!CanAddOption(scale.Id)) return;
+
+        var label = _newOptionLabels[scale.Id].Trim();
+        var code = _newOptionCodes.GetValueOrDefault(scale.Id, "").Trim();
+        var sortOrder = scale.Options.Count + 1;
+
+        Db.GradingScaleOptions.Add(new GradingScaleOption
+        {
+            GradingScaleId = scale.Id,
+            Label = label,
+            Code = string.IsNullOrWhiteSpace(code) ? null : code,
+            SortOrder = sortOrder
+        });
+
+        await Db.SaveChangesAsync();
+        _newOptionLabels[scale.Id] = "";
+        _newOptionCodes[scale.Id] = "";
+        Snackbar.Add($"Option '{label}' added.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task DeleteOptionAsync(GradingScaleOption option)
+    {
+        Db.GradingScaleOptions.Remove(option);
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"Option '{option.Label}' deleted.", Severity.Info);
+        await LoadAsync();
+    }
+}
