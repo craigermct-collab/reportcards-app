@@ -1,0 +1,222 @@
+@page "/students"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@inject SchoolDbContext Db
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" Class="mb-1" Style="font-family:'DM Serif Display',serif;">Students</MudText>
+<MudText Typo="Typo.body2" Class="mb-6" Style="color:var(--mud-palette-text-secondary);">
+    Manage student records and active status.
+</MudText>
+
+<!-- ── Add Student ─────────────────────────────────────── -->
+<MudCard Class="mb-6" Elevation="1">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">Add Student</MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" sm="3">
+                <MudTextField @bind-Value="_newFirstName"
+                              Label="First Name"
+                              Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                <MudTextField @bind-Value="_newLastName"
+                              Label="Last Name"
+                              Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                <MudDatePicker @bind-Date="_newDob"
+                               Label="Date of Birth (optional)"
+                               Variant="Variant.Outlined"
+                               DateFormat="yyyy-MM-dd"
+                               MaxDate="DateTime.Today" />
+            </MudItem>
+            <MudItem xs="12" sm="3" Class="d-flex align-end">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.PersonAdd"
+                           OnClick="AddStudentAsync"
+                           Disabled="@(!CanAdd)"
+                           FullWidth="true">
+                    Add Student
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+<!-- ── Search + Filter ────────────────────────────────── -->
+<MudCard Class="mb-4" Elevation="1">
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_search"
+                              Label="Search"
+                              Placeholder="Search by name..."
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search" />
+            </MudItem>
+            <MudItem xs="12" sm="3" Class="d-flex align-center">
+                <MudCheckBox @bind-Value="_showInactive"
+                             Label="Show inactive students"
+                             Color="Color.Primary" />
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+<!-- ── Students Table ─────────────────────────────────── -->
+<MudCard Elevation="1">
+    <MudCardContent Class="pa-0">
+        @if (FilteredStudents.Count == 0)
+        {
+            <div class="pa-6">
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                    @(_students.Count == 0 ? "No students yet. Add one above." : "No students match your search.")
+                </MudAlert>
+            </div>
+        }
+        else
+        {
+            <MudTable Items="FilteredStudents" Hover="true" Dense="false" Elevation="0">
+                <HeaderContent>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Date of Birth</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh Style="text-align:right;">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>
+                        <div class="d-flex align-center gap-2">
+                            <MudAvatar Style="background:#1B4F72; color:white; width:32px; height:32px; font-size:12px; font-weight:700;">
+                                @GetInitials(context.FirstName, context.LastName)
+                            </MudAvatar>
+                            <div>
+                                <MudText Typo="Typo.body2" Style="font-weight:600;">
+                                    @context.FirstName @context.LastName
+                                </MudText>
+                            </div>
+                        </div>
+                    </MudTd>
+                    <MudTd>
+                        @(context.DateOfBirth.HasValue
+                            ? context.DateOfBirth.Value.ToString("MMM d, yyyy")
+                            : "—")
+                    </MudTd>
+                    <MudTd>
+                        @if (context.IsActive)
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">Active</MudChip>
+                        }
+                        else
+                        {
+                            <MudTooltip Text="@($"Inactivated: {context.InactivatedReason}")">
+                                <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Filled">Inactive</MudChip>
+                            </MudTooltip>
+                        }
+                    </MudTd>
+                    <MudTd Style="text-align:right;">
+                        @if (context.IsActive)
+                        {
+                            <MudTooltip Text="Deactivate student">
+                                <MudIconButton Icon="@Icons.Material.Filled.PersonOff"
+                                               Color="Color.Warning"
+                                               Size="Size.Small"
+                                               OnClick="@(() => DeactivateAsync(context))" />
+                            </MudTooltip>
+                        }
+                        else
+                        {
+                            <MudTooltip Text="Reactivate student">
+                                <MudIconButton Icon="@Icons.Material.Filled.PersonAdd"
+                                               Color="Color.Success"
+                                               Size="Size.Small"
+                                               OnClick="@(() => ReactivateAsync(context))" />
+                            </MudTooltip>
+                        }
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    private List<Student> _students = new();
+    private string _newFirstName = "";
+    private string _newLastName = "";
+    private DateTime? _newDob;
+    private string _search = "";
+    private bool _showInactive = false;
+
+    private bool CanAdd =>
+        !string.IsNullOrWhiteSpace(_newFirstName) &&
+        !string.IsNullOrWhiteSpace(_newLastName);
+
+    private List<Student> FilteredStudents => _students
+        .Where(s => (_showInactive || s.IsActive))
+        .Where(s => string.IsNullOrWhiteSpace(_search) ||
+                    $"{s.FirstName} {s.LastName}".Contains(_search, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(s => s.LastName).ThenBy(s => s.FirstName)
+        .ToList();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _students = await Db.Students.ToListAsync();
+    }
+
+    private async Task AddStudentAsync()
+    {
+        Db.Students.Add(new Student
+        {
+            FirstName = _newFirstName.Trim(),
+            LastName = _newLastName.Trim(),
+            DateOfBirth = _newDob.HasValue ? DateOnly.FromDateTime(_newDob.Value) : null,
+            IsActive = true
+        });
+
+        await Db.SaveChangesAsync();
+        _newFirstName = "";
+        _newLastName = "";
+        _newDob = null;
+        Snackbar.Add("Student added.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task DeactivateAsync(Student student)
+    {
+        student.IsActive = false;
+        student.InactivatedOn = DateTimeOffset.UtcNow;
+        student.InactivatedReason = "Manually deactivated";
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"{student.FirstName} {student.LastName} deactivated.", Severity.Info);
+        await LoadAsync();
+    }
+
+    private async Task ReactivateAsync(Student student)
+    {
+        student.IsActive = true;
+        student.InactivatedOn = null;
+        student.InactivatedReason = null;
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"{student.FirstName} {student.LastName} reactivated.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private static string GetInitials(string? first, string? last)
+    {
+        var f = string.IsNullOrWhiteSpace(first) ? "?" : first[0].ToString().ToUpper();
+        var l = string.IsNullOrWhiteSpace(last) ? "" : last[0].ToString().ToUpper();
+        return f + l;
+    }
+}
