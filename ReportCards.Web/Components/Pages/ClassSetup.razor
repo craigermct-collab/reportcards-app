@@ -1,0 +1,366 @@
+@page "/class-setup"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@inject SchoolDbContext Db
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" Class="mb-1" Style="font-family:'DM Serif Display',serif;">Class Setup</MudText>
+<MudText Typo="Typo.body2" Class="mb-6" Style="color:var(--mud-palette-text-secondary);">
+    Set up class groups and teacher assignments per term.
+</MudText>
+
+<!-- ── Year + Term Selector ───────────────────────────── -->
+<MudCard Class="mb-6" Elevation="1">
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" sm="4">
+                <MudSelect T="int?" @bind-Value="_selectedYearId"
+                           Label="School Year"
+                           Variant="Variant.Outlined"
+                           AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var y in _schoolYears)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)y.Id)">
+                            @y.Name @(y.IsActive ? "★" : "")
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudSelect T="int?" @bind-Value="_selectedTermId"
+                           Label="Term"
+                           Variant="Variant.Outlined"
+                           Disabled="@(_selectedYearId == null)"
+                           AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var t in TermsForYear)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)t.Id)">@t.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+@if (_selectedTermId != null)
+{
+    <!-- ── Add Class Group Instance ─────────────────────── -->
+    <MudCard Class="mb-6" Elevation="1">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">Add Class Group</MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudGrid>
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="int?" @bind-Value="_newClassGroupTypeId"
+                               Label="Class Group Type"
+                               Variant="Variant.Outlined"
+                               AnchorOrigin="Origin.BottomCenter">
+                        @foreach (var cgt in _classGroupTypes)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)cgt.Id)">@cgt.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="_newDisplayName"
+                                  Label="Display Name"
+                                  Placeholder="e.g. Kindergarten AM"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="d-flex align-end">
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="AddClassGroupInstanceAsync"
+                               Disabled="@(!CanAddGroup)"
+                               FullWidth="true">
+                        Add Class Group
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
+    <!-- ── Class Group Instances List ───────────────────── -->
+    @if (_classGroupInstances.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+            No class groups set up for this term yet.
+        </MudAlert>
+    }
+    else
+    {
+        @foreach (var cgi in _classGroupInstances)
+        {
+            <MudCard Class="mb-4" Elevation="1">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <div class="d-flex align-center gap-3">
+                            <MudIcon Icon="@Icons.Material.Filled.Groups" Color="Color.Primary" />
+                            <div>
+                                <MudText Typo="Typo.h6" Style="font-family:'DM Serif Display',serif;">
+                                    @cgi.DisplayName
+                                </MudText>
+                                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                    @cgi.ClassGroupType?.Name
+                                </MudText>
+                            </div>
+                        </div>
+                    </CardHeaderContent>
+                    <CardHeaderActions>
+                        <MudTooltip Text="Delete class group">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                           Color="Color.Error"
+                                           Size="Size.Small"
+                                           OnClick="@(() => DeleteClassGroupAsync(cgi))" />
+                        </MudTooltip>
+                    </CardHeaderActions>
+                </MudCardHeader>
+
+                <MudCardContent>
+                    <!-- Teacher Assignments -->
+                    @if (cgi.TeacherAssignments.Count > 0)
+                    {
+                        <MudTable Items="cgi.TeacherAssignments" Dense="true" Hover="true"
+                                  Elevation="0" Class="mb-4"
+                                  Style="border:1px solid var(--mud-palette-divider); border-radius:8px;">
+                            <HeaderContent>
+                                <MudTh>Teacher</MudTh>
+                                <MudTh>Grade (optional)</MudTh>
+                                <MudTh>Role (optional)</MudTh>
+                                <MudTh></MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@context.Teacher?.DisplayName</MudTd>
+                                <MudTd>@(context.Grade?.Name ?? "—")</MudTd>
+                                <MudTd>@(context.Role ?? "—")</MudTd>
+                                <MudTd Style="text-align:right;">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                   Size="Size.Small"
+                                                   Color="Color.Error"
+                                                   OnClick="@(() => DeleteAssignmentAsync(context))" />
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Class="mb-3"
+                                 Style="color:var(--mud-palette-text-secondary);">
+                            No teachers assigned yet.
+                        </MudText>
+                    }
+
+                    <!-- Add teacher assignment -->
+                    <MudGrid>
+                        <MudItem xs="12" sm="3">
+                            <MudSelect T="int?" @bind-Value="_newTeacherIds[cgi.Id]"
+                                       Label="Teacher"
+                                       Variant="Variant.Outlined"
+                                       Margin="Margin.Dense"
+                                       AnchorOrigin="Origin.BottomCenter">
+                                @foreach (var t in _activeTeachers)
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)t.Id)">@t.DisplayName</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="3">
+                            <MudSelect T="int?" @bind-Value="_newAssignmentGradeIds[cgi.Id]"
+                                       Label="Grade (optional)"
+                                       Variant="Variant.Outlined"
+                                       Margin="Margin.Dense"
+                                       Clearable="true"
+                                       AnchorOrigin="Origin.BottomCenter">
+                                @foreach (var g in GradesForGroup(cgi.ClassGroupTypeId))
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)g.Id)">@g.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="3">
+                            <MudTextField @bind-Value="_newAssignmentRoles[cgi.Id]"
+                                          Label="Role (optional)"
+                                          Placeholder="e.g. Lead Teacher"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3" Class="d-flex align-end">
+                            <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.PersonAdd"
+                                       OnClick="@(() => AddAssignmentAsync(cgi))"
+                                       Disabled="@(!CanAddAssignment(cgi.Id))"
+                                       FullWidth="true">
+                                Assign Teacher
+                            </MudButton>
+                        </MudItem>
+                    </MudGrid>
+                </MudCardContent>
+            </MudCard>
+        }
+    }
+}
+
+@code {
+    // ── Data ──────────────────────────────────────────────
+    private List<SchoolYear> _schoolYears = new();
+    private List<ClassGroupType> _classGroupTypes = new();
+    private List<Teacher> _activeTeachers = new();
+    private List<ClassGroupInstance> _classGroupInstances = new();
+
+    // ── Selection state ───────────────────────────────────
+    private int? _selectedYearId;
+    private int? _selectedTermId;
+
+    // ── Add group form ────────────────────────────────────
+    private int? _newClassGroupTypeId;
+    private string _newDisplayName = "";
+
+    // ── Per-group assignment form state ───────────────────
+    private Dictionary<int, int?> _newTeacherIds = new();
+    private Dictionary<int, int?> _newAssignmentGradeIds = new();
+    private Dictionary<int, string> _newAssignmentRoles = new();
+
+    // ── Computed ──────────────────────────────────────────
+    private bool CanAddGroup =>
+        _selectedTermId != null &&
+        _newClassGroupTypeId != null &&
+        !string.IsNullOrWhiteSpace(_newDisplayName);
+
+    private bool CanAddAssignment(int cgiId) =>
+        _newTeacherIds.TryGetValue(cgiId, out var t) && t != null;
+
+    private List<TermInstance> TermsForYear =>
+        _schoolYears.FirstOrDefault(y => y.Id == _selectedYearId)?.TermInstances
+            .OrderBy(t => t.SortOrder).ToList() ?? new();
+
+    private List<Grade> GradesForGroup(int classGroupTypeId) =>
+        _classGroupTypes.FirstOrDefault(c => c.Id == classGroupTypeId)?.Grades
+            .OrderBy(g => g.SortOrder).ToList() ?? new();
+
+    // ── Lifecycle ─────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        _schoolYears = await Db.SchoolYears
+            .Include(y => y.TermInstances)
+            .OrderByDescending(y => y.Name)
+            .ToListAsync();
+
+        _classGroupTypes = await Db.ClassGroupTypes
+            .Include(c => c.Grades)
+            .OrderBy(c => c.SortOrder)
+            .ToListAsync();
+
+        _activeTeachers = await Db.Teachers
+            .Where(t => t.IsActive)
+            .OrderBy(t => t.DisplayName)
+            .ToListAsync();
+
+        // Default to active year
+        var activeYear = _schoolYears.FirstOrDefault(y => y.IsActive);
+        if (activeYear != null)
+        {
+            _selectedYearId = activeYear.Id;
+            _selectedTermId = activeYear.TermInstances.OrderBy(t => t.SortOrder).FirstOrDefault()?.Id;
+        }
+
+        await LoadClassGroupsAsync();
+    }
+
+    private async Task LoadClassGroupsAsync()
+    {
+        if (_selectedTermId == null)
+        {
+            _classGroupInstances = new();
+            return;
+        }
+
+        _classGroupInstances = await Db.ClassGroupInstances
+            .Where(c => c.TermInstanceId == _selectedTermId)
+            .Include(c => c.ClassGroupType)
+            .Include(c => c.TeacherAssignments)
+                .ThenInclude(a => a.Teacher)
+            .Include(c => c.TeacherAssignments)
+                .ThenInclude(a => a.Grade)
+            .OrderBy(c => c.ClassGroupType!.SortOrder)
+            .ThenBy(c => c.DisplayName)
+            .ToListAsync();
+
+        // Init per-group form state
+        foreach (var cgi in _classGroupInstances)
+        {
+            _newTeacherIds.TryAdd(cgi.Id, null);
+            _newAssignmentGradeIds.TryAdd(cgi.Id, null);
+            _newAssignmentRoles.TryAdd(cgi.Id, "");
+        }
+    }
+
+    // ── Term selection change ─────────────────────────────
+    private async Task OnTermChangedAsync()
+    {
+        await LoadClassGroupsAsync();
+    }
+
+    // ── Actions ───────────────────────────────────────────
+    private async Task AddClassGroupInstanceAsync()
+    {
+        if (!CanAddGroup) return;
+
+        Db.ClassGroupInstances.Add(new ClassGroupInstance
+        {
+            TermInstanceId = _selectedTermId!.Value,
+            ClassGroupTypeId = _newClassGroupTypeId!.Value,
+            DisplayName = _newDisplayName.Trim()
+        });
+
+        await Db.SaveChangesAsync();
+        _newDisplayName = "";
+        _newClassGroupTypeId = null;
+        Snackbar.Add("Class group added.", Severity.Success);
+        await LoadClassGroupsAsync();
+    }
+
+    private async Task DeleteClassGroupAsync(ClassGroupInstance cgi)
+    {
+        Db.ClassGroupInstances.Remove(cgi);
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"'{cgi.DisplayName}' deleted.", Severity.Info);
+        await LoadClassGroupsAsync();
+    }
+
+    private async Task AddAssignmentAsync(ClassGroupInstance cgi)
+    {
+        if (!CanAddAssignment(cgi.Id)) return;
+
+        Db.TeacherAssignments.Add(new TeacherAssignment
+        {
+            ClassGroupInstanceId = cgi.Id,
+            TeacherId = _newTeacherIds[cgi.Id]!.Value,
+            GradeId = _newAssignmentGradeIds.GetValueOrDefault(cgi.Id),
+            Role = string.IsNullOrWhiteSpace(_newAssignmentRoles.GetValueOrDefault(cgi.Id))
+                   ? null
+                   : _newAssignmentRoles[cgi.Id].Trim()
+        });
+
+        await Db.SaveChangesAsync();
+        _newTeacherIds[cgi.Id] = null;
+        _newAssignmentGradeIds[cgi.Id] = null;
+        _newAssignmentRoles[cgi.Id] = "";
+        Snackbar.Add("Teacher assigned.", Severity.Success);
+        await LoadClassGroupsAsync();
+    }
+
+    private async Task DeleteAssignmentAsync(TeacherAssignment assignment)
+    {
+        Db.TeacherAssignments.Remove(assignment);
+        await Db.SaveChangesAsync();
+        Snackbar.Add("Assignment removed.", Severity.Info);
+        await LoadClassGroupsAsync();
+    }
+}
