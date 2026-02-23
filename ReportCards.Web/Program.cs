@@ -42,7 +42,7 @@ builder.Services.AddAuthentication(options =>
     options.CallbackPath = "/signin-google";
 });
 
-builder.Services.AddSingleton<HomeworkAnalysisService>();
+builder.Services.AddScoped<HomeworkAnalysisService>();
 builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddHttpContextAccessor();
