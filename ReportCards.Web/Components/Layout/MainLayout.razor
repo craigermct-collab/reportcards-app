@@ -11,18 +11,18 @@
 
     <!-- ─── SIDEBAR ─────────────────────────────────────── -->
     <MudDrawer @bind-Open="_drawerOpen"
-               Elevation="0"
+               Elevation="2"
                Variant="DrawerVariant.Responsive"
-               ClipMode="DrawerClipMode.Never"
-               Style="display:flex; flex-direction:column;">
+               ClipMode="DrawerClipMode.Always">
 
+        <div style="display:flex; flex-direction:column; height:100%">
         <!-- Logo -->
         <MudDrawerHeader Class="pa-4" Style="border-bottom: 1px solid rgba(255,255,255,0.08);">
             <div class="d-flex align-center justify-space-between" style="width:100%;">
                 <div class="d-flex flex-column align-start gap-1">
                     <img src="https://www.kinderkollege.ca/images/logo_4.png"
                          alt="KinderKollege"
-                         style="height:48px; object-fit:contain; filter:brightness(0) invert(1);" />
+                         style="height:48px; object-fit:contain; background:white; border-radius:8px; padding:4px 8px;" />
                     <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.45); letter-spacing:0.06em; text-transform:uppercase;">
                         Report Card Builder
                     </MudText>
@@ -140,6 +140,7 @@
             }
         </div>
 
+        </div>
     </MudDrawer>
 
     <!-- ─── TOPBAR ─────────────────────────────────────── -->
