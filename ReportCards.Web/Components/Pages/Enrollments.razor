@@ -6,8 +6,16 @@
 @inject SchoolDbContext Db
 @inject ISnackbar Snackbar
 
-<MudText Typo="Typo.h4" Class="mb-1" Style="font-family:'DM Serif Display',serif;">Enrollments</MudText>
-<MudText Typo="Typo.body2" Class="mb-6" Style="color:var(--mud-palette-text-secondary);">
+<div class="d-flex align-center gap-3 mb-1">
+    <MudText Typo="Typo.h4" Style="font-family:'DM Serif Display',serif;">Enrollments</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+               StartIcon="@(_showAddForm ? Icons.Material.Filled.Close : Icons.Material.Filled.PersonAdd)"
+               OnClick="@(() => _showAddForm = !_showAddForm)"
+               Disabled="@(_selectedClassGroupId == null)">
+        @(_showAddForm ? "Cancel" : "Enroll Student")
+    </MudButton>
+</div>
+<MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
     Enroll students into class groups per term.
 </MudText>
 
@@ -60,6 +68,7 @@
     <MudGrid>
         <!-- Left: Enroll a student -->
         <MudItem xs="12" md="5">
+        <MudCollapse Expanded="_showAddForm">
             <MudCard Elevation="1">
                 <MudCardHeader>
                     <CardHeaderContent>
@@ -100,6 +109,7 @@
                     }
                 </MudCardContent>
             </MudCard>
+        </MudCollapse>
         </MudItem>
 
         <!-- Right: Current enrollments -->
@@ -178,6 +188,7 @@
     private int? _selectedClassGroupId;
     private int? _newStudentId;
     private int? _newGradeId;
+    private bool  _showAddForm;
 
     private bool CanEnroll => _newStudentId != null && _newGradeId != null;
 
@@ -263,8 +274,7 @@
         });
 
         await Db.SaveChangesAsync();
-        _newStudentId = null;
-        _newGradeId = null;
+        _newStudentId = null; _newGradeId = null; _showAddForm = false;
         Snackbar.Add("Student enrolled.", Severity.Success);
         await LoadEnrollmentsAsync();
     }

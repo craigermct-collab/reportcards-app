@@ -6,40 +6,48 @@
 @inject SchoolDbContext Db
 @inject ISnackbar Snackbar
 
-<MudText Typo="Typo.h4" Class="mb-1" Style="font-family:'DM Serif Display',serif;">School Years</MudText>
-<MudText Typo="Typo.body2" Class="mb-6" Style="color:var(--mud-palette-text-secondary);">
+<div class="d-flex align-center gap-3 mb-1">
+    <MudText Typo="Typo.h4" Style="font-family:'DM Serif Display',serif;">School Years</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+               StartIcon="@(_showAddForm ? Icons.Material.Filled.Close : Icons.Material.Filled.Add)"
+               OnClick="@(() => _showAddForm = !_showAddForm)">
+        @(_showAddForm ? "Cancel" : "New Year")
+    </MudButton>
+</div>
+<MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
     Manage school years and their reporting terms.
 </MudText>
 
-<!-- ── Add School Year ─────────────────────────────────── -->
-<MudCard Class="mb-6" Elevation="1">
-    <MudCardHeader>
-        <CardHeaderContent>
-            <MudText Typo="Typo.h6">Add School Year</MudText>
-        </CardHeaderContent>
-    </MudCardHeader>
-    <MudCardContent>
-        <MudGrid>
-            <MudItem xs="12" sm="6" md="4">
-                <MudTextField @bind-Value="_newYearName"
-                              Label="School Year Name"
-                              Placeholder="e.g. 2025-2026"
-                              Variant="Variant.Outlined"
-                              FullWidth="true" />
-            </MudItem>
-            <MudItem xs="12" sm="6" md="2" Class="d-flex align-end">
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="AddSchoolYearAsync"
-                           Disabled="@(string.IsNullOrWhiteSpace(_newYearName))"
-                           FullWidth="true">
-                    Add Year
-                </MudButton>
-            </MudItem>
-        </MudGrid>
-    </MudCardContent>
-</MudCard>
+<MudCollapse Expanded="_showAddForm">
+    <MudCard Class="mb-6" Elevation="1">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">Add School Year</MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudGrid>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudTextField @bind-Value="_newYearName"
+                                  Label="School Year Name"
+                                  Placeholder="e.g. 2025-2026"
+                                  Variant="Variant.Outlined"
+                                  FullWidth="true" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="2" Class="d-flex align-end">
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="AddSchoolYearAsync"
+                               Disabled="@(string.IsNullOrWhiteSpace(_newYearName))"
+                               FullWidth="true">
+                        Add Year
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+</MudCollapse>
 
 <!-- ── School Years List ───────────────────────────────── -->
 @if (_schoolYears.Count == 0)
@@ -162,6 +170,7 @@ else
 @code {
     private List<SchoolYear> _schoolYears = new();
     private string _newYearName = "";
+    private bool   _showAddForm;
 
     // Per-year term form state
     private Dictionary<int, string> _newTermNames = new();
@@ -199,7 +208,7 @@ else
 
         Db.SchoolYears.Add(new SchoolYear { Name = name });
         await Db.SaveChangesAsync();
-        _newYearName = "";
+        _newYearName = ""; _showAddForm = false;
         Snackbar.Add($"School year '{name}' added.", Severity.Success);
         await LoadAsync();
     }
