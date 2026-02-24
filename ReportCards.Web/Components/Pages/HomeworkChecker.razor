@@ -344,25 +344,37 @@ else
         {
             <MudCard Elevation="1" Class="mb-4" Style="border: 2px dashed var(--mud-palette-divider);">
                 <MudCardContent Class="pa-4">
-                    <MudText Typo="Typo.subtitle2" Class="mb-2">Save this result? (optional)</MudText>
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">
+                        <MudIcon Icon="@Icons.Material.Filled.Save" Style="font-size:16px; vertical-align:middle; margin-right:4px;" />
+                        Save this result for shared review
+                    </MudText>
+                    <MudTextField @bind-Value="_saveName"
+                                  Label="Result name"
+                                  Placeholder="e.g. Tommy's Book Report - Feb 23"
+                                  Variant="Variant.Outlined"
+                                  Class="mb-3" />
                     <MudTextField @bind-Value="_teacherNote"
                                   Label="Teacher note (optional)"
                                   Placeholder="e.g. Strong effort, needs practice with punctuation"
                                   Variant="Variant.Outlined"
                                   Lines="2"
                                   Class="mb-3" />
-                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
                                StartIcon="@Icons.Material.Filled.Save"
                                OnClick="SaveResultAsync"
+                               Disabled="@string.IsNullOrWhiteSpace(_saveName)"
                                FullWidth="true">
-                        Save Result
+                        Save &amp; Share with Team
                     </MudButton>
                 </MudCardContent>
             </MudCard>
         }
         else
         {
-            <MudAlert Severity="Severity.Success" Class="mb-4">Result saved.</MudAlert>
+            <MudAlert Severity="Severity.Success" Class="mb-4" Icon="@Icons.Material.Filled.CheckCircle">
+                Saved as "@_saveName" — visible to all teachers.
+                <MudLink Href="/saved-analyses" Style="margin-left:8px;">View all saved analyses →</MudLink>
+            </MudAlert>
         }
     }
 
@@ -393,6 +405,7 @@ else
     private bool _analyzing;
     private HomeworkAnalysisResult? _result;
     private string _teacherNote = "";
+    private string _saveName = "";
     private bool _saved;
 
     private bool CanAnalyze =>
@@ -512,6 +525,7 @@ else
 
         Db.HomeworkAnalyses.Add(new HomeworkAnalysis
         {
+            Name = _saveName.Trim(),
             AnalyzedAt = _result.AnalyzedAt,
             GradeName = _result.GradeName,
             ClassGroupName = _result.ClassGroupName,
@@ -542,6 +556,7 @@ else
         _images = new();
         _saved = false;
         _teacherNote = "";
+        _saveName = "";
     }
 
     private static string CheckCardStyle(bool active) =>
