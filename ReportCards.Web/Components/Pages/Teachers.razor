@@ -126,12 +126,25 @@
 
     <MudDrawerContainer Style="overflow-y:auto; padding:20px;">
 
-        <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);" Class="mb-2">Profile</MudText>
+        <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);" Class="mb-2">Contact</MudText>
         <MudTextField @bind-Value="_editName"  Label="Display Name" Placeholder="e.g. Ms. Johnson" Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_editTitle" Label="Title / Role" Placeholder="e.g. Lead Teacher, EA, Supply" Variant="Variant.Outlined" Class="mb-3" />
         <MudTextField @bind-Value="_editEmail" Label="Email" Placeholder="e.g. johnson@school.ca" Variant="Variant.Outlined" InputType="InputType.Email" Class="mb-3" />
-        <MudTextField @bind-Value="_editPhone" Label="Phone" Variant="Variant.Outlined" InputType="InputType.Telephone" Class="mb-3" />
-        <MudTextField @bind-Value="_editTitle" Label="Title / Role" Placeholder="e.g. Lead Teacher, EA, Supply"
-                      Variant="Variant.Outlined" Class="mb-4" />
+        <MudTextField @bind-Value="_editPhone" Label="Phone" Variant="Variant.Outlined" InputType="InputType.Telephone" Class="mb-4" />
+
+        <MudDivider Class="mb-4" />
+
+        <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);" Class="mb-2">Dates</MudText>
+        <MudDatePicker @bind-Date="_editHireDate" Label="Hire Date" Variant="Variant.Outlined"
+                       DateFormat="yyyy-MM-dd" Class="mb-3" />
+        <MudDatePicker @bind-Date="_editTerminationDate" Label="Termination Date" Variant="Variant.Outlined"
+                       DateFormat="yyyy-MM-dd" Class="mb-4" />
+
+        <MudDivider Class="mb-4" />
+
+        <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);" Class="mb-2">Notes</MudText>
+        <MudTextField @bind-Value="_editNotes" Label="Notes" Placeholder="e.g. certifications, leave dates, other notes"
+                      Variant="Variant.Outlined" Lines="3" MaxLength="300" Class="mb-4" />
 
         <MudDivider Class="mb-4" />
 
@@ -242,14 +255,17 @@
     private List<Teacher> _teachers = new();
     private string? _error;
 
-    private bool     _drawerOpen;
-    private bool     _isNew;
-    private Teacher? _editing;
-    private string   _editName       = "";
-    private string   _editEmail      = "";
-    private string   _editPhone      = "";
-    private string   _editTitle      = "";
-    private string?  _editAvatarJson;
+    private bool      _drawerOpen;
+    private bool      _isNew;
+    private Teacher?  _editing;
+    private string    _editName            = "";
+    private string    _editEmail           = "";
+    private string    _editPhone           = "";
+    private string    _editTitle           = "";
+    private DateTime? _editHireDate;
+    private DateTime? _editTerminationDate;
+    private string    _editNotes           = "";
+    private string?   _editAvatarJson;
 
     private static readonly (string Label, string Val)[] _skinOptions =
     [
@@ -386,26 +402,32 @@
 
     private void OpenNew()
     {
-        _isNew          = true;
-        _editing        = null;
-        _editName       = "";
-        _editEmail      = "";
-        _editPhone      = "";
-        _editTitle      = "";
-        _editAvatarJson = null;
-        _drawerOpen     = true;
+        _isNew               = true;
+        _editing             = null;
+        _editName            = "";
+        _editEmail           = "";
+        _editPhone           = "";
+        _editTitle           = "";
+        _editHireDate        = null;
+        _editTerminationDate = null;
+        _editNotes           = "";
+        _editAvatarJson      = null;
+        _drawerOpen          = true;
     }
 
     private void OpenEdit(Teacher t)
     {
-        _isNew          = false;
-        _editing        = t;
-        _editName       = t.DisplayName;
-        _editEmail      = t.Email;
-        _editPhone      = t.Phone ?? "";
-        _editTitle      = t.Title ?? "";
-        _editAvatarJson = t.AvatarConfigJson;
-        _drawerOpen     = true;
+        _isNew               = false;
+        _editing             = t;
+        _editName            = t.DisplayName;
+        _editEmail           = t.Email;
+        _editPhone           = t.Phone ?? "";
+        _editTitle           = t.Title ?? "";
+        _editHireDate        = t.HireDate.HasValue ? t.HireDate.Value.ToDateTime(TimeOnly.MinValue) : null;
+        _editTerminationDate = t.TerminationDate.HasValue ? t.TerminationDate.Value.ToDateTime(TimeOnly.MinValue) : null;
+        _editNotes           = t.Notes ?? "";
+        _editAvatarJson      = t.AvatarConfigJson;
+        _drawerOpen          = true;
     }
 
     private async Task SaveAsync()
@@ -422,12 +444,15 @@
 
             Db.Teachers.Add(new Teacher
             {
-                DisplayName      = _editName.Trim(),
-                Email            = email,
-                Phone            = string.IsNullOrWhiteSpace(_editPhone) ? null : _editPhone.Trim(),
-                Title            = string.IsNullOrWhiteSpace(_editTitle) ? null : _editTitle.Trim(),
+                DisplayName     = _editName.Trim(),
+                Email           = email,
+                Phone           = string.IsNullOrWhiteSpace(_editPhone) ? null : _editPhone.Trim(),
+                Title           = string.IsNullOrWhiteSpace(_editTitle) ? null : _editTitle.Trim(),
+                HireDate        = _editHireDate.HasValue ? DateOnly.FromDateTime(_editHireDate.Value) : null,
+                TerminationDate = _editTerminationDate.HasValue ? DateOnly.FromDateTime(_editTerminationDate.Value) : null,
+                Notes           = string.IsNullOrWhiteSpace(_editNotes) ? null : _editNotes.Trim(),
                 AvatarConfigJson = _editAvatarJson,
-                IsActive         = true
+                IsActive        = true
             });
             await Db.SaveChangesAsync();
             _drawerOpen = false;
@@ -439,10 +464,13 @@
             if (await Db.Teachers.AnyAsync(t => t.Email == email && t.Id != _editing.Id))
             { Snackbar.Add("That email is already used by another teacher.", Severity.Warning); return; }
 
-            _editing.DisplayName      = _editName.Trim();
-            _editing.Email            = email;
-            _editing.Phone            = string.IsNullOrWhiteSpace(_editPhone) ? null : _editPhone.Trim();
-            _editing.Title            = string.IsNullOrWhiteSpace(_editTitle) ? null : _editTitle.Trim();
+            _editing.DisplayName     = _editName.Trim();
+            _editing.Email           = email;
+            _editing.Phone           = string.IsNullOrWhiteSpace(_editPhone) ? null : _editPhone.Trim();
+            _editing.Title           = string.IsNullOrWhiteSpace(_editTitle) ? null : _editTitle.Trim();
+            _editing.HireDate        = _editHireDate.HasValue ? DateOnly.FromDateTime(_editHireDate.Value) : null;
+            _editing.TerminationDate = _editTerminationDate.HasValue ? DateOnly.FromDateTime(_editTerminationDate.Value) : null;
+            _editing.Notes           = string.IsNullOrWhiteSpace(_editNotes) ? null : _editNotes.Trim();
             _editing.AvatarConfigJson = _editAvatarJson;
             await Db.SaveChangesAsync();
             _drawerOpen = false;
