@@ -6,12 +6,19 @@
 @inject SchoolDbContext Db
 @inject ISnackbar Snackbar
 
-<MudText Typo="Typo.h4" Class="mb-1" Style="font-family:'DM Serif Display',serif;">Grading Scales</MudText>
-<MudText Typo="Typo.body2" Class="mb-6" Style="color:var(--mud-palette-text-secondary);">
+<div class="d-flex align-center gap-3 mb-1">
+    <MudText Typo="Typo.h4" Style="font-family:'DM Serif Display',serif;">Grading Scales</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+               StartIcon="@(_showAddForm ? Icons.Material.Filled.Close : Icons.Material.Filled.Add)"
+               OnClick="@(() => _showAddForm = !_showAddForm)">
+        @(_showAddForm ? "Cancel" : "New Scale")
+    </MudButton>
+</div>
+<MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
     View and manage grading scales and their options.
 </MudText>
 
-<!-- ── Add Scale ───────────────────────────────────────── -->
+<MudCollapse Expanded="_showAddForm">
 <MudCard Class="mb-6" Elevation="1">
     <MudCardHeader>
         <CardHeaderContent>
@@ -61,6 +68,7 @@
         </MudGrid>
     </MudCardContent>
 </MudCard>
+</MudCollapse>
 
 <!-- ── Scales List ─────────────────────────────────────── -->
 @if (_scales.Count == 0)
@@ -171,6 +179,7 @@ else
 
 @code {
     private List<GradingScale> _scales = new();
+    private bool _showAddForm;
 
     // New scale form
     private string _newName = "";
@@ -224,7 +233,7 @@ else
         Db.GradingScales.Add(scale);
         await Db.SaveChangesAsync();
 
-        _newName = "";
+        _newName = ""; _showAddForm = false;
         _newMin = null; _newMax = null; _newStep = null; _newSuffix = "";
         Snackbar.Add("Grading scale added.", Severity.Success);
         await LoadAsync();

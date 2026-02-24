@@ -8,7 +8,14 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
-<MudText Typo="Typo.h4" Class="mb-1" Style="font-family:'DM Serif Display',serif;">Teachers</MudText>
+<div class="d-flex align-center gap-3 mb-1">
+    <MudText Typo="Typo.h4" Style="font-family:'DM Serif Display',serif;">Teachers</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+               StartIcon="@Icons.Material.Filled.PersonAdd"
+               OnClick="OpenNew">
+        New Teacher
+    </MudButton>
+</div>
 <MudText Typo="Typo.body2" Class="mb-6" Style="color:var(--mud-palette-text-secondary);">
     Manage teacher profiles and active status.
 </MudText>
@@ -18,34 +25,12 @@
     <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
 }
 
-<MudCard Class="mb-6" Elevation="1">
-    <MudCardHeader>
-        <CardHeaderContent><MudText Typo="Typo.h6">Add Teacher</MudText></CardHeaderContent>
-    </MudCardHeader>
-    <MudCardContent>
-        <MudGrid>
-            <MudItem xs="12" sm="4">
-                <MudTextField @bind-Value="_newName" Label="Display Name" Placeholder="e.g. Ms. Johnson" Variant="Variant.Outlined" />
-            </MudItem>
-            <MudItem xs="12" sm="4">
-                <MudTextField @bind-Value="_newEmail" Label="Email" Placeholder="e.g. johnson@school.ca" Variant="Variant.Outlined" InputType="InputType.Email" />
-            </MudItem>
-            <MudItem xs="12" sm="4" Class="d-flex align-end">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
-                           OnClick="AddTeacherAsync" Disabled="@(!CanAdd)" FullWidth="true">
-                    Add Teacher
-                </MudButton>
-            </MudItem>
-        </MudGrid>
-    </MudCardContent>
-</MudCard>
-
 <MudCard Elevation="1">
     <MudCardContent Class="pa-0">
         @if (_teachers.Count == 0)
         {
             <div class="pa-6">
-                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">No teachers yet.</MudAlert>
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">No teachers yet. Click "New Teacher" to add one.</MudAlert>
             </div>
         }
         else
@@ -122,152 +107,149 @@
 
 <MudDrawer @bind-Open="_drawerOpen" Anchor="Anchor.Right" Elevation="4"
            Variant="DrawerVariant.Temporary" OverlayAutoClose="true" Width="440px">
-    @if (_editing != null)
-    {
-        <MudDrawerHeader Style="background:#1B4F72; padding:16px 20px;">
-            <div class="d-flex align-center gap-3" style="flex:1; min-width:0;">
-                <div style="width:48px; height:48px; border-radius:50%; overflow:hidden; flex-shrink:0; background:white;">
-                    <img src="@AvatarUrl(_editAvatarJson, _editName)" style="width:48px; height:48px;" alt="avatar" />
-                </div>
-                <div style="min-width:0;">
-                    <MudText Typo="Typo.h6" Style="color:white; font-family:'DM Serif Display',serif; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                        @_editing.DisplayName
-                    </MudText>
-                    <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.6);">Edit Profile</MudText>
-                </div>
+    <MudDrawerHeader Style="background:#1B4F72; padding:16px 20px;">
+        <div class="d-flex align-center gap-3" style="flex:1; min-width:0;">
+            <div style="width:48px; height:48px; border-radius:50%; overflow:hidden; flex-shrink:0; background:white;">
+                <img src="@AvatarUrl(_editAvatarJson, string.IsNullOrWhiteSpace(_editName) ? "new" : _editName)" style="width:48px; height:48px;" alt="avatar" />
             </div>
-            <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Inherit" OnClick="@(() => _drawerOpen = false)" />
-        </MudDrawerHeader>
-
-        <MudDrawerContainer Style="overflow-y:auto; padding:20px;">
-
-            <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);" Class="mb-2">Profile</MudText>
-            <MudTextField @bind-Value="_editName"  Label="Display Name" Variant="Variant.Outlined" Class="mb-3" />
-            <MudTextField @bind-Value="_editEmail" Label="Email" Variant="Variant.Outlined" InputType="InputType.Email" Class="mb-3" />
-            <MudTextField @bind-Value="_editPhone" Label="Phone" Variant="Variant.Outlined" InputType="InputType.Telephone" Class="mb-3" />
-            <MudTextField @bind-Value="_editTitle" Label="Title / Role" Placeholder="e.g. Lead Teacher, EA, Supply"
-                          Variant="Variant.Outlined" Class="mb-4" />
-
-            <MudDivider Class="mb-4" />
-
-            <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);" Class="mb-3">Avatar</MudText>
-
-            <div class="d-flex justify-center mb-4">
-                <div style="width:120px; height:120px; border-radius:50%; overflow:hidden; border:4px solid #1B4F72; background:#e8f0fe;">
-                    <img src="@AvatarUrl(_editAvatarJson, _editName)" style="width:120px; height:120px;" />
-                </div>
+            <div style="min-width:0;">
+                <MudText Typo="Typo.h6" Style="color:white; font-family:'DM Serif Display',serif; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    @(string.IsNullOrWhiteSpace(_editName) ? "New Teacher" : _editName)
+                </MudText>
+                <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.6);">
+                    @(_isNew ? "Create Profile" : "Edit Profile")
+                </MudText>
             </div>
+        </div>
+        <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Inherit" OnClick="@(() => _drawerOpen = false)" />
+    </MudDrawerHeader>
 
-            <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Skin Tone</MudText>
-            <div class="d-flex gap-2 flex-wrap mb-3">
-                @foreach (var (label, val) in _skinOptions)
-                {
-                    var v = val;
-                    var swatchStyle = $"width:32px; height:32px; border-radius:50%; cursor:pointer; background:#{SkinHex(v)}; border:{( GetAvatarProp("skinColor") == v ? "3px solid #1B4F72" : "2px solid #ccc")}";
-                    <div @onclick="@(() => SetAvatarProp("skinColor", v))"
-                         style="@swatchStyle"
-                         title="@label" />
-                }
+    <MudDrawerContainer Style="overflow-y:auto; padding:20px;">
+
+        <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);" Class="mb-2">Profile</MudText>
+        <MudTextField @bind-Value="_editName"  Label="Display Name" Placeholder="e.g. Ms. Johnson" Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_editEmail" Label="Email" Placeholder="e.g. johnson@school.ca" Variant="Variant.Outlined" InputType="InputType.Email" Class="mb-3" />
+        <MudTextField @bind-Value="_editPhone" Label="Phone" Variant="Variant.Outlined" InputType="InputType.Telephone" Class="mb-3" />
+        <MudTextField @bind-Value="_editTitle" Label="Title / Role" Placeholder="e.g. Lead Teacher, EA, Supply"
+                      Variant="Variant.Outlined" Class="mb-4" />
+
+        <MudDivider Class="mb-4" />
+
+        <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);" Class="mb-3">Avatar</MudText>
+
+        <div class="d-flex justify-center mb-4">
+            <div style="width:120px; height:120px; border-radius:50%; overflow:hidden; border:4px solid #1B4F72; background:#e8f0fe;">
+                <img src="@AvatarUrl(_editAvatarJson, string.IsNullOrWhiteSpace(_editName) ? "new" : _editName)" style="width:120px; height:120px;" />
             </div>
+        </div>
 
-            <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Hair Style</MudText>
-            <MudSelect T="string" Value="@GetAvatarProp("top")" ValueChanged="@(v => SetAvatarProp("top", v))"
-                       Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" AnchorOrigin="Origin.BottomCenter">
-                @foreach (var (label, val) in _hairOptions)
-                {
-                    <MudSelectItem T="string" Value="@val">@label</MudSelectItem>
-                }
-            </MudSelect>
+        <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Skin Tone</MudText>
+        <div class="d-flex gap-2 flex-wrap mb-3">
+            @foreach (var (label, val) in _skinOptions)
+            {
+                var v = val;
+                var swatchStyle = $"width:32px; height:32px; border-radius:50%; cursor:pointer; background:#{SkinHex(v)}; border:{(GetAvatarProp("skinColor") == v ? "3px solid #1B4F72" : "2px solid #ccc")}";
+                <div @onclick="@(() => SetAvatarProp("skinColor", v))"
+                     style="@swatchStyle"
+                     title="@label" />
+            }
+        </div>
 
-            <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Hair Colour</MudText>
-            <div class="d-flex gap-2 flex-wrap mb-3">
-                @foreach (var (label, val) in _hairColourOptions)
-                {
-                    var v = val;
-                    <div @onclick="@(() => SetAvatarProp("hairColor", v))"
-                         style="width:28px; height:28px; border-radius:50%; cursor:pointer; background:#@v;
-                                border:@(GetAvatarProp("hairColor") == v ? "3px solid #1B4F72" : "2px solid #ccc");"
-                         title="@label" />
-                }
-            </div>
+        <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Hair Style</MudText>
+        <MudSelect T="string" Value="@GetAvatarProp("top")" ValueChanged="@(v => SetAvatarProp("top", v))"
+                   Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" AnchorOrigin="Origin.BottomCenter">
+            @foreach (var (label, val) in _hairOptions)
+            {
+                <MudSelectItem T="string" Value="@val">@label</MudSelectItem>
+            }
+        </MudSelect>
 
-            <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Eyes</MudText>
-            <MudSelect T="string" Value="@GetAvatarProp("eyes")" ValueChanged="@(v => SetAvatarProp("eyes", v))"
-                       Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" AnchorOrigin="Origin.BottomCenter">
-                @foreach (var (label, val) in _eyeOptions)
-                {
-                    <MudSelectItem T="string" Value="@val">@label</MudSelectItem>
-                }
-            </MudSelect>
+        <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Hair Colour</MudText>
+        <div class="d-flex gap-2 flex-wrap mb-3">
+            @foreach (var (label, val) in _hairColourOptions)
+            {
+                var v = val;
+                <div @onclick="@(() => SetAvatarProp("hairColor", v))"
+                     style="width:28px; height:28px; border-radius:50%; cursor:pointer; background:#@v;
+                            border:@(GetAvatarProp("hairColor") == v ? "3px solid #1B4F72" : "2px solid #ccc");"
+                     title="@label" />
+            }
+        </div>
 
-            <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Mouth</MudText>
-            <MudSelect T="string" Value="@GetAvatarProp("mouth")" ValueChanged="@(v => SetAvatarProp("mouth", v))"
-                       Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" AnchorOrigin="Origin.BottomCenter">
-                @foreach (var (label, val) in _mouthOptions)
-                {
-                    <MudSelectItem T="string" Value="@val">@label</MudSelectItem>
-                }
-            </MudSelect>
+        <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Eyes</MudText>
+        <MudSelect T="string" Value="@GetAvatarProp("eyes")" ValueChanged="@(v => SetAvatarProp("eyes", v))"
+                   Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" AnchorOrigin="Origin.BottomCenter">
+            @foreach (var (label, val) in _eyeOptions)
+            {
+                <MudSelectItem T="string" Value="@val">@label</MudSelectItem>
+            }
+        </MudSelect>
 
-            <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Clothing</MudText>
-            <MudSelect T="string" Value="@GetAvatarProp("clothing")" ValueChanged="@(v => SetAvatarProp("clothing", v))"
-                       Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" AnchorOrigin="Origin.BottomCenter">
-                @foreach (var (label, val) in _clothingOptions)
-                {
-                    <MudSelectItem T="string" Value="@val">@label</MudSelectItem>
-                }
-            </MudSelect>
+        <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Mouth</MudText>
+        <MudSelect T="string" Value="@GetAvatarProp("mouth")" ValueChanged="@(v => SetAvatarProp("mouth", v))"
+                   Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" AnchorOrigin="Origin.BottomCenter">
+            @foreach (var (label, val) in _mouthOptions)
+            {
+                <MudSelectItem T="string" Value="@val">@label</MudSelectItem>
+            }
+        </MudSelect>
 
-            <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Accessories</MudText>
-            <MudSelect T="string" Value="@GetAvatarProp("accessories")" ValueChanged="@(v => SetAvatarProp("accessories", v))"
-                       Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" AnchorOrigin="Origin.BottomCenter">
-                @foreach (var (label, val) in _accessoryOptions)
-                {
-                    <MudSelectItem T="string" Value="@val">@label</MudSelectItem>
-                }
-            </MudSelect>
+        <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Clothing</MudText>
+        <MudSelect T="string" Value="@GetAvatarProp("clothing")" ValueChanged="@(v => SetAvatarProp("clothing", v))"
+                   Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" AnchorOrigin="Origin.BottomCenter">
+            @foreach (var (label, val) in _clothingOptions)
+            {
+                <MudSelectItem T="string" Value="@val">@label</MudSelectItem>
+            }
+        </MudSelect>
 
-            <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Background</MudText>
-            <div class="d-flex gap-2 flex-wrap mb-4">
-                @foreach (var (label, val) in _bgOptions)
-                {
-                    var v = val;
-                    <div @onclick="@(() => SetAvatarProp("backgroundColor", v))"
-                         style="width:28px; height:28px; border-radius:6px; cursor:pointer; background:#@v;
-                                border:@(GetAvatarProp("backgroundColor") == v ? "3px solid #1B4F72" : "2px solid #ccc");"
-                         title="@label" />
-                }
-            </div>
+        <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Accessories</MudText>
+        <MudSelect T="string" Value="@GetAvatarProp("accessories")" ValueChanged="@(v => SetAvatarProp("accessories", v))"
+                   Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" AnchorOrigin="Origin.BottomCenter">
+            @foreach (var (label, val) in _accessoryOptions)
+            {
+                <MudSelectItem T="string" Value="@val">@label</MudSelectItem>
+            }
+        </MudSelect>
 
-            <MudDivider Class="mb-4" />
+        <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Background</MudText>
+        <div class="d-flex gap-2 flex-wrap mb-4">
+            @foreach (var (label, val) in _bgOptions)
+            {
+                var v = val;
+                <div @onclick="@(() => SetAvatarProp("backgroundColor", v))"
+                     style="width:28px; height:28px; border-radius:6px; cursor:pointer; background:#@v;
+                            border:@(GetAvatarProp("backgroundColor") == v ? "3px solid #1B4F72" : "2px solid #ccc");"
+                     title="@label" />
+            }
+        </div>
 
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
-                       StartIcon="@Icons.Material.Filled.Save" OnClick="SaveEditAsync" Class="mb-2">
-                Save Changes
-            </MudButton>
-            <MudButton Variant="Variant.Text" FullWidth="true" OnClick="@(() => _drawerOpen = false)">
-                Cancel
-            </MudButton>
+        <MudDivider Class="mb-4" />
 
-        </MudDrawerContainer>
-    }
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                   StartIcon="@(_isNew ? Icons.Material.Filled.PersonAdd : Icons.Material.Filled.Save)"
+                   OnClick="SaveAsync" Class="mb-2">
+            @(_isNew ? "Create Teacher" : "Save Changes")
+        </MudButton>
+        <MudButton Variant="Variant.Text" FullWidth="true" OnClick="@(() => _drawerOpen = false)">
+            Cancel
+        </MudButton>
+
+    </MudDrawerContainer>
 </MudDrawer>
 
 @code {
     private List<Teacher> _teachers = new();
-    private string  _newName  = "";
-    private string  _newEmail = "";
     private string? _error;
 
     private bool     _drawerOpen;
+    private bool     _isNew;
     private Teacher? _editing;
     private string   _editName       = "";
     private string   _editEmail      = "";
     private string   _editPhone      = "";
     private string   _editTitle      = "";
     private string?  _editAvatarJson;
-
-    private bool CanAdd => !string.IsNullOrWhiteSpace(_newName) && !string.IsNullOrWhiteSpace(_newEmail);
 
     private static readonly (string Label, string Val)[] _skinOptions =
     [
@@ -352,7 +334,6 @@
         ("Navy","1B4F72"),("White","ffffff"),
     ];
 
-    // skinColor values ARE the hex values - return them directly for the swatch display
     private static string SkinHex(string val) => string.IsNullOrEmpty(val) ? "ffdbb4" : val;
 
     private static string AvatarUrl(string? json, string? name)
@@ -360,17 +341,17 @@
         var props = ParseAvatar(json);
         var sb = new System.Text.StringBuilder("https://api.dicebear.com/9.x/avataaars/svg?");
         sb.Append("seed=").Append(Uri.EscapeDataString(name ?? "teacher"));
-        if (props.TryGetValue("skinColor",      out var skin))    sb.Append("&skinColor=").Append(skin);
-        if (props.TryGetValue("top",            out var top))     sb.Append("&top=").Append(top);
-        if (props.TryGetValue("hairColor",      out var hc))      sb.Append("&hairColor=").Append(hc);
-        if (props.TryGetValue("eyes",           out var eyes))    sb.Append("&eyes=").Append(eyes);
-        if (props.TryGetValue("mouth",          out var mouth))   sb.Append("&mouth=").Append(mouth);
-        if (props.TryGetValue("clothing",       out var cloth))   sb.Append("&clothing=").Append(cloth);
-        if (props.TryGetValue("accessories",    out var acc) && !string.IsNullOrEmpty(acc))
+        if (props.TryGetValue("skinColor",       out var skin))  sb.Append("&skinColor=").Append(skin);
+        if (props.TryGetValue("top",             out var top))   sb.Append("&top=").Append(top);
+        if (props.TryGetValue("hairColor",       out var hc))    sb.Append("&hairColor=").Append(hc);
+        if (props.TryGetValue("eyes",            out var eyes))  sb.Append("&eyes=").Append(eyes);
+        if (props.TryGetValue("mouth",           out var mouth)) sb.Append("&mouth=").Append(mouth);
+        if (props.TryGetValue("clothing",        out var cloth)) sb.Append("&clothing=").Append(cloth);
+        if (props.TryGetValue("accessories",     out var acc) && !string.IsNullOrEmpty(acc))
             sb.Append("&accessories=").Append(acc).Append("&accessoriesProbability=100");
         else
             sb.Append("&accessoriesProbability=0");
-        if (props.TryGetValue("backgroundColor", out var bg))    sb.Append("&backgroundColor=").Append(bg);
+        if (props.TryGetValue("backgroundColor", out var bg))   sb.Append("&backgroundColor=").Append(bg);
         sb.Append("&backgroundType=solid&radius=50&scale=90");
         return sb.ToString();
     }
@@ -403,20 +384,21 @@
         catch (Exception ex) { _error = ex.Message; }
     }
 
-    private async Task AddTeacherAsync()
+    private void OpenNew()
     {
-        var email = _newEmail.Trim().ToLower();
-        if (await Db.Teachers.AnyAsync(t => t.Email == email))
-        { Snackbar.Add("A teacher with that email already exists.", Severity.Warning); return; }
-        Db.Teachers.Add(new Teacher { DisplayName = _newName.Trim(), Email = email, IsActive = true });
-        await Db.SaveChangesAsync();
-        _newName = ""; _newEmail = "";
-        Snackbar.Add("Teacher added.", Severity.Success);
-        await LoadAsync();
+        _isNew          = true;
+        _editing        = null;
+        _editName       = "";
+        _editEmail      = "";
+        _editPhone      = "";
+        _editTitle      = "";
+        _editAvatarJson = null;
+        _drawerOpen     = true;
     }
 
     private void OpenEdit(Teacher t)
     {
+        _isNew          = false;
         _editing        = t;
         _editName       = t.DisplayName;
         _editEmail      = t.Email;
@@ -426,22 +408,47 @@
         _drawerOpen     = true;
     }
 
-    private async Task SaveEditAsync()
+    private async Task SaveAsync()
     {
-        if (_editing == null) return;
         if (string.IsNullOrWhiteSpace(_editName) || string.IsNullOrWhiteSpace(_editEmail))
         { Snackbar.Add("Name and email are required.", Severity.Warning); return; }
+
         var email = _editEmail.Trim().ToLower();
-        if (await Db.Teachers.AnyAsync(t => t.Email == email && t.Id != _editing.Id))
-        { Snackbar.Add("That email is already used by another teacher.", Severity.Warning); return; }
-        _editing.DisplayName      = _editName.Trim();
-        _editing.Email            = email;
-        _editing.Phone            = string.IsNullOrWhiteSpace(_editPhone) ? null : _editPhone.Trim();
-        _editing.Title            = string.IsNullOrWhiteSpace(_editTitle) ? null : _editTitle.Trim();
-        _editing.AvatarConfigJson = _editAvatarJson;
-        await Db.SaveChangesAsync();
-        _drawerOpen = false;
-        Snackbar.Add("Profile saved.", Severity.Success);
+
+        if (_isNew)
+        {
+            if (await Db.Teachers.AnyAsync(t => t.Email == email))
+            { Snackbar.Add("A teacher with that email already exists.", Severity.Warning); return; }
+
+            Db.Teachers.Add(new Teacher
+            {
+                DisplayName      = _editName.Trim(),
+                Email            = email,
+                Phone            = string.IsNullOrWhiteSpace(_editPhone) ? null : _editPhone.Trim(),
+                Title            = string.IsNullOrWhiteSpace(_editTitle) ? null : _editTitle.Trim(),
+                AvatarConfigJson = _editAvatarJson,
+                IsActive         = true
+            });
+            await Db.SaveChangesAsync();
+            _drawerOpen = false;
+            Snackbar.Add("Teacher created.", Severity.Success);
+        }
+        else
+        {
+            if (_editing == null) return;
+            if (await Db.Teachers.AnyAsync(t => t.Email == email && t.Id != _editing.Id))
+            { Snackbar.Add("That email is already used by another teacher.", Severity.Warning); return; }
+
+            _editing.DisplayName      = _editName.Trim();
+            _editing.Email            = email;
+            _editing.Phone            = string.IsNullOrWhiteSpace(_editPhone) ? null : _editPhone.Trim();
+            _editing.Title            = string.IsNullOrWhiteSpace(_editTitle) ? null : _editTitle.Trim();
+            _editing.AvatarConfigJson = _editAvatarJson;
+            await Db.SaveChangesAsync();
+            _drawerOpen = false;
+            Snackbar.Add("Profile saved.", Severity.Success);
+        }
+
         await LoadAsync();
     }
 

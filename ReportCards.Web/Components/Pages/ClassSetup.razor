@@ -6,8 +6,16 @@
 @inject SchoolDbContext Db
 @inject ISnackbar Snackbar
 
-<MudText Typo="Typo.h4" Class="mb-1" Style="font-family:'DM Serif Display',serif;">Class Setup</MudText>
-<MudText Typo="Typo.body2" Class="mb-6" Style="color:var(--mud-palette-text-secondary);">
+<div class="d-flex align-center gap-3 mb-1">
+    <MudText Typo="Typo.h4" Style="font-family:'DM Serif Display',serif;">Class Setup</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+               StartIcon="@(_showAddForm ? Icons.Material.Filled.Close : Icons.Material.Filled.Add)"
+               OnClick="@(() => _showAddForm = !_showAddForm)"
+               Disabled="@(_selectedTermId == null)">
+        @(_showAddForm ? "Cancel" : "New Class Group")
+    </MudButton>
+</div>
+<MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
     Set up class groups and teacher assignments per term.
 </MudText>
 
@@ -47,6 +55,7 @@
 @if (_selectedTermId != null)
 {
     <!-- ── Add Class Group Instance ─────────────────────── -->
+    <MudCollapse Expanded="_showAddForm">
     <MudCard Class="mb-6" Elevation="1">
         <MudCardHeader>
             <CardHeaderContent>
@@ -85,6 +94,7 @@
             </MudGrid>
         </MudCardContent>
     </MudCard>
+    </MudCollapse>
 
     <!-- ── Class Group Instances List ───────────────────── -->
     @if (_classGroupInstances.Count == 0)
@@ -219,6 +229,7 @@
     private int? _selectedTermId;
 
     // ── Add group form ────────────────────────────────────
+    private bool _showAddForm;
     private int? _newClassGroupTypeId;
     private string _newDisplayName = "";
 
@@ -320,8 +331,7 @@
         });
 
         await Db.SaveChangesAsync();
-        _newDisplayName = "";
-        _newClassGroupTypeId = null;
+        _newDisplayName = ""; _newClassGroupTypeId = null; _showAddForm = false;
         Snackbar.Add("Class group added.", Severity.Success);
         await LoadClassGroupsAsync();
     }

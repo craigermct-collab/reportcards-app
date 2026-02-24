@@ -7,37 +7,17 @@
 @inject SchoolDbContext Db
 @inject ISnackbar Snackbar
 
-<MudText Typo="Typo.h4" Class="mb-1" Style="font-family:'DM Serif Display',serif;">Students</MudText>
+<div class="d-flex align-center gap-3 mb-1">
+    <MudText Typo="Typo.h4" Style="font-family:'DM Serif Display',serif;">Students</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+               StartIcon="@Icons.Material.Filled.PersonAdd"
+               OnClick="OpenNew">
+        New Student
+    </MudButton>
+</div>
 <MudText Typo="Typo.body2" Class="mb-6" Style="color:var(--mud-palette-text-secondary);">
     Manage student records and active status.
 </MudText>
-
-<!-- Add Student -->
-<MudCard Class="mb-6" Elevation="1">
-    <MudCardHeader>
-        <CardHeaderContent><MudText Typo="Typo.h6">Add Student</MudText></CardHeaderContent>
-    </MudCardHeader>
-    <MudCardContent>
-        <MudGrid>
-            <MudItem xs="12" sm="3">
-                <MudTextField @bind-Value="_newFirstName" Label="First Name" Variant="Variant.Outlined" />
-            </MudItem>
-            <MudItem xs="12" sm="3">
-                <MudTextField @bind-Value="_newLastName" Label="Last Name" Variant="Variant.Outlined" />
-            </MudItem>
-            <MudItem xs="12" sm="3">
-                <MudDatePicker @bind-Date="_newDob" Label="Date of Birth (optional)"
-                               Variant="Variant.Outlined" DateFormat="yyyy-MM-dd" MaxDate="DateTime.Today" />
-            </MudItem>
-            <MudItem xs="12" sm="3" Class="d-flex align-end">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
-                           OnClick="AddStudentAsync" Disabled="@(!CanAdd)" FullWidth="true">
-                    Add Student
-                </MudButton>
-            </MudItem>
-        </MudGrid>
-    </MudCardContent>
-</MudCard>
 
 <!-- Search + Filter -->
 <MudCard Class="mb-4" Elevation="1">
@@ -62,7 +42,7 @@
         {
             <div class="pa-6">
                 <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
-                    @(_students.Count == 0 ? "No students yet. Add one above." : "No students match your search.")
+                    @(_students.Count == 0 ? "No students yet. Click 'New Student' to add one." : "No students match your search.")
                 </MudAlert>
             </div>
         }
@@ -167,23 +147,21 @@
 <!-- Edit Drawer -->
 <MudDrawer @bind-Open="_drawerOpen" Anchor="Anchor.Right" Elevation="4"
            Variant="DrawerVariant.Temporary" OverlayAutoClose="true" Width="440px">
-    @if (_editing != null)
-    {
-        <MudDrawerHeader Style="background:#1B4F72; padding:16px 20px;">
-            <div class="d-flex align-center gap-3" style="flex:1; min-width:0;">
-                <div style="width:48px; height:48px; border-radius:50%; overflow:hidden; flex-shrink:0; background:white;">
-                    <img src="@AvatarUrl(_editAvatarJson, _editFirstName)" style="width:48px; height:48px;" alt="avatar" />
-                </div>
-                <div style="min-width:0;">
-                    <MudText Typo="Typo.h6" Style="color:white; font-family:'DM Serif Display',serif;">
-                        @_editing.FirstName @_editing.LastName
-                    </MudText>
-                    <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.6);">Edit Profile</MudText>
-                </div>
+    <MudDrawerHeader Style="background:#1B4F72; padding:16px 20px;">
+        <div class="d-flex align-center gap-3" style="flex:1; min-width:0;">
+            <div style="width:48px; height:48px; border-radius:50%; overflow:hidden; flex-shrink:0; background:white;">
+                <img src="@AvatarUrl(_editAvatarJson, string.IsNullOrWhiteSpace(_editFirstName) ? "new" : _editFirstName)" style="width:48px; height:48px;" alt="avatar" />
             </div>
-            <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Inherit"
-                           OnClick="@(() => _drawerOpen = false)" />
-        </MudDrawerHeader>
+            <div style="min-width:0;">
+                <MudText Typo="Typo.h6" Style="color:white; font-family:'DM Serif Display',serif; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    @(string.IsNullOrWhiteSpace(_editFirstName) && string.IsNullOrWhiteSpace(_editLastName) ? "New Student" : $"{_editFirstName} {_editLastName}".Trim())
+                </MudText>
+                <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.6);">@(_isNew ? "Create Profile" : "Edit Profile")</MudText>
+            </div>
+        </div>
+        <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Inherit"
+                       OnClick="@(() => _drawerOpen = false)" />
+    </MudDrawerHeader>
 
         <MudDrawerContainer Style="overflow-y:auto; padding:20px;">
 
@@ -303,26 +281,24 @@
             <MudDivider Class="mb-4" />
 
             <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
-                       StartIcon="@Icons.Material.Filled.Save" OnClick="SaveEditAsync" Class="mb-2">
-                Save Changes
+                       StartIcon="@(_isNew ? Icons.Material.Filled.PersonAdd : Icons.Material.Filled.Save)"
+                       OnClick="SaveAsync" Class="mb-2">
+                @(_isNew ? "Create Student" : "Save Changes")
             </MudButton>
             <MudButton Variant="Variant.Text" FullWidth="true" OnClick="@(() => _drawerOpen = false)">
                 Cancel
             </MudButton>
 
         </MudDrawerContainer>
-    }
 </MudDrawer>
 
 @code {
     private List<Student> _students     = new();
-    private string        _newFirstName = "";
-    private string        _newLastName  = "";
-    private DateTime?     _newDob;
     private string        _search       = "";
     private bool          _showInactive = false;
 
     private bool      _drawerOpen;
+    private bool      _isNew;
     private Student?  _editing;
     private string    _editFirstName      = "";
     private string    _editLastName       = "";
@@ -330,8 +306,6 @@
     private string    _editParentContact  = "";
     private string    _editNotes          = "";
     private string?   _editAvatarJson;
-
-    private bool CanAdd => !string.IsNullOrWhiteSpace(_newFirstName) && !string.IsNullOrWhiteSpace(_newLastName);
 
     private List<Student> FilteredStudents => _students
         .Where(s => (_showInactive || s.IsActive))
@@ -471,25 +445,22 @@
 
     // ── Add ───────────────────────────────────────────────────────
 
-    private async Task AddStudentAsync()
+    private void OpenNew()
     {
-        Db.Students.Add(new Student
-        {
-            FirstName   = _newFirstName.Trim(),
-            LastName    = _newLastName.Trim(),
-            DateOfBirth = _newDob.HasValue ? DateOnly.FromDateTime(_newDob.Value) : null,
-            IsActive    = true
-        });
-        await Db.SaveChangesAsync();
-        _newFirstName = ""; _newLastName = ""; _newDob = null;
-        Snackbar.Add("Student added.", Severity.Success);
-        await LoadAsync();
+        _isNew             = true;
+        _editing           = null;
+        _editFirstName     = "";
+        _editLastName      = "";
+        _editDob           = null;
+        _editParentContact = "";
+        _editNotes         = "";
+        _editAvatarJson    = null;
+        _drawerOpen        = true;
     }
-
-    // ── Edit drawer ───────────────────────────────────────────────
 
     private void OpenEdit(Student s)
     {
+        _isNew             = false;
         _editing           = s;
         _editFirstName     = s.FirstName;
         _editLastName      = s.LastName;
@@ -500,20 +471,41 @@
         _drawerOpen        = true;
     }
 
-    private async Task SaveEditAsync()
+    private async Task SaveAsync()
     {
-        if (_editing == null) return;
         if (string.IsNullOrWhiteSpace(_editFirstName) || string.IsNullOrWhiteSpace(_editLastName))
         { Snackbar.Add("First and last name are required.", Severity.Warning); return; }
-        _editing.FirstName             = _editFirstName.Trim();
-        _editing.LastName              = _editLastName.Trim();
-        _editing.DateOfBirth           = _editDob.HasValue ? DateOnly.FromDateTime(_editDob.Value) : null;
-        _editing.ParentGuardianContact = string.IsNullOrWhiteSpace(_editParentContact) ? null : _editParentContact.Trim();
-        _editing.Notes                 = string.IsNullOrWhiteSpace(_editNotes) ? null : _editNotes.Trim();
-        _editing.AvatarConfigJson      = _editAvatarJson;
-        await Db.SaveChangesAsync();
-        _drawerOpen = false;
-        Snackbar.Add("Profile saved.", Severity.Success);
+
+        if (_isNew)
+        {
+            Db.Students.Add(new Student
+            {
+                FirstName             = _editFirstName.Trim(),
+                LastName              = _editLastName.Trim(),
+                DateOfBirth           = _editDob.HasValue ? DateOnly.FromDateTime(_editDob.Value) : null,
+                ParentGuardianContact = string.IsNullOrWhiteSpace(_editParentContact) ? null : _editParentContact.Trim(),
+                Notes                 = string.IsNullOrWhiteSpace(_editNotes) ? null : _editNotes.Trim(),
+                AvatarConfigJson      = _editAvatarJson,
+                IsActive              = true
+            });
+            await Db.SaveChangesAsync();
+            _drawerOpen = false;
+            Snackbar.Add("Student created.", Severity.Success);
+        }
+        else
+        {
+            if (_editing == null) return;
+            _editing.FirstName             = _editFirstName.Trim();
+            _editing.LastName              = _editLastName.Trim();
+            _editing.DateOfBirth           = _editDob.HasValue ? DateOnly.FromDateTime(_editDob.Value) : null;
+            _editing.ParentGuardianContact = string.IsNullOrWhiteSpace(_editParentContact) ? null : _editParentContact.Trim();
+            _editing.Notes                 = string.IsNullOrWhiteSpace(_editNotes) ? null : _editNotes.Trim();
+            _editing.AvatarConfigJson      = _editAvatarJson;
+            await Db.SaveChangesAsync();
+            _drawerOpen = false;
+            Snackbar.Add("Profile saved.", Severity.Success);
+        }
+
         await LoadAsync();
     }
 
