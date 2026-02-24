@@ -30,8 +30,7 @@
         <MudItem xs="12" sm="5">
             <MudTextField @bind-Value="_search" Placeholder="Search by name or note..."
                           Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-                          Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true"
-                          @oninput="OnSearchInput" />
+                          Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" />
         </MudItem>
         <MudItem xs="6" sm="3">
             <MudSelect T="string" @bind-Value="_filterClass" Label="Class Group"
@@ -75,10 +74,7 @@ else if (!Filtered.Any())
                  Style="font-size:48px; color:var(--mud-palette-text-disabled); margin-bottom:12px;" />
         <MudText Typo="Typo.h6" Style="color:var(--mud-palette-text-secondary);">No saved analyses found</MudText>
         <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-disabled);" Class="mb-3">
-            @if (_allAnalyses.Any())
-            { <span>Try adjusting your search or filters</span> }
-            else
-            { <span>Run your first homework analysis to get started</span> }
+            @(_allAnalyses.Any() ? "Try adjusting your search or filters" : "Run your first homework analysis to get started")
         </MudText>
         @if (!_allAnalyses.Any())
         {
@@ -95,97 +91,94 @@ else
     <MudGrid>
         @foreach (var item in Filtered)
         {
+            var capturedItem = item;
             <MudItem xs="12" sm="6" lg="4">
                 <MudCard Elevation="2" Style="border-radius:12px; cursor:pointer; transition:box-shadow 0.2s;"
-                         @onclick="@(() => OpenDetail(item))">
-                    <!-- Coloured top band based on best score -->
-                    <div style="height:6px; border-radius:12px 12px 0 0; background:@ScoreColor(item);" />
+                         @onclick="@(() => OpenDetail(capturedItem))">
+                    <div style="height:6px; border-radius:12px 12px 0 0; background:@ScoreColor(capturedItem);" />
                     <MudCardContent Class="pa-4">
-                        <!-- Name + date -->
                         <div class="d-flex align-start justify-space-between mb-2">
                             <div style="flex:1; min-width:0;">
                                 <MudText Typo="Typo.subtitle1"
                                          Style="font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                                    @item.Name
+                                    @capturedItem.Name
                                 </MudText>
                                 <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                                    @item.AnalyzedAt.LocalDateTime.ToString("MMM d, yyyy")
+                                    @capturedItem.AnalyzedAt.LocalDateTime.ToString("MMM d, yyyy")
                                 </MudText>
                             </div>
-                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
-                                           Color="Color.Error" Size="Size.Small"
-                                           Style="margin-top:-4px; margin-right:-8px;"
-                                           OnClick="@((e) => { e.StopPropagation(); ConfirmDelete(item); })" />
+                            <div @onclick:stopPropagation="true">
+                                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                               Color="Color.Error" Size="Size.Small"
+                                               Style="margin-top:-4px; margin-right:-8px;"
+                                               OnClick="@(() => ConfirmDelete(capturedItem))" />
+                            </div>
                         </div>
 
-                        <!-- Class / grade chips -->
                         <div class="d-flex gap-1 mb-3 flex-wrap">
-                            @if (!string.IsNullOrWhiteSpace(item.ClassGroupName))
+                            @if (!string.IsNullOrWhiteSpace(capturedItem.ClassGroupName))
                             {
                                 <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
                                          Color="Color.Primary" Style="height:22px;">
-                                    @item.ClassGroupName
+                                    @capturedItem.ClassGroupName
                                 </MudChip>
                             }
-                            @if (!string.IsNullOrWhiteSpace(item.GradeName))
+                            @if (!string.IsNullOrWhiteSpace(capturedItem.GradeName))
                             {
                                 <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
                                          Color="Color.Secondary" Style="height:22px;">
-                                    @item.GradeName
+                                    @capturedItem.GradeName
                                 </MudChip>
                             }
                         </div>
 
-                        <!-- Score pills row -->
                         <div class="d-flex gap-2 flex-wrap mb-3">
-                            @if (item.SpellingScore.HasValue)
+                            @if (capturedItem.SpellingScore.HasValue)
                             {
-                                <div style="@ScorePill(item.SpellingScore.Value)">
+                                <div style="@ScorePill(capturedItem.SpellingScore.Value)">
                                     <span class="material-icons" style="font-size:12px;">spellcheck</span>
-                                    @item.SpellingScore/10
+                                    @capturedItem.SpellingScore/10
                                 </div>
                             }
-                            @if (item.GrammarScore.HasValue)
+                            @if (capturedItem.GrammarScore.HasValue)
                             {
-                                <div style="@ScorePill(item.GrammarScore.Value)">
+                                <div style="@ScorePill(capturedItem.GrammarScore.Value)">
                                     <span class="material-icons" style="font-size:12px;">rate_review</span>
-                                    @item.GrammarScore/10
+                                    @capturedItem.GrammarScore/10
                                 </div>
                             }
-                            @if (item.RubricScore.HasValue)
+                            @if (capturedItem.RubricScore.HasValue)
                             {
-                                <div style="@ScorePill(item.RubricScore.Value)">
+                                <div style="@ScorePill(capturedItem.RubricScore.Value)">
                                     <span class="material-icons" style="font-size:12px;">checklist</span>
-                                    @item.RubricScore/10
+                                    @capturedItem.RubricScore/10
                                 </div>
                             }
-                            @if (!string.IsNullOrWhiteSpace(item.AiLikelihood))
+                            @if (!string.IsNullOrWhiteSpace(capturedItem.AiLikelihood))
                             {
-                                <div style="@AiPill(item.AiLikelihood)">
+                                <div style="@AiPill(capturedItem.AiLikelihood)">
                                     <span class="material-icons" style="font-size:12px;">smart_toy</span>
-                                    AI: @item.AiLikelihood
+                                    AI: @capturedItem.AiLikelihood
                                 </div>
                             }
                         </div>
 
-                        <!-- Summary snippet -->
-                        @if (!string.IsNullOrWhiteSpace(item.OverallSummary))
+                        @if (!string.IsNullOrWhiteSpace(capturedItem.OverallSummary))
                         {
                             <MudText Typo="Typo.body2"
                                      Style="color:var(--mud-palette-text-secondary); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">
-                                @item.OverallSummary
+                                @capturedItem.OverallSummary
                             </MudText>
                         }
 
-                        <!-- Teacher note badge -->
-                        @if (!string.IsNullOrWhiteSpace(item.TeacherNote))
+                        @if (!string.IsNullOrWhiteSpace(capturedItem.TeacherNote))
                         {
-                            <div Class="mt-2 d-flex align-center gap-1">
+                            <div class="mt-2 d-flex align-center gap-1">
                                 <MudIcon Icon="@Icons.Material.Filled.StickyNote2"
                                          Style="font-size:14px; color:#F39C12;" />
                                 <MudText Typo="Typo.caption" Style="color:#F39C12; font-style:italic;
                                          overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                                    @item.TeacherNote
+                                    @capturedItem.TeacherNote
                                 </MudText>
                             </div>
                         }
@@ -196,10 +189,10 @@ else
     </MudGrid>
 }
 
-<!-- ── Detail Drawer ───────────────────────────────────────────── -->
+<!-- Detail Drawer -->
 <MudDrawer @bind-Open="_drawerOpen" Anchor="Anchor.Right" Elevation="4"
-           Variant="DrawerVariant.Temporary"
-           Width="420px" CloseOnOverlayClick="true">
+           Variant="DrawerVariant.Temporary" OverlayAutoClose="true"
+           Width="420px">
     @if (_selected != null)
     {
         <MudDrawerHeader Style="background:#1B4F72; padding:16px 20px;">
@@ -219,7 +212,6 @@ else
 
         <MudDrawerContainer Style="overflow-y:auto; padding:16px;">
 
-            <!-- Checks run -->
             <div class="d-flex gap-1 flex-wrap mb-4">
                 @CheckBadge("Spelling",  _selected.CheckedSpelling)
                 @CheckBadge("Grammar",   _selected.CheckedGrammar)
@@ -227,7 +219,6 @@ else
                 @CheckBadge("AI Check",  _selected.CheckedAiGenerated)
             </div>
 
-            <!-- Overall summary -->
             @if (!string.IsNullOrWhiteSpace(_selected.OverallSummary))
             {
                 <MudCard Elevation="0" Class="mb-3" Style="border-left:4px solid #1B4F72; background:#f8f9fa;">
@@ -238,7 +229,6 @@ else
                 </MudCard>
             }
 
-            <!-- Score cards row -->
             <MudGrid Class="mb-3">
                 @if (_selected.SpellingScore.HasValue)
                 {
@@ -258,17 +248,15 @@ else
                 }
             </MudGrid>
 
-            <!-- Detail sections -->
             @if (!string.IsNullOrWhiteSpace(_selected.SpellingSummary))
-            { @DrawerDetail("Spelling Details", _selected.SpellingSummary, Icons.Material.Filled.Spellcheck) }
+            { @DrawerDetail("Spelling Details",     _selected.SpellingSummary,    Icons.Material.Filled.Spellcheck) }
             @if (!string.IsNullOrWhiteSpace(_selected.GrammarSummary))
-            { @DrawerDetail("Grammar Details", _selected.GrammarSummary, Icons.Material.Filled.RateReview) }
+            { @DrawerDetail("Grammar Details",      _selected.GrammarSummary,     Icons.Material.Filled.RateReview)  }
             @if (!string.IsNullOrWhiteSpace(_selected.RubricSummary))
-            { @DrawerDetail("Rubric Evaluation", _selected.RubricSummary, Icons.Material.Filled.Checklist) }
+            { @DrawerDetail("Rubric Evaluation",    _selected.RubricSummary,      Icons.Material.Filled.Checklist)   }
             @if (!string.IsNullOrWhiteSpace(_selected.AiDetectionSummary))
-            { @DrawerDetail("AI Detection", _selected.AiDetectionSummary, Icons.Material.Filled.SmartToy) }
+            { @DrawerDetail("AI Detection",         _selected.AiDetectionSummary, Icons.Material.Filled.SmartToy)    }
 
-            <!-- Teacher note -->
             @if (!string.IsNullOrWhiteSpace(_selected.TeacherNote))
             {
                 <MudCard Elevation="0" Class="mb-3"
@@ -284,7 +272,6 @@ else
                 </MudCard>
             }
 
-            <!-- Delete button -->
             <MudButton Variant="Variant.Outlined" Color="Color.Error" FullWidth="true"
                        StartIcon="@Icons.Material.Filled.Delete"
                        OnClick="@(() => ConfirmDelete(_selected))" Class="mt-2">
@@ -333,22 +320,15 @@ else
         _classGroups = _allAnalyses
             .Where(a => !string.IsNullOrWhiteSpace(a.ClassGroupName))
             .Select(a => a.ClassGroupName!)
-            .Distinct()
-            .OrderBy(x => x)
-            .ToList();
+            .Distinct().OrderBy(x => x).ToList();
 
         _grades = _allAnalyses
             .Where(a => !string.IsNullOrWhiteSpace(a.GradeName))
             .Select(a => a.GradeName!)
-            .Distinct()
-            .OrderBy(x => x)
-            .ToList();
+            .Distinct().OrderBy(x => x).ToList();
 
         _loading = false;
     }
-
-    private void OnSearchInput(ChangeEventArgs e) =>
-        _search = e.Value?.ToString() ?? "";
 
     private void OpenDetail(HomeworkAnalysis item)
     {
@@ -380,8 +360,6 @@ else
         Snackbar.Add("Analysis deleted.", Severity.Success);
     }
 
-    // ── Style helpers ────────────────────────────────────────────
-
     private static string ScoreColor(HomeworkAnalysis a)
     {
         var scores = new[] { a.SpellingScore, a.GrammarScore, a.RubricScore }
@@ -405,11 +383,14 @@ else
                $"font-size:11px; font-weight:700; background:{c}18; color:{c}; border:1px solid {c}44;";
     }
 
+    private static string CheckBadgeStyle(bool active) =>
+        active ? "height:22px;" : "height:22px; opacity:0.4;";
+
     private RenderFragment CheckBadge(string label, bool active) =>
         @<MudChip T="string" Size="Size.Small"
                   Color="@(active ? Color.Success : Color.Default)"
                   Variant="@(active ? Variant.Filled : Variant.Outlined)"
-                  Style="height:22px; opacity:@(active ? "1" : "0.4");">
+                  Style="@CheckBadgeStyle(active)">
             @label
         </MudChip>;
 
@@ -442,7 +423,8 @@ else
     }
 
     private RenderFragment DrawerDetail(string title, string content, string icon) =>
-        @<MudCard Elevation="0" Class="mb-3" Style="border:1px solid var(--mud-palette-divider); border-radius:8px;">
+        @<MudCard Elevation="0" Class="mb-3"
+                  Style="border:1px solid var(--mud-palette-divider); border-radius:8px;">
             <MudCardContent Class="pa-3">
                 <div class="d-flex gap-2 mb-1">
                     <MudIcon Icon="@icon" Color="Color.Primary" Style="font-size:16px; margin-top:2px;" />
