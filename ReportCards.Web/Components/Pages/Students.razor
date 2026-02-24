@@ -3,6 +3,7 @@
 @attribute [Authorize]
 @using Microsoft.EntityFrameworkCore
 @using ReportCards.Web.Data
+@using System.Text.Json
 @inject SchoolDbContext Db
 @inject ISnackbar Snackbar
 
@@ -11,39 +12,26 @@
     Manage student records and active status.
 </MudText>
 
-<!-- ── Add Student ─────────────────────────────────────── -->
+<!-- Add Student -->
 <MudCard Class="mb-6" Elevation="1">
     <MudCardHeader>
-        <CardHeaderContent>
-            <MudText Typo="Typo.h6">Add Student</MudText>
-        </CardHeaderContent>
+        <CardHeaderContent><MudText Typo="Typo.h6">Add Student</MudText></CardHeaderContent>
     </MudCardHeader>
     <MudCardContent>
         <MudGrid>
             <MudItem xs="12" sm="3">
-                <MudTextField @bind-Value="_newFirstName"
-                              Label="First Name"
-                              Variant="Variant.Outlined" />
+                <MudTextField @bind-Value="_newFirstName" Label="First Name" Variant="Variant.Outlined" />
             </MudItem>
             <MudItem xs="12" sm="3">
-                <MudTextField @bind-Value="_newLastName"
-                              Label="Last Name"
-                              Variant="Variant.Outlined" />
+                <MudTextField @bind-Value="_newLastName" Label="Last Name" Variant="Variant.Outlined" />
             </MudItem>
             <MudItem xs="12" sm="3">
-                <MudDatePicker @bind-Date="_newDob"
-                               Label="Date of Birth (optional)"
-                               Variant="Variant.Outlined"
-                               DateFormat="yyyy-MM-dd"
-                               MaxDate="DateTime.Today" />
+                <MudDatePicker @bind-Date="_newDob" Label="Date of Birth (optional)"
+                               Variant="Variant.Outlined" DateFormat="yyyy-MM-dd" MaxDate="DateTime.Today" />
             </MudItem>
             <MudItem xs="12" sm="3" Class="d-flex align-end">
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           StartIcon="@Icons.Material.Filled.PersonAdd"
-                           OnClick="AddStudentAsync"
-                           Disabled="@(!CanAdd)"
-                           FullWidth="true">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
+                           OnClick="AddStudentAsync" Disabled="@(!CanAdd)" FullWidth="true">
                     Add Student
                 </MudButton>
             </MudItem>
@@ -51,29 +39,23 @@
     </MudCardContent>
 </MudCard>
 
-<!-- ── Search + Filter ────────────────────────────────── -->
+<!-- Search + Filter -->
 <MudCard Class="mb-4" Elevation="1">
     <MudCardContent>
         <MudGrid>
             <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_search"
-                              Label="Search"
-                              Placeholder="Search by name..."
-                              Variant="Variant.Outlined"
-                              Margin="Margin.Dense"
-                              Adornment="Adornment.Start"
-                              AdornmentIcon="@Icons.Material.Filled.Search" />
+                <MudTextField @bind-Value="_search" Label="Search" Placeholder="Search by name..."
+                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
             </MudItem>
             <MudItem xs="12" sm="3" Class="d-flex align-center">
-                <MudCheckBox @bind-Value="_showInactive"
-                             Label="Show inactive students"
-                             Color="Color.Primary" />
+                <MudCheckBox @bind-Value="_showInactive" Label="Show inactive students" Color="Color.Primary" />
             </MudItem>
         </MudGrid>
     </MudCardContent>
 </MudCard>
 
-<!-- ── Students Table ─────────────────────────────────── -->
+<!-- Students Table -->
 <MudCard Elevation="1">
     <MudCardContent Class="pa-0">
         @if (FilteredStudents.Count == 0)
@@ -88,28 +70,61 @@
         {
             <MudTable Items="FilteredStudents" Hover="true" Dense="false" Elevation="0">
                 <HeaderContent>
-                    <MudTh>Name</MudTh>
+                    <MudTh>Student</MudTh>
                     <MudTh>Date of Birth</MudTh>
+                    <MudTh>Class / Grade</MudTh>
                     <MudTh>Status</MudTh>
                     <MudTh Style="text-align:right;">Actions</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd>
                         <div class="d-flex align-center gap-2">
-                            <MudAvatar Style="background:#1B4F72; color:white; width:32px; height:32px; font-size:12px; font-weight:700;">
-                                @GetInitials(context.FirstName, context.LastName)
-                            </MudAvatar>
+                            <div style="width:40px; height:40px; border-radius:50%; overflow:hidden; flex-shrink:0;
+                                        background:#e8f0fe; cursor:pointer;"
+                                 @onclick="@(() => OpenEdit(context))">
+                                <img src="@AvatarUrl(context.AvatarConfigJson, context.FirstName)"
+                                     style="width:40px; height:40px;" alt="avatar" />
+                            </div>
                             <div>
                                 <MudText Typo="Typo.body2" Style="font-weight:600;">
                                     @context.FirstName @context.LastName
                                 </MudText>
+                                @if (!string.IsNullOrWhiteSpace(context.Notes))
+                                {
+                                    <MudTooltip Text="@context.Notes">
+                                        <MudIcon Icon="@Icons.Material.Filled.Flag"
+                                                 Style="font-size:14px; color:#E67E22; vertical-align:middle;" />
+                                    </MudTooltip>
+                                }
                             </div>
                         </div>
                     </MudTd>
                     <MudTd>
-                        @(context.DateOfBirth.HasValue
-                            ? context.DateOfBirth.Value.ToString("MMM d, yyyy")
-                            : "—")
+                        @if (context.DateOfBirth.HasValue)
+                        {
+                            <div>
+                                <MudText Typo="Typo.body2">@context.DateOfBirth.Value.ToString("MMM d, yyyy")</MudText>
+                                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                    Age @GetAge(context.DateOfBirth.Value)
+                                </MudText>
+                            </div>
+                        }
+                        else { <span style="color:var(--mud-palette-text-disabled);">—</span> }
+                    </MudTd>
+                    <MudTd>
+                        @{ var enrol = ActiveEnrollment(context); }
+                        @if (enrol != null)
+                        {
+                            <div>
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary">
+                                    @enrol.ClassGroupInstance?.DisplayName
+                                </MudChip>
+                                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                    @enrol.Grade?.Name
+                                </MudText>
+                            </div>
+                        }
+                        else { <span style="color:var(--mud-palette-text-disabled);">—</span> }
                     </MudTd>
                     <MudTd>
                         @if (context.IsActive)
@@ -124,21 +139,21 @@
                         }
                     </MudTd>
                     <MudTd Style="text-align:right;">
+                        <MudTooltip Text="Edit profile">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => OpenEdit(context))" />
+                        </MudTooltip>
                         @if (context.IsActive)
                         {
-                            <MudTooltip Text="Deactivate student">
-                                <MudIconButton Icon="@Icons.Material.Filled.PersonOff"
-                                               Color="Color.Warning"
-                                               Size="Size.Small"
+                            <MudTooltip Text="Deactivate">
+                                <MudIconButton Icon="@Icons.Material.Filled.PersonOff" Color="Color.Warning" Size="Size.Small"
                                                OnClick="@(() => DeactivateAsync(context))" />
                             </MudTooltip>
                         }
                         else
                         {
-                            <MudTooltip Text="Reactivate student">
-                                <MudIconButton Icon="@Icons.Material.Filled.PersonAdd"
-                                               Color="Color.Success"
-                                               Size="Size.Small"
+                            <MudTooltip Text="Reactivate">
+                                <MudIconButton Icon="@Icons.Material.Filled.PersonAdd" Color="Color.Success" Size="Size.Small"
                                                OnClick="@(() => ReactivateAsync(context))" />
                             </MudTooltip>
                         }
@@ -149,17 +164,174 @@
     </MudCardContent>
 </MudCard>
 
-@code {
-    private List<Student> _students = new();
-    private string _newFirstName = "";
-    private string _newLastName = "";
-    private DateTime? _newDob;
-    private string _search = "";
-    private bool _showInactive = false;
+<!-- Edit Drawer -->
+<MudDrawer @bind-Open="_drawerOpen" Anchor="Anchor.Right" Elevation="4"
+           Variant="DrawerVariant.Temporary" OverlayAutoClose="true" Width="440px">
+    @if (_editing != null)
+    {
+        <MudDrawerHeader Style="background:#1B4F72; padding:16px 20px;">
+            <div class="d-flex align-center gap-3" style="flex:1; min-width:0;">
+                <div style="width:48px; height:48px; border-radius:50%; overflow:hidden; flex-shrink:0; background:white;">
+                    <img src="@AvatarUrl(_editAvatarJson, _editFirstName)" style="width:48px; height:48px;" alt="avatar" />
+                </div>
+                <div style="min-width:0;">
+                    <MudText Typo="Typo.h6" Style="color:white; font-family:'DM Serif Display',serif;">
+                        @_editing.FirstName @_editing.LastName
+                    </MudText>
+                    <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.6);">Edit Profile</MudText>
+                </div>
+            </div>
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Inherit"
+                           OnClick="@(() => _drawerOpen = false)" />
+        </MudDrawerHeader>
 
-    private bool CanAdd =>
-        !string.IsNullOrWhiteSpace(_newFirstName) &&
-        !string.IsNullOrWhiteSpace(_newLastName);
+        <MudDrawerContainer Style="overflow-y:auto; padding:20px;">
+
+            <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);" Class="mb-2">Profile</MudText>
+            <MudGrid Class="mb-1">
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="_editFirstName" Label="First Name" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="_editLastName" Label="Last Name" Variant="Variant.Outlined" />
+                </MudItem>
+            </MudGrid>
+            <MudDatePicker @bind-Date="_editDob" Label="Date of Birth"
+                           Variant="Variant.Outlined" DateFormat="yyyy-MM-dd"
+                           MaxDate="DateTime.Today" Class="mb-3" />
+            <MudTextField @bind-Value="_editParentContact" Label="Parent / Guardian Contact"
+                          Placeholder="e.g. Jane Smith — 905-555-1234"
+                          Variant="Variant.Outlined" Class="mb-3" />
+            <MudTextField @bind-Value="_editNotes" Label="Notes / Flags"
+                          Placeholder="e.g. IEP, nut allergy, ELL"
+                          Variant="Variant.Outlined" Lines="2" Class="mb-4" />
+
+            <MudDivider Class="mb-4" />
+
+            <!-- Avatar builder — kid friendly -->
+            <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);" Class="mb-3">Avatar</MudText>
+
+            <div class="d-flex justify-center mb-4">
+                <div style="width:120px; height:120px; border-radius:50%; overflow:hidden;
+                            border:4px solid #1B4F72; background:#e8f0fe;">
+                    <img src="@AvatarUrl(_editAvatarJson, _editFirstName)" style="width:120px; height:120px;" />
+                </div>
+            </div>
+
+            <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Skin Tone</MudText>
+            <div class="d-flex gap-2 flex-wrap mb-3">
+                @foreach (var (label, val) in _skinOptions)
+                {
+                    var v = val;
+                    var swatchStyle = $"width:32px; height:32px; border-radius:50%; cursor:pointer; background:#{SkinHex(v)}; border:{(GetAvatarProp("skinColor") == v ? "3px solid #1B4F72" : "2px solid #ccc")}";
+                    <div @onclick="@(() => SetAvatarProp("skinColor", v))"
+                         style="@swatchStyle"
+                         title="@label" />
+                }
+            </div>
+
+            <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Hair Style</MudText>
+            <MudSelect T="string" Value="@GetAvatarProp("top")" ValueChanged="@(v => SetAvatarProp("top", v))"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" AnchorOrigin="Origin.BottomCenter">
+                @foreach (var (label, val) in _kidHairOptions)
+                {
+                    <MudSelectItem T="string" Value="@val">@label</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Hair Colour</MudText>
+            <div class="d-flex gap-2 flex-wrap mb-3">
+                @foreach (var (label, val) in _hairColourOptions)
+                {
+                    var v = val;
+                    <div @onclick="@(() => SetAvatarProp("hairColor", v))"
+                         style="width:28px; height:28px; border-radius:50%; cursor:pointer; background:#@v;
+                                border:@(GetAvatarProp("hairColor") == v ? "3px solid #1B4F72" : "2px solid #ccc");"
+                         title="@label" />
+                }
+            </div>
+
+            <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Eyes</MudText>
+            <div class="d-flex gap-2 flex-wrap mb-3">
+                @foreach (var (label, val) in _kidEyeOptions)
+                {
+                    var v = val;
+                    <MudChip T="string" Size="Size.Small"
+                             Color="@(GetAvatarProp("eyes") == v ? Color.Primary : Color.Default)"
+                             Variant="@(GetAvatarProp("eyes") == v ? Variant.Filled : Variant.Outlined)"
+                             OnClick="@(() => SetAvatarProp("eyes", v))" Style="cursor:pointer;">
+                        @label
+                    </MudChip>
+                }
+            </div>
+
+            <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Mouth</MudText>
+            <div class="d-flex gap-2 flex-wrap mb-3">
+                @foreach (var (label, val) in _kidMouthOptions)
+                {
+                    var v = val;
+                    <MudChip T="string" Size="Size.Small"
+                             Color="@(GetAvatarProp("mouth") == v ? Color.Primary : Color.Default)"
+                             Variant="@(GetAvatarProp("mouth") == v ? Variant.Filled : Variant.Outlined)"
+                             OnClick="@(() => SetAvatarProp("mouth", v))" Style="cursor:pointer;">
+                        @label
+                    </MudChip>
+                }
+            </div>
+
+            <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Clothing</MudText>
+            <MudSelect T="string" Value="@GetAvatarProp("clothing")" ValueChanged="@(v => SetAvatarProp("clothing", v))"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" AnchorOrigin="Origin.BottomCenter">
+                @foreach (var (label, val) in _kidClothingOptions)
+                {
+                    <MudSelectItem T="string" Value="@val">@label</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudText Typo="Typo.caption" Style="font-weight:600;" Class="mb-1">Background</MudText>
+            <div class="d-flex gap-2 flex-wrap mb-4">
+                @foreach (var (label, val) in _bgOptions)
+                {
+                    var v = val;
+                    <div @onclick="@(() => SetAvatarProp("backgroundColor", v))"
+                         style="width:28px; height:28px; border-radius:6px; cursor:pointer; background:#@v;
+                                border:@(GetAvatarProp("backgroundColor") == v ? "3px solid #1B4F72" : "2px solid #ccc");"
+                         title="@label" />
+                }
+            </div>
+
+            <MudDivider Class="mb-4" />
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Save" OnClick="SaveEditAsync" Class="mb-2">
+                Save Changes
+            </MudButton>
+            <MudButton Variant="Variant.Text" FullWidth="true" OnClick="@(() => _drawerOpen = false)">
+                Cancel
+            </MudButton>
+
+        </MudDrawerContainer>
+    }
+</MudDrawer>
+
+@code {
+    private List<Student> _students     = new();
+    private string        _newFirstName = "";
+    private string        _newLastName  = "";
+    private DateTime?     _newDob;
+    private string        _search       = "";
+    private bool          _showInactive = false;
+
+    private bool      _drawerOpen;
+    private Student?  _editing;
+    private string    _editFirstName      = "";
+    private string    _editLastName       = "";
+    private DateTime? _editDob;
+    private string    _editParentContact  = "";
+    private string    _editNotes          = "";
+    private string?   _editAvatarJson;
+
+    private bool CanAdd => !string.IsNullOrWhiteSpace(_newFirstName) && !string.IsNullOrWhiteSpace(_newLastName);
 
     private List<Student> FilteredStudents => _students
         .Where(s => (_showInactive || s.IsActive))
@@ -168,55 +340,198 @@
         .OrderBy(s => s.LastName).ThenBy(s => s.FirstName)
         .ToList();
 
+    // ── Avatar options (kid-friendly) ────────────────────────────
+
+    private static readonly (string Label, string Val)[] _skinOptions =
+    [
+        ("Light",      "ffdbb4"),
+        ("Pale",       "f8d25c"),
+        ("Tanned",     "fd9841"),
+        ("Warm",       "edb98a"),
+        ("Brown",      "d08b5b"),
+        ("Dark Brown", "ae5d29"),
+        ("Black",      "614335"),
+    ];
+
+    private static readonly (string Label, string Val)[] _kidHairOptions =
+    [
+        ("Short Flat",   "shortFlat"),
+        ("Short Curly",  "shortCurly"),
+        ("Short Round",  "shortRound"),
+        ("Dreads",       "dreads"),
+        ("Bob",          "bob"),
+        ("Bun",          "bun"),
+        ("Curly",        "curly"),
+        ("Big Hair",     "bigHair"),
+        ("Long Straight","straight01"),
+        ("Fro",          "fro"),
+        ("Hat",          "hat"),
+        ("Winter Hat",   "winterHat1"),
+    ];
+
+    private static readonly (string Label, string Val)[] _hairColourOptions =
+    [
+        ("Black","2c1b18"),("Dark Brown","4a312c"),("Brown","724133"),("Blonde","b58143"),
+        ("Golden","d6b370"),("Red","c93305"),("Auburn","a55728"),
+        ("Silver","ecdcbf"),("Pastel Pink","ff488e"),
+    ];
+
+    private static readonly (string Label, string Val)[] _kidEyeOptions =
+    [
+        ("😊 Happy","happy"),("👀 Default","default"),("😉 Wink","wink"),
+        ("❤️ Hearts","hearts"),("😮 Surprised","surprised"),
+        ("😌 Closed","closed"),("😂 Cry","cry"),
+    ];
+
+    private static readonly (string Label, string Val)[] _kidMouthOptions =
+    [
+        ("😄 Big Smile","smile"),("🙂 Default","default"),("✨ Twinkle","twinkle"),
+        ("😛 Tongue","tongue"),("😐 Serious","serious"),
+    ];
+
+    private static readonly (string Label, string Val)[] _kidClothingOptions =
+    [
+        ("Hoodie","hoodie"),("Graphic Shirt","graphicShirt"),("Overall","overall"),
+        ("Crew Neck","shirtCrewNeck"),("Sweater","collarAndSweater"),
+    ];
+
+    private static readonly (string Label, string Val)[] _bgOptions =
+    [
+        ("Sky Blue","b6e3f4"),("Lavender","c0aede"),("Periwinkle","d1d4f9"),
+        ("Pink","ffd5dc"),("Peach","ffdfbf"),("Mint","a7ffc4"),
+        ("Yellow","ffffb1"),("White","ffffff"),
+    ];
+
+    // ── Avatar helpers ────────────────────────────────────────────
+
+    // skinColor values ARE the hex values - return them directly for the swatch display
+    private static string SkinHex(string val) => string.IsNullOrEmpty(val) ? "ffdbb4" : val;
+
+    private static string AvatarUrl(string? json, string? name)
+    {
+        var props = ParseAvatar(json);
+        var sb = new System.Text.StringBuilder("https://api.dicebear.com/9.x/avataaars/svg?");
+        sb.Append("seed=").Append(Uri.EscapeDataString(name ?? "student"));
+        if (props.TryGetValue("skinColor",      out var skin))   sb.Append("&skinColor=").Append(skin);
+        if (props.TryGetValue("top",            out var top))    sb.Append("&top=").Append(top);
+        if (props.TryGetValue("hairColor",      out var hc))     sb.Append("&hairColor=").Append(hc);
+        if (props.TryGetValue("eyes",           out var eyes))   sb.Append("&eyes=").Append(eyes);
+        if (props.TryGetValue("mouth",          out var mouth))  sb.Append("&mouth=").Append(mouth);
+        if (props.TryGetValue("clothing",       out var cloth))  sb.Append("&clothing=").Append(cloth);
+        sb.Append("&accessoriesProbability=0&facialHairProbability=0");
+        if (props.TryGetValue("backgroundColor", out var bg))   sb.Append("&backgroundColor=").Append(bg);
+        sb.Append("&backgroundType=solid&radius=50&scale=90");
+        return sb.ToString();
+    }
+
+    private static Dictionary<string, string> ParseAvatar(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new();
+        try { return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new(); }
+        catch { return new(); }
+    }
+
+    private string GetAvatarProp(string key)
+    {
+        var props = ParseAvatar(_editAvatarJson);
+        return props.TryGetValue(key, out var v) ? v : "";
+    }
+
+    private void SetAvatarProp(string key, string value)
+    {
+        var props = ParseAvatar(_editAvatarJson);
+        props[key] = value;
+        _editAvatarJson = JsonSerializer.Serialize(props);
+    }
+
+    private static int GetAge(DateOnly dob)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var age   = today.Year - dob.Year;
+        if (dob.AddYears(age) > today) age--;
+        return age;
+    }
+
+    private static Enrollment? ActiveEnrollment(Student s) =>
+        s.Enrollments.FirstOrDefault();
+
+    // ── Lifecycle ─────────────────────────────────────────────────
+
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task LoadAsync()
     {
-        _students = await Db.Students.ToListAsync();
+        _students = await Db.Students
+            .Include(s => s.Enrollments)
+                .ThenInclude(e => e.ClassGroupInstance)
+            .Include(s => s.Enrollments)
+                .ThenInclude(e => e.Grade)
+            .ToListAsync();
     }
+
+    // ── Add ───────────────────────────────────────────────────────
 
     private async Task AddStudentAsync()
     {
         Db.Students.Add(new Student
         {
-            FirstName = _newFirstName.Trim(),
-            LastName = _newLastName.Trim(),
+            FirstName   = _newFirstName.Trim(),
+            LastName    = _newLastName.Trim(),
             DateOfBirth = _newDob.HasValue ? DateOnly.FromDateTime(_newDob.Value) : null,
-            IsActive = true
+            IsActive    = true
         });
-
         await Db.SaveChangesAsync();
-        _newFirstName = "";
-        _newLastName = "";
-        _newDob = null;
+        _newFirstName = ""; _newLastName = ""; _newDob = null;
         Snackbar.Add("Student added.", Severity.Success);
         await LoadAsync();
     }
 
-    private async Task DeactivateAsync(Student student)
+    // ── Edit drawer ───────────────────────────────────────────────
+
+    private void OpenEdit(Student s)
     {
-        student.IsActive = false;
-        student.InactivatedOn = DateTimeOffset.UtcNow;
-        student.InactivatedReason = "Manually deactivated";
+        _editing           = s;
+        _editFirstName     = s.FirstName;
+        _editLastName      = s.LastName;
+        _editDob           = s.DateOfBirth.HasValue ? s.DateOfBirth.Value.ToDateTime(TimeOnly.MinValue) : null;
+        _editParentContact = s.ParentGuardianContact ?? "";
+        _editNotes         = s.Notes ?? "";
+        _editAvatarJson    = s.AvatarConfigJson;
+        _drawerOpen        = true;
+    }
+
+    private async Task SaveEditAsync()
+    {
+        if (_editing == null) return;
+        if (string.IsNullOrWhiteSpace(_editFirstName) || string.IsNullOrWhiteSpace(_editLastName))
+        { Snackbar.Add("First and last name are required.", Severity.Warning); return; }
+        _editing.FirstName             = _editFirstName.Trim();
+        _editing.LastName              = _editLastName.Trim();
+        _editing.DateOfBirth           = _editDob.HasValue ? DateOnly.FromDateTime(_editDob.Value) : null;
+        _editing.ParentGuardianContact = string.IsNullOrWhiteSpace(_editParentContact) ? null : _editParentContact.Trim();
+        _editing.Notes                 = string.IsNullOrWhiteSpace(_editNotes) ? null : _editNotes.Trim();
+        _editing.AvatarConfigJson      = _editAvatarJson;
         await Db.SaveChangesAsync();
-        Snackbar.Add($"{student.FirstName} {student.LastName} deactivated.", Severity.Info);
+        _drawerOpen = false;
+        Snackbar.Add("Profile saved.", Severity.Success);
         await LoadAsync();
     }
 
-    private async Task ReactivateAsync(Student student)
+    // ── Status toggles ────────────────────────────────────────────
+
+    private async Task DeactivateAsync(Student s)
     {
-        student.IsActive = true;
-        student.InactivatedOn = null;
-        student.InactivatedReason = null;
+        s.IsActive = false; s.InactivatedOn = DateTimeOffset.UtcNow; s.InactivatedReason = "Manually deactivated";
         await Db.SaveChangesAsync();
-        Snackbar.Add($"{student.FirstName} {student.LastName} reactivated.", Severity.Success);
+        Snackbar.Add($"{s.FirstName} {s.LastName} deactivated.", Severity.Info);
         await LoadAsync();
     }
 
-    private static string GetInitials(string? first, string? last)
+    private async Task ReactivateAsync(Student s)
     {
-        var f = string.IsNullOrWhiteSpace(first) ? "?" : first[0].ToString().ToUpper();
-        var l = string.IsNullOrWhiteSpace(last) ? "" : last[0].ToString().ToUpper();
-        return f + l;
+        s.IsActive = true; s.InactivatedOn = null; s.InactivatedReason = null;
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"{s.FirstName} {s.LastName} reactivated.", Severity.Success);
+        await LoadAsync();
     }
 }
