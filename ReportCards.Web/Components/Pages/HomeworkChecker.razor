@@ -455,6 +455,7 @@ else
     public void OnImageAdded(int index, string thumbnailDataUrl)
     {
         _thumbnails.Add(thumbnailDataUrl);
+        Snackbar.Add($"DEBUG: OnImageAdded called, index={index}, thumbnails={_thumbnails.Count}", Severity.Info);
         StateHasChanged();
     }
 
@@ -491,6 +492,15 @@ else
 
         // Fetch full-res images from JS store only at analysis time
         var fullImages = await JS.InvokeAsync<List<string>>("imageHelper.getImages");
+        Snackbar.Add($"DEBUG: {fullImages.Count} full-res images from JS store", Severity.Info);
+
+        if (fullImages.Count == 0)
+        {
+            Snackbar.Add("No images found in JS store — thumbnails show but full images missing", Severity.Error);
+            _analyzing = false;
+            StateHasChanged();
+            return;
+        }
 
         var request = new HomeworkAnalysisRequest
         {
