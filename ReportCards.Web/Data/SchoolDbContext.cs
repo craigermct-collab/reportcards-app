@@ -43,6 +43,7 @@ public class SchoolDbContext : DbContext
     // Report mapping
     public DbSet<ReportTemplateFieldMap> ReportTemplateFieldMaps => Set<ReportTemplateFieldMap>();
     public DbSet<HomeworkAnalysis> HomeworkAnalyses => Set<HomeworkAnalysis>();
+    public DbSet<HomeworkAnalysisImage> HomeworkAnalysisImages => Set<HomeworkAnalysisImage>();
 
     // AI prompt config
     public DbSet<SchoolAiConfig> SchoolAiConfigs => Set<SchoolAiConfig>();
