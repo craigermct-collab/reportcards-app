@@ -44,6 +44,10 @@ public class SchoolDbContext : DbContext
     public DbSet<ReportTemplateFieldMap> ReportTemplateFieldMaps => Set<ReportTemplateFieldMap>();
     public DbSet<HomeworkAnalysis> HomeworkAnalyses => Set<HomeworkAnalysis>();
 
+    // AI prompt config
+    public DbSet<SchoolAiConfig> SchoolAiConfigs => Set<SchoolAiConfig>();
+    public DbSet<TeacherAiConfig> TeacherAiConfigs => Set<TeacherAiConfig>();
+
     protected override void OnModelCreating(ModelBuilder m)
     {
         base.OnModelCreating(m);
@@ -278,6 +282,16 @@ public class SchoolDbContext : DbContext
             .HasOne(a => a.TermInstance)
             .WithMany(t => t.Assessments)
             .HasForeignKey(a => a.TermInstanceId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        // TeacherAiConfig — one per teacher
+        m.Entity<TeacherAiConfig>()
+            .HasIndex(t => t.TeacherId).IsUnique();
+
+        m.Entity<TeacherAiConfig>()
+            .HasOne(t => t.Teacher)
+            .WithMany()
+            .HasForeignKey(t => t.TeacherId)
             .OnDelete(DeleteBehavior.NoAction);
     }
 }

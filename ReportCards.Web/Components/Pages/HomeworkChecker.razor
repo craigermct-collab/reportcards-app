@@ -8,6 +8,7 @@
 @inject HomeworkAnalysisService AnalysisService
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Homework Checker</PageTitle>
 
@@ -380,6 +381,9 @@ else
     private int? _selectedClassGroupTypeId;
     private int? _selectedGradeId;
 
+    private SchoolAiConfig? _schoolConfig;
+    private TeacherAiConfig? _teacherConfig;
+
     private bool _checkSpelling = true;
     private bool _checkGrammar = true;
     private bool _checkRubric = true;
@@ -407,6 +411,20 @@ else
             .Include(c => c.Grades)
             .OrderBy(c => c.SortOrder)
             .ToListAsync();
+
+        _schoolConfig = await Db.SchoolAiConfigs.FirstOrDefaultAsync();
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var email = authState.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+        if (email != null)
+        {
+            var appUser = await Db.AppUsers
+                .Include(u => u.Teacher)
+                .FirstOrDefaultAsync(u => u.Email == email);
+            if (appUser?.TeacherId != null)
+                _teacherConfig = await Db.TeacherAiConfigs
+                    .FirstOrDefaultAsync(t => t.TeacherId == appUser.TeacherId);
+        }
     }
 
     private async Task OnCameraSelected(InputFileChangeEventArgs e)
@@ -478,7 +496,9 @@ else
             CheckSpelling = _checkSpelling,
             CheckGrammar = _checkGrammar,
             CheckRubric = _checkRubric,
-            CheckAiGenerated = _checkAi
+            CheckAiGenerated = _checkAi,
+            SchoolConfig = _schoolConfig,
+            TeacherConfig = _teacherConfig
         };
 
         _result = await AnalysisService.AnalyzeAsync(request);
