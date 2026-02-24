@@ -144,6 +144,9 @@ public class Teacher
     public int Id { get; set; }
     public required string DisplayName { get; set; }
     public required string Email { get; set; }
+    public string? Phone { get; set; }
+    public string? Title { get; set; }
+    public string? AvatarConfigJson { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset? InactivatedOn { get; set; }
     public string? InactivatedReason { get; set; }
@@ -158,6 +161,9 @@ public class Student
     public required string FirstName { get; set; }
     public required string LastName { get; set; }
     public DateOnly? DateOfBirth { get; set; }
+    public string? ParentGuardianContact { get; set; }
+    public string? Notes { get; set; }
+    public string? AvatarConfigJson { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset? InactivatedOn { get; set; }
     public string? InactivatedReason { get; set; }
