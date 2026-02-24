@@ -4,6 +4,7 @@
 @using Microsoft.EntityFrameworkCore
 @using ReportCards.Web.Data
 @using ReportCards.Web.Services
+@implements IDisposable
 @inject SchoolDbContext Db
 @inject HomeworkAnalysisService AnalysisService
 @inject ISnackbar Snackbar
@@ -44,8 +45,8 @@
             <MudGrid Class="mb-4">
                 <MudItem xs="6">
                     <label style="display:block; width:100%; cursor:pointer;">
-                        <InputFile OnChange="OnCameraSelected" accept="image/*" capture="environment"
-                                   multiple style="display:none" />
+                        <input id="cameraInput" type="file" accept="image/*" capture="environment"
+                               multiple style="display:none" />
                         <div style="display:flex; align-items:center; justify-content:center; gap:8px;
                                     height:56px; border-radius:4px; font-size:15px; font-weight:500;
                                     background:#1B4F72; color:white;">
@@ -56,8 +57,8 @@
                 </MudItem>
                 <MudItem xs="6">
                     <label style="display:block; width:100%; cursor:pointer;">
-                        <InputFile OnChange="OnLibrarySelected" accept="image/*"
-                                   multiple style="display:none" />
+                        <input id="libraryInput" type="file" accept="image/*"
+                               multiple style="display:none" />
                         <div style="display:flex; align-items:center; justify-content:center; gap:8px;
                                     height:56px; border-radius:4px; font-size:15px; font-weight:500;
                                     border:1px solid #1B4F72; color:#1B4F72; background:transparent;">
@@ -68,13 +69,13 @@
                 </MudItem>
             </MudGrid>
 
-            @if (_images.Count > 0)
+            @if (_thumbnails.Count > 0)
             {
                 <!-- Document queue header -->
                 <div class="d-flex align-center justify-space-between mb-2">
                     <MudText Typo="Typo.subtitle2">
                         <span class="material-icons" style="font-size:16px; vertical-align:middle; margin-right:4px;">description</span>
-                        @_images.Count page@(_images.Count == 1 ? "" : "s") queued
+                        @_thumbnails.Count page@(_thumbnails.Count == 1 ? "" : "s") queued
                     </MudText>
                     <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small"
                                StartIcon="@Icons.Material.Filled.DeleteSweep"
@@ -84,14 +85,14 @@
                 <!-- Horizontally scrollable page strip -->
                 <div style="display:flex; gap:10px; overflow-x:auto; padding-bottom:8px;
                             scrollbar-width:thin;">
-                    @for (int i = 0; i < _images.Count; i++)
+                    @for (int i = 0; i < _thumbnails.Count; i++)
                     {
                         var idx = i;
                         <div style="position:relative; flex-shrink:0;">
                             <!-- Page thumbnail -->
                             <div style="width:90px; border-radius:8px; overflow:hidden;
                                         border:2px solid #1B4F72; box-shadow:0 2px 6px rgba(0,0,0,0.15);">
-                                <img src="@_images[idx]"
+                                <img src="@_thumbnails[idx]"
                                      style="width:90px; height:120px; object-fit:cover; display:block;" />
                                 <!-- Page number badge -->
                                 <div style="background:#1B4F72; color:white; text-align:center;
@@ -113,7 +114,7 @@
                     <!-- Add more pages tile -->
                     <div style="flex-shrink:0;">
                         <label style="cursor:pointer; display:block;">
-                            <InputFile OnChange="OnLibrarySelected" accept="image/*" multiple style="display:none" />
+                            <input type="file" accept="image/*" multiple style="display:none" />
                             <div style="width:90px; height:142px; border-radius:8px;
                                         border:2px dashed #1B4F72; display:flex; flex-direction:column;
                                         align-items:center; justify-content:center; gap:4px; color:#1B4F72;">
@@ -265,7 +266,7 @@ else
         <MudTooltip Text="Start new analysis">
             <MudIconButton Icon="@Icons.Material.Filled.Refresh"
                            Color="Color.Default"
-                           OnClick="Reset" />
+                           OnClick="@(async () => await Reset())" />
         </MudTooltip>
     </div>
 
@@ -383,7 +384,7 @@ else
                StartIcon="@Icons.Material.Filled.AddAPhoto"
                FullWidth="true"
                Style="height:56px; font-size:15px; font-weight:700; border-radius:12px;"
-               OnClick="Reset">
+               OnClick="@(async () => await Reset())">
         Analyze Another
     </MudButton>
 }
@@ -401,7 +402,9 @@ else
     private bool _checkRubric = true;
     private bool _checkAi = true;
 
-    private List<string> _images = new(); // base64 data URLs (compressed)
+    // Thumbnails for display only (small, 200px) — full images live in JS memory
+    private List<string> _thumbnails = new();
+    private DotNetObjectReference<HomeworkChecker>? _dotNetRef;
     private bool _analyzing;
     private HomeworkAnalysisResult? _result;
     private string _teacherNote = "";
@@ -410,7 +413,7 @@ else
 
     private bool CanAnalyze =>
         !_analyzing &&
-        _images.Count > 0 &&
+        _thumbnails.Count > 0 &&
         (_checkSpelling || _checkGrammar || _checkRubric || _checkAi) &&
         (!_checkRubric || (_selectedClassGroupTypeId != null && _selectedGradeId != null));
 
@@ -425,6 +428,7 @@ else
             .OrderBy(c => c.SortOrder)
             .ToListAsync();
 
+        _dotNetRef = DotNetObjectReference.Create(this);
         _schoolConfig = await Db.SchoolAiConfigs.FirstOrDefaultAsync();
 
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
@@ -440,57 +444,41 @@ else
         }
     }
 
-    private async Task OnCameraSelected(InputFileChangeEventArgs e)
-        => await ProcessFiles(e);
-
-    private async Task OnLibrarySelected(InputFileChangeEventArgs e)
-        => await ProcessFiles(e);
-
-    private async Task ProcessFiles(InputFileChangeEventArgs e)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        var added = 0;
-        foreach (var file in e.GetMultipleFiles(10))
+        // Re-attach JS listeners every render (handles dynamically added inputs like 'Add more pages')
+        if (_dotNetRef != null)
+            await JS.InvokeVoidAsync("imageHelper.initFileInputs", _dotNetRef);
+    }
+
+    [JSInvokable]
+    public void OnImageAdded(int index, string thumbnailDataUrl)
+    {
+        _thumbnails.Add(thumbnailDataUrl);
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnImageError(string fileName, string error)
+    {
+        Snackbar.Add($"Could not read {fileName}: {error}", Severity.Warning);
+        StateHasChanged();
+    }
+
+    private async Task RemoveImage(int index)
+    {
+        if (index >= 0 && index < _thumbnails.Count)
         {
-            try
-            {
-                await using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
-                using var ms = new System.IO.MemoryStream();
-                await stream.CopyToAsync(ms);
-                var base64 = Convert.ToBase64String(ms.ToArray());
-                var mimeType = string.IsNullOrEmpty(file.ContentType) ? "image/jpeg" : file.ContentType;
-                var dataUrl = $"data:{mimeType};base64,{base64}";
-
-                string finalUrl;
-                try
-                {
-                    finalUrl = await JS.InvokeAsync<string>("imageHelper.compressImage", dataUrl, 1600, 0.78);
-                    if (string.IsNullOrEmpty(finalUrl)) finalUrl = dataUrl;
-                }
-                catch
-                {
-                    finalUrl = dataUrl;
-                }
-
-                _images.Add(finalUrl);
-                added++;
-                StateHasChanged();
-            }
-            catch (Exception ex)
-            {
-                Snackbar.Add($"Could not read page: {ex.Message}", Severity.Warning);
-            }
+            _thumbnails.RemoveAt(index);
+            await JS.InvokeVoidAsync("imageHelper.removeImage", index);
         }
-        if (added > 0)
-            Snackbar.Add($"{added} page{(added == 1 ? "" : "s")} added", Severity.Success);
     }
 
-    private void RemoveImage(int index)
+    private async Task ClearAllImages()
     {
-        if (index >= 0 && index < _images.Count)
-            _images.RemoveAt(index);
+        _thumbnails.Clear();
+        await JS.InvokeVoidAsync("imageHelper.clearImages");
     }
-
-    private void ClearAllImages() => _images.Clear();
 
     private async Task RunAnalysisAsync()
     {
@@ -501,9 +489,12 @@ else
         var grade = GradesForSelectedGroup.FirstOrDefault(g => g.Id == _selectedGradeId);
         var classGroup = _classGroupTypes.FirstOrDefault(c => c.Id == _selectedClassGroupTypeId);
 
+        // Fetch full-res images from JS store only at analysis time
+        var fullImages = await JS.InvokeAsync<List<string>>("imageHelper.getImages");
+
         var request = new HomeworkAnalysisRequest
         {
-            ImageDataUrls = _images.ToList(),
+            ImageDataUrls = fullImages,
             GradeName = grade?.Name ?? "",
             ClassGroupName = classGroup?.Name ?? "",
             CheckSpelling = _checkSpelling,
@@ -550,14 +541,17 @@ else
         Snackbar.Add("Result saved.", Severity.Success);
     }
 
-    private void Reset()
+    private async Task Reset()
     {
         _result = null;
-        _images = new();
+        _thumbnails = new();
         _saved = false;
         _teacherNote = "";
         _saveName = "";
+        await JS.InvokeVoidAsync("imageHelper.clearImages");
     }
+
+    public void Dispose() => _dotNetRef?.Dispose();
 
     private static string CheckCardStyle(bool active) =>
         active
