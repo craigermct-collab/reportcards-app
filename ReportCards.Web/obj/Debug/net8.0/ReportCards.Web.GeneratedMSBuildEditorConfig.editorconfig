@@ -59,6 +59,10 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xIb21ld29ya0NoZWNrZXIucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
 
+[C:/Users/CraigM/reportcards-app/ReportCards.Web/Components/Pages/SavedAnalyses.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTYXZlZEFuYWx5c2VzLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
 [C:/Users/CraigM/reportcards-app/ReportCards.Web/Components/Pages/SchoolYears.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTY2hvb2xZZWFycy5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = 
