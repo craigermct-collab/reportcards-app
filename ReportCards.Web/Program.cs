@@ -9,7 +9,11 @@ using ReportCards.Web.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents()
+    .AddHubOptions(options =>
+    {
+        options.MaximumReceiveMessageSize = 20 * 1024 * 1024; // 20MB
+    });
 
 builder.Services.AddMudServices();
 
