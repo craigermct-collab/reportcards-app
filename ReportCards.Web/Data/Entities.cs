@@ -433,6 +433,7 @@ public class TeacherAiConfig
 public class HomeworkAnalysis
 {
     public int Id { get; set; }
+    public required string Name { get; set; }
     public DateTimeOffset AnalyzedAt { get; set; } = DateTimeOffset.UtcNow;
     public string? GradeName { get; set; }
     public string? ClassGroupName { get; set; }
