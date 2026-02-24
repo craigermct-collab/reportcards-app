@@ -64,6 +64,10 @@
                     <MudText Typo="Typo.subtitle2">
                         <span class="material-icons" style="font-size:16px; vertical-align:middle; margin-right:4px;">description</span>
                         @_images.Count page@(_images.Count == 1 ? "" : "s") queued
+                        @if (_images.Count > 1)
+                        {
+                            <span style="color:var(--mud-palette-text-secondary); font-size:11px; margin-left:8px;">drag tiles to reorder</span>
+                        }
                     </MudText>
                     <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small"
                                StartIcon="@Icons.Material.Filled.DeleteSweep"
@@ -74,16 +78,33 @@
                     @for (int i = 0; i < _images.Count; i++)
                     {
                         var idx = i;
-                        <div style="position:relative; flex-shrink:0;">
+                        <div draggable="true"
+                             @ondragstart="@(() => { _dragIndex = idx; _isDragging = true; })"
+                             @ondragover:preventDefault="true"
+                             @ondrop="@(() => OnDrop(idx))"
+                             @ondragend="@(() => _isDragging = false)"
+                             style="position:relative; flex-shrink:0; opacity:@(_isDragging && _dragIndex == idx ? "0.4" : "1"); transition:opacity 0.15s;">
                             <div style="width:90px; border-radius:8px; overflow:hidden;
                                         border:2px solid #1B4F72; box-shadow:0 2px 6px rgba(0,0,0,0.15);">
-                                <img src="@_images[idx]" style="width:90px; height:120px; object-fit:cover; display:block;" />
+                                <div style="background:#1B4F72; color:rgba(255,255,255,0.7); text-align:center;
+                                            font-size:13px; padding:3px 0; cursor:grab; user-select:none;">
+                                    &#8285;&#8285;&#8285;
+                                </div>
+                                <div class="page-thumb-wrap" style="position:relative; cursor:pointer;"
+                                     @onclick="@(() => OpenPreview(idx))">
+                                    <img src="@_images[idx]" style="width:90px; height:110px; object-fit:cover; display:block;" />
+                                    <div class="page-zoom-overlay"
+                                         style="position:absolute; inset:0; background:rgba(27,79,114,0.55);
+                                                display:flex; align-items:center; justify-content:center;">
+                                        <span class="material-icons" style="color:white; font-size:28px;">zoom_in</span>
+                                    </div>
+                                </div>
                                 <div style="background:#1B4F72; color:white; text-align:center;
                                             font-size:11px; font-weight:700; padding:3px 0;">
                                     Page @(idx + 1)
                                 </div>
                             </div>
-                            <div style="position:absolute; top:-6px; right:-6px;">
+                            <div style="position:absolute; top:-6px; right:-6px;" @onclick:stopPropagation="true">
                                 <MudIconButton Icon="@Icons.Material.Filled.Cancel"
                                                Size="Size.Small" Color="Color.Error"
                                                Style="background:white; padding:0; width:22px; height:22px; min-width:0;"
@@ -234,6 +255,45 @@ else
         </MudTooltip>
     </div>
 
+    @if (_images.Count > 0)
+    {
+        <MudCard Elevation="1" Class="mb-4">
+            <MudCardHeader Style="padding-bottom:8px;">
+                <CardHeaderContent>
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.PhotoLibrary" Color="Color.Primary" Style="font-size:20px;" />
+                        <MudText Typo="Typo.subtitle2">Pages Analysed (@_images.Count) — click to review</MudText>
+                    </div>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent Style="padding-top:4px;">
+                <div style="display:flex; gap:10px; overflow-x:auto; padding-bottom:8px; scrollbar-width:thin;">
+                    @for (int i = 0; i < _images.Count; i++)
+                    {
+                        var idx = i;
+                        <div class="page-thumb-wrap" style="flex-shrink:0; cursor:pointer; position:relative;"
+                             @onclick="@(() => OpenPreview(idx))">
+                            <div style="width:80px; border-radius:8px; overflow:hidden;
+                                        border:2px solid #1B4F72; box-shadow:0 2px 6px rgba(0,0,0,0.15);">
+                                <img src="@_images[idx]" style="width:80px; height:100px; object-fit:cover; display:block;" />
+                                <div class="page-zoom-overlay"
+                                     style="position:absolute; top:0; left:0; width:80px; height:100px;
+                                            background:rgba(27,79,114,0.55); border-radius:6px 6px 0 0;
+                                            display:flex; align-items:center; justify-content:center;">
+                                    <span class="material-icons" style="color:white; font-size:24px;">zoom_in</span>
+                                </div>
+                                <div style="background:#1B4F72; color:white; text-align:center;
+                                            font-size:11px; font-weight:700; padding:3px 0;">
+                                    Page @(idx + 1)
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </MudCardContent>
+        </MudCard>
+    }
+
     @if (!_result.Success)
     {
         <MudAlert Severity="Severity.Error" Class="mb-4">Analysis failed: @_result.ErrorMessage</MudAlert>
@@ -318,6 +378,64 @@ else
     </MudButton>
 }
 
+@* Image Preview Modal *@
+@if (_previewOpen && _previewIndex >= 0 && _previewIndex < _images.Count)
+{
+    <div style="position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.88);
+                display:flex; flex-direction:column; align-items:center; justify-content:center;"
+         @onclick="ClosePreview">
+
+        <div style="position:absolute; top:0; left:0; right:0; padding:12px 16px;
+                    display:flex; align-items:center; justify-content:space-between;
+                    background:rgba(0,0,0,0.5);"
+             @onclick:stopPropagation="true">
+            <MudText Typo="Typo.subtitle1" Style="color:white; font-weight:700;">
+                Page @(_previewIndex + 1) of @_images.Count
+            </MudText>
+            <div class="d-flex align-center gap-1">
+                <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Color="Color.Inherit"
+                               Disabled="@(_previewIndex == 0)"
+                               OnClick="@(() => _previewIndex--)" />
+                <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Inherit"
+                               Disabled="@(_previewIndex == _images.Count - 1)"
+                               OnClick="@(() => _previewIndex++)" />
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Inherit"
+                               OnClick="ClosePreview" />
+            </div>
+        </div>
+
+        <img src="@_images[_previewIndex]"
+             style="max-width:92vw; max-height:80vh; object-fit:contain; border-radius:8px;
+                    box-shadow:0 8px 40px rgba(0,0,0,0.6);"
+             @onclick:stopPropagation="true" />
+
+        @if (_images.Count > 1)
+        {
+            <div style="display:flex; gap:8px; padding:12px 16px; overflow-x:auto; max-width:92vw;"
+                 @onclick:stopPropagation="true">
+                @for (int i = 0; i < _images.Count; i++)
+                {
+                    var fi = i;
+                    <div @onclick="@(() => _previewIndex = fi)"
+                         style="flex-shrink:0; cursor:pointer; border-radius:6px; overflow:hidden;
+                                border:@(_previewIndex == fi ? "3px solid #E67E22" : "2px solid rgba(255,255,255,0.3)");">
+                        <img src="@_images[fi]" style="width:52px; height:68px; object-fit:cover; display:block;" />
+                    </div>
+                }
+            </div>
+        }
+
+        <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.35); margin-top:4px;">
+            Click outside to close
+        </MudText>
+    </div>
+}
+
+<style>
+    .page-zoom-overlay { opacity: 0; transition: opacity 0.2s; }
+    .page-thumb-wrap:hover .page-zoom-overlay { opacity: 1; }
+</style>
+
 @code {
     private List<ClassGroupType> _classGroupTypes = new();
     private int? _selectedClassGroupTypeId;
@@ -336,6 +454,14 @@ else
     private string _teacherNote = "";
     private string _saveName    = "";
     private bool   _saved;
+
+    // Drag reorder
+    private int  _dragIndex  = -1;
+    private bool _isDragging = false;
+
+    // Preview modal
+    private bool _previewOpen  = false;
+    private int  _previewIndex = 0;
 
     private bool CanAnalyze =>
         !_analyzing && _images.Count > 0 &&
@@ -364,7 +490,30 @@ else
         }
     }
 
-    private async Task OnCameraSelected(InputFileChangeEventArgs e) => await ProcessFiles(e);
+    private void OnDrop(int dropIndex)
+    {
+        if (_dragIndex < 0 || _dragIndex == dropIndex)
+        {
+            _dragIndex  = -1;
+            _isDragging = false;
+            return;
+        }
+        var item = _images[_dragIndex];
+        _images.RemoveAt(_dragIndex);
+        _images.Insert(dropIndex, item);
+        _dragIndex  = -1;
+        _isDragging = false;
+    }
+
+    private void OpenPreview(int index)
+    {
+        _previewIndex = index;
+        _previewOpen  = true;
+    }
+
+    private void ClosePreview() => _previewOpen = false;
+
+    private async Task OnCameraSelected(InputFileChangeEventArgs e)  => await ProcessFiles(e);
     private async Task OnLibrarySelected(InputFileChangeEventArgs e) => await ProcessFiles(e);
 
     private async Task ProcessFiles(InputFileChangeEventArgs e)
@@ -472,6 +621,7 @@ else
         _saved       = false;
         _teacherNote = "";
         _saveName    = "";
+        _previewOpen = false;
     }
 
     private static string CheckCardStyle(bool a) => a
