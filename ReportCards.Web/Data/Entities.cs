@@ -146,6 +146,9 @@ public class Teacher
     public required string Email { get; set; }
     public string? Phone { get; set; }
     public string? Title { get; set; }
+    public DateOnly? HireDate { get; set; }
+    public DateOnly? TerminationDate { get; set; }
+    public string? Notes { get; set; }
     public string? AvatarConfigJson { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset? InactivatedOn { get; set; }
@@ -161,6 +164,9 @@ public class Student
     public required string FirstName { get; set; }
     public required string LastName { get; set; }
     public DateOnly? DateOfBirth { get; set; }
+    public DateOnly? EnrollmentDate { get; set; }
+    public DateOnly? CompletionDate { get; set; }
+    public string? OenNumber { get; set; }
     public string? ParentGuardianContact { get; set; }
     public string? Notes { get; set; }
     public string? AvatarConfigJson { get; set; }
