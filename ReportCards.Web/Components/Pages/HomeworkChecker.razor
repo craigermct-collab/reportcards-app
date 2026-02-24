@@ -588,7 +588,7 @@ else
     private async Task SaveResultAsync()
     {
         if (_result == null) return;
-        Db.HomeworkAnalyses.Add(new HomeworkAnalysis
+        var analysis = new HomeworkAnalysis
         {
             Name               = _saveName.Trim(),
             AnalyzedAt         = _result.AnalyzedAt,
@@ -608,7 +608,10 @@ else
             AiDetectionSummary = _result.AiDetectionSummary,
             OverallSummary     = _result.OverallSummary,
             TeacherNote        = string.IsNullOrWhiteSpace(_teacherNote) ? null : _teacherNote.Trim()
-        });
+        };
+        for (int i = 0; i < _images.Count; i++)
+            analysis.Images.Add(new HomeworkAnalysisImage { SortOrder = i, ImageData = _images[i] });
+        Db.HomeworkAnalyses.Add(analysis);
         await Db.SaveChangesAsync();
         _saved = true;
         Snackbar.Add("Result saved.", Severity.Success);

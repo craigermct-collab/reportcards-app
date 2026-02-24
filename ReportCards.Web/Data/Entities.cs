@@ -426,8 +426,21 @@ public class TeacherAiConfig
 // H) HOMEWORK ANALYSIS (ephemeral AI results, no student PII)
 // ═══════════════════════════════════════════════════════════════════
 
+/// <summary>One stored page image belonging to a saved HomeworkAnalysis.</summary>
+public class HomeworkAnalysisImage
+{
+    public int Id { get; set; }
+    public int SortOrder { get; set; }
+
+    /// <summary>Full base64 data URL, e.g. data:image/jpeg;base64,...</summary>
+    public required string ImageData { get; set; }
+
+    public int HomeworkAnalysisId { get; set; }
+    public HomeworkAnalysis? HomeworkAnalysis { get; set; }
+}
+
 /// <summary>
-/// Saved AI analysis result. No student name, no photo stored.
+/// Saved AI analysis result. Includes page images so other teachers can review.
 /// Teacher optionally saves after reviewing.
 /// </summary>
 public class HomeworkAnalysis
@@ -457,6 +470,8 @@ public class HomeworkAnalysis
 
     // Optional teacher note
     public string? TeacherNote { get; set; }
+
+    public List<HomeworkAnalysisImage> Images { get; set; } = new();
 }
 
 // ═══════════════════════════════════════════════════════════════════
