@@ -378,6 +378,51 @@ public class YearSubjectOffering
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// I) AI PROMPT CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════
+
+/// <summary>Singleton school-wide AI behaviour config.</summary>
+public class SchoolAiConfig
+{
+    public int Id { get; set; }
+    public string SchoolName { get; set; } = "KinderKollege";
+
+    // Tone & philosophy
+    public string? GradingPhilosophy { get; set; }   // e.g. "encouraging, growth-mindset"
+    public string? ToneGuidance { get; set; }         // e.g. "warm, age-appropriate, avoid negative language"
+    public string? TerminologyNotes { get; set; }     // e.g. "use 'learning skills' not 'behaviour'"
+
+    // Check-specific school defaults
+    public string? SpellingGuidance { get; set; }
+    public string? GrammarGuidance { get; set; }
+    public string? RubricGuidance { get; set; }
+    public string? AiDetectionGuidance { get; set; }
+
+    // Free-form additional instructions
+    public string? AdditionalInstructions { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>Per-teacher AI behaviour preferences, layered on top of SchoolAiConfig.</summary>
+public class TeacherAiConfig
+{
+    public int Id { get; set; }
+
+    public int TeacherId { get; set; }
+    public Teacher? Teacher { get; set; }
+
+    // Personal tone overrides
+    public string? PreferredTone { get; set; }        // e.g. "very encouraging, focus on positives first"
+    public string? FocusAreas { get; set; }           // e.g. "pay special attention to sentence structure"
+
+    // Free-form personal instructions
+    public string? AdditionalInstructions { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // H) HOMEWORK ANALYSIS (ephemeral AI results, no student PII)
 // ═══════════════════════════════════════════════════════════════════
 

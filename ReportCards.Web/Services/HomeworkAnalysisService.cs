@@ -1,6 +1,6 @@
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using ReportCards.Web.Data;
 
 namespace ReportCards.Web.Services;
 
@@ -13,6 +13,10 @@ public class HomeworkAnalysisRequest
     public bool CheckGrammar { get; set; }
     public bool CheckRubric { get; set; }
     public bool CheckAiGenerated { get; set; }
+
+    // Prompt configs — null means use defaults
+    public SchoolAiConfig? SchoolConfig { get; set; }
+    public TeacherAiConfig? TeacherConfig { get; set; }
 }
 
 public class HomeworkAnalysisResult
@@ -78,14 +82,51 @@ public class HomeworkAnalysisService
   ""overallSummary"": ""<2-3 sentence encouraging but honest summary>""
 }";
 
-            var systemPrompt =
-                $"You are an expert educator reviewing student homework for a {request.GradeName} student " +
-                $"at KinderKollege Private Primary School ({request.ClassGroupName} class group).\n\n" +
-                "Analyze the provided homework image(s) and respond in valid JSON only.\n" +
-                "No markdown fences, no preamble, just raw JSON.\n\n" +
-                "Use this exact structure:\n" + jsonSchema + "\n\n" +
-                "Only populate requested sections. Set unrequested sections to null values.\n" +
-                "Be encouraging but accurate. Use language appropriate for the student's grade level.";
+            var sc = request.SchoolConfig;
+            var tc = request.TeacherConfig;
+            var schoolName = sc?.SchoolName ?? "KinderKollege";
+
+            var prompt = new System.Text.StringBuilder();
+            prompt.AppendLine($"You are an expert educator reviewing student homework for a {request.GradeName} student at {schoolName} ({request.ClassGroupName} class group).");
+            prompt.AppendLine();
+
+            // School-level guidance
+            if (!string.IsNullOrWhiteSpace(sc?.GradingPhilosophy))
+                prompt.AppendLine($"Grading philosophy: {sc.GradingPhilosophy}");
+            if (!string.IsNullOrWhiteSpace(sc?.ToneGuidance))
+                prompt.AppendLine($"Tone guidance: {sc.ToneGuidance}");
+            if (!string.IsNullOrWhiteSpace(sc?.TerminologyNotes))
+                prompt.AppendLine($"Terminology: {sc.TerminologyNotes}");
+            if (!string.IsNullOrWhiteSpace(sc?.SpellingGuidance) && request.CheckSpelling)
+                prompt.AppendLine($"Spelling guidance: {sc.SpellingGuidance}");
+            if (!string.IsNullOrWhiteSpace(sc?.GrammarGuidance) && request.CheckGrammar)
+                prompt.AppendLine($"Grammar guidance: {sc.GrammarGuidance}");
+            if (!string.IsNullOrWhiteSpace(sc?.RubricGuidance) && request.CheckRubric)
+                prompt.AppendLine($"Rubric guidance: {sc.RubricGuidance}");
+            if (!string.IsNullOrWhiteSpace(sc?.AiDetectionGuidance) && request.CheckAiGenerated)
+                prompt.AppendLine($"AI detection guidance: {sc.AiDetectionGuidance}");
+            if (!string.IsNullOrWhiteSpace(sc?.AdditionalInstructions))
+                prompt.AppendLine($"Additional school instructions: {sc.AdditionalInstructions}");
+
+            // Teacher-level overrides
+            if (!string.IsNullOrWhiteSpace(tc?.PreferredTone))
+                prompt.AppendLine($"Teacher preferred tone: {tc.PreferredTone}");
+            if (!string.IsNullOrWhiteSpace(tc?.FocusAreas))
+                prompt.AppendLine($"Teacher focus areas: {tc.FocusAreas}");
+            if (!string.IsNullOrWhiteSpace(tc?.AdditionalInstructions))
+                prompt.AppendLine($"Teacher additional instructions: {tc.AdditionalInstructions}");
+
+            prompt.AppendLine();
+            prompt.AppendLine("Analyze the provided homework image(s) and respond in valid JSON only.");
+            prompt.AppendLine("No markdown fences, no preamble, just raw JSON.");
+            prompt.AppendLine();
+            prompt.AppendLine("Use this exact structure:");
+            prompt.AppendLine(jsonSchema);
+            prompt.AppendLine();
+            prompt.AppendLine("Only populate requested sections. Set unrequested sections to null values.");
+            prompt.AppendLine("In summaries, call out specific words, phrases or sentences that are problematic — be precise, not vague.");
+
+            var systemPrompt = prompt.ToString();
 
             // Build messages array with images
             var userContentParts = new List<object>
