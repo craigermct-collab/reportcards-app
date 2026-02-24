@@ -149,10 +149,9 @@
                               Style="@CheckCardStyle(_checkSpelling)"
                               @onclick="@(() => _checkSpelling = !_checkSpelling)">
                         <MudIcon Icon="@Icons.Material.Filled.Spellcheck"
-                                 Color="@(_checkSpelling ? Color.Primary : Color.Default)"
-                                 Style="font-size:32px; margin-bottom:4px;" />
+                                 Style="@CheckIconStyle(_checkSpelling)" />
                         <MudText Typo="Typo.body2" Style="font-weight:600; text-align:center;">Spelling</MudText>
-                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">@(_checkSpelling ? "ON" : "OFF")</MudText>
+                        <MudText Typo="Typo.caption" Style="@CheckLabelStyle(_checkSpelling)">@CheckLabel(_checkSpelling)</MudText>
                     </MudPaper>
                 </MudItem>
                 <MudItem xs="6" sm="3">
@@ -160,10 +159,9 @@
                               Style="@CheckCardStyle(_checkGrammar)"
                               @onclick="@(() => _checkGrammar = !_checkGrammar)">
                         <MudIcon Icon="@Icons.Material.Filled.RateReview"
-                                 Color="@(_checkGrammar ? Color.Primary : Color.Default)"
-                                 Style="font-size:32px; margin-bottom:4px;" />
+                                 Style="@CheckIconStyle(_checkGrammar)" />
                         <MudText Typo="Typo.body2" Style="font-weight:600; text-align:center;">Grammar</MudText>
-                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">@(_checkGrammar ? "ON" : "OFF")</MudText>
+                        <MudText Typo="Typo.caption" Style="@CheckLabelStyle(_checkGrammar)">@CheckLabel(_checkGrammar)</MudText>
                     </MudPaper>
                 </MudItem>
                 <MudItem xs="6" sm="3">
@@ -171,10 +169,9 @@
                               Style="@CheckCardStyle(_checkRubric)"
                               @onclick="@(() => _checkRubric = !_checkRubric)">
                         <MudIcon Icon="@Icons.Material.Filled.Checklist"
-                                 Color="@(_checkRubric ? Color.Primary : Color.Default)"
-                                 Style="font-size:32px; margin-bottom:4px;" />
+                                 Style="@CheckIconStyle(_checkRubric)" />
                         <MudText Typo="Typo.body2" Style="font-weight:600; text-align:center;">Rubric</MudText>
-                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">@(_checkRubric ? "ON" : "OFF")</MudText>
+                        <MudText Typo="Typo.caption" Style="@CheckLabelStyle(_checkRubric)">@CheckLabel(_checkRubric)</MudText>
                     </MudPaper>
                 </MudItem>
                 <MudItem xs="6" sm="3">
@@ -182,10 +179,9 @@
                               Style="@CheckCardStyle(_checkAi)"
                               @onclick="@(() => _checkAi = !_checkAi)">
                         <MudIcon Icon="@Icons.Material.Filled.SmartToy"
-                                 Color="@(_checkAi ? Color.Primary : Color.Default)"
-                                 Style="font-size:32px; margin-bottom:4px;" />
+                                 Style="@CheckIconStyle(_checkAi)" />
                         <MudText Typo="Typo.body2" Style="font-weight:600; text-align:center;">AI Check</MudText>
-                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">@(_checkAi ? "ON" : "OFF")</MudText>
+                        <MudText Typo="Typo.caption" Style="@CheckLabelStyle(_checkAi)">@CheckLabel(_checkAi)</MudText>
                     </MudPaper>
                 </MudItem>
             </MudGrid>
@@ -426,7 +422,6 @@ else
         {
             try
             {
-                // Read stream into buffer
                 await using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
                 using var ms = new System.IO.MemoryStream();
                 await stream.CopyToAsync(ms);
@@ -434,7 +429,6 @@ else
                 var mimeType = string.IsNullOrEmpty(file.ContentType) ? "image/jpeg" : file.ContentType;
                 var dataUrl = $"data:{mimeType};base64,{base64}";
 
-                // Try JS compression — fall back to raw if it fails
                 string finalUrl;
                 try
                 {
@@ -448,14 +442,13 @@ else
 
                 _images.Add(finalUrl);
                 added++;
-                StateHasChanged(); // show each page as it loads
+                StateHasChanged();
             }
             catch (Exception ex)
             {
-                Snackbar.Add($"Could not read page {added + 1}: {ex.Message}", Severity.Warning);
+                Snackbar.Add($"Could not read page: {ex.Message}", Severity.Warning);
             }
         }
-
         if (added > 0)
             Snackbar.Add($"{added} page{(added == 1 ? "" : "s")} added", Severity.Success);
     }
@@ -531,10 +524,22 @@ else
         _teacherNote = "";
     }
 
-    private string CheckCardStyle(bool active) =>
+    private static string CheckCardStyle(bool active) =>
         active
-            ? "cursor:pointer; border-color:#1B4F72; background:rgba(27,79,114,0.06);"
-            : "cursor:pointer;";
+            ? "cursor:pointer; border-color:#27AE60; border-width:2px; background:rgba(39,174,96,0.12);"
+            : "cursor:pointer; border-color:#ccc; background:#f9f9f9; opacity:0.7;";
+
+    private static string CheckIconStyle(bool active) =>
+        active
+            ? "font-size:32px; margin-bottom:4px; color:#27AE60;"
+            : "font-size:32px; margin-bottom:4px; color:#aaa;";
+
+    private static string CheckLabelStyle(bool active) =>
+        active
+            ? "font-weight:700; color:#27AE60;"
+            : "font-weight:700; color:#aaa;";
+
+    private static string CheckLabel(bool active) => active ? "✓ ON" : "OFF";
 
     private RenderFragment ScoreCard(string label, int score, string icon)
     {
