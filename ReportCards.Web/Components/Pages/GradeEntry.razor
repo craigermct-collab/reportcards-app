@@ -1,0 +1,663 @@
+@page "/grade-entry"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@inject SchoolDbContext Db
+@inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Grade Entry</PageTitle>
+
+<div class="d-flex align-center gap-3 mb-1">
+    <MudIcon Icon="@Icons.Material.Filled.Grading"
+             Style="background:#1B4F72; color:white; padding:8px; border-radius:10px; font-size:24px;" />
+    <div>
+        <MudText Typo="Typo.h5" Style="font-family:'DM Serif Display',serif; line-height:1.1;">Grade Entry</MudText>
+        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+            Select a term and student to enter grades.
+            @if (_teacherName != null)
+            {
+                <span> Showing students for <strong>@_teacherName</strong>.</span>
+            }
+        </MudText>
+    </div>
+</div>
+
+<!-- ── FILTER CARD ──────────────────────────────────────────────── -->
+<MudCard Elevation="1" Class="mb-5 mt-4">
+    <MudCardContent>
+        <MudGrid Spacing="3">
+            <MudItem xs="12" sm="4">
+                <MudSelect T="int?"
+                           Label="Term"
+                           Value="_selectedTermId"
+                           ValueChanged="@(async (int? v) => await TermChanged(v))"
+                           Variant="Variant.Outlined"
+                           AnchorOrigin="Origin.BottomLeft"
+                           Clearable="true"
+                           Disabled="@_isLoadingTerms">
+                    @foreach (var t in _terms)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)t.Id)">
+                            @t.SchoolYear?.Name – @t.Name
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="5">
+                <MudSelect T="int?"
+                           Label="Student"
+                           @bind-Value="_selectedStudentId"
+                           Variant="Variant.Outlined"
+                           AnchorOrigin="Origin.BottomLeft"
+                           Clearable="true"
+                           Disabled="@(_selectedTermId == null || _isLoadingStudents)"
+                           HelperText="@(_selectedTermId == null ? "Select a term first" : null)">
+                    @if (_isLoadingStudents)
+                    {
+                        <MudSelectItem T="int?" Value="null" Disabled="true">Loading…</MudSelectItem>
+                    }
+                    else
+                    {
+                        @foreach (var e in _enrollments)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)e.StudentId)">
+                                @e.Student?.LastName, @e.Student?.FirstName
+                            </MudSelectItem>
+                        }
+                        @if (!_enrollments.Any())
+                        {
+                            <MudSelectItem T="int?" Value="null" Disabled="true">No students found for this term</MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="3" Class="d-flex align-center">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Search"
+                           OnClick="LoadGradesAsync"
+                           Disabled="@(_selectedTermId == null || _selectedStudentId == null || _isLoadingItems)"
+                           FullWidth="true">
+                    Load Grades
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+<!-- ── LOADING ──────────────────────────────────────────────────── -->
+@if (_isLoadingItems)
+{
+    <MudCard Elevation="1" Class="pa-8 d-flex justify-center">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+    </MudCard>
+}
+
+<!-- ── NO ITEMS ─────────────────────────────────────────────────── -->
+else if (_gradesLoaded && !_groups.Any())
+{
+    <MudAlert Severity="Severity.Info" Class="rounded-lg">
+        No learning items found for this student in the selected term. Make sure the student is enrolled and learning items have been seeded from the curriculum.
+    </MudAlert>
+}
+
+<!-- ── GRADE FORM ────────────────────────────────────────────────── -->
+else if (_groups.Any())
+{
+    <MudCard Elevation="1">
+        <!-- Card header -->
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">@_selectedStudentName</MudText>
+                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">@_selectedTermName</MudText>
+            </CardHeaderContent>
+            <CardHeaderActions>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Save"
+                           Size="Size.Small"
+                           OnClick="SaveGradesAsync"
+                           Disabled="@_isSaving">
+                    @if (_isSaving)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        <span>Saving…</span>
+                    }
+                    else
+                    {
+                        <span>Save Grades</span>
+                    }
+                </MudButton>
+            </CardHeaderActions>
+        </MudCardHeader>
+        <MudDivider />
+
+        <MudCardContent Class="pa-5">
+
+            @foreach (var subjectGroup in _groups)
+            {
+                <!-- ── SUBJECT HEADING ─────────────────────────── -->
+                <div class="d-flex align-center gap-2 mt-5 mb-1" style="@(_groups.First() == subjectGroup ? "margin-top:0!important" : "")">
+                    <MudIcon Icon="@Icons.Material.Filled.MenuBook" Size="Size.Small" Style="color:#1B4F72;" />
+                    <MudText Typo="Typo.subtitle1" Style="font-weight:700; color:#1A2B3C;">
+                        @subjectGroup.SubjectName
+                    </MudText>
+                    @if (!string.IsNullOrWhiteSpace(subjectGroup.SubjectCode))
+                    {
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
+                                 Style="font-size:11px; height:20px;">
+                            @subjectGroup.SubjectCode
+                        </MudChip>
+                    }
+                </div>
+                <MudDivider Class="mb-3" />
+
+                <!-- ── COLUMN HEADERS ─────────────────────────── -->
+                <div class="d-flex align-center gap-3 mb-2 px-2"
+                     style="font-family:'DM Sans',sans-serif; font-size:11px; font-weight:700;
+                            text-transform:uppercase; letter-spacing:0.06em; color:#6B7A8D;">
+                    <div style="flex:1; min-width:0;">Strand / Subject</div>
+                    <div style="width:160px; flex-shrink:0;">Grade</div>
+                    <div style="flex:1.4; min-width:0;">Comment</div>
+                    <div style="width:32px; flex-shrink:0;"></div>
+                </div>
+
+                @foreach (var row in subjectGroup.Rows)
+                {
+                    <!-- ── GRADE ROW ───────────────────────────── -->
+                    <div class="grade-row @(row.IsExpanded ? "grade-row--expanded" : "")">
+
+                        <div class="d-flex align-center gap-3 px-2 py-2">
+
+                            <!-- Label -->
+                            <div style="flex:1; min-width:0;">
+                                <MudText Typo="Typo.body2" Style="font-weight:500; color:#1A2B3C;">
+                                    @row.DisplayName
+                                </MudText>
+                                @if (row.LearningItem.GradingScale?.Name is not null)
+                                {
+                                    <MudText Typo="Typo.caption" Style="color:#6B7A8D;">
+                                        @row.LearningItem.GradingScale.Name
+                                    </MudText>
+                                }
+                            </div>
+
+                            <!-- Grade input -->
+                            <div style="width:160px; flex-shrink:0;">
+                                @if (row.LearningItem.GradingScale?.ValueType == GradingValueType.OptionList)
+                                {
+                                    <MudSelect T="string?"
+                                               Value="@row.ValueText"
+                                               ValueChanged="@(v => row.ValueText = v)"
+                                               Variant="Variant.Outlined"
+                                               Dense="true"
+                                               Margin="Margin.Dense"
+                                               Clearable="true"
+                                               AnchorOrigin="Origin.BottomLeft">
+                                        @foreach (var opt in row.LearningItem.GradingScale.Options.OrderBy(o => o.SortOrder))
+                                        {
+                                            <MudSelectItem T="string?" Value="@opt.Label">
+                                                @(opt.Code is not null ? $"{opt.Code} – {opt.Label}" : opt.Label)
+                                            </MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                }
+                                else if (row.LearningItem.GradingScale?.ValueType == GradingValueType.Numeric)
+                                {
+                                    <MudNumericField T="decimal?"
+                                                     Value="@row.ValueNumber"
+                                                     ValueChanged="@(v => row.ValueNumber = v)"
+                                                     Variant="Variant.Outlined"
+                                                     Dense="true"
+                                                     Margin="Margin.Dense"
+                                                     Min="@((double)(row.LearningItem.GradingScale.MinValue ?? 0))"
+                                                     Max="@((double)(row.LearningItem.GradingScale.MaxValue ?? 100))"
+                                                     Step="@((double)(row.LearningItem.GradingScale.Step ?? 1))"
+                                                     Adornment="@(row.LearningItem.GradingScale.DisplaySuffix != null ? Adornment.End : Adornment.None)"
+                                                     AdornmentText="@row.LearningItem.GradingScale.DisplaySuffix" />
+                                }
+                                else
+                                {
+                                    <MudTextField T="string?"
+                                                  Value="@row.ValueText"
+                                                  ValueChanged="@(v => row.ValueText = v)"
+                                                  Variant="Variant.Outlined"
+                                                  Dense="true"
+                                                  Margin="Margin.Dense"
+                                                  Placeholder="Enter grade" />
+                                }
+                            </div>
+
+                            <!-- Comment (placeholder for next phase — sized for ~2 sentences) -->
+                            <div style="flex:1.4; min-width:0;">
+                                <MudTextField T="string?"
+                                              Value="@row.Comment"
+                                              ValueChanged="@(v => row.Comment = v)"
+                                              Variant="Variant.Outlined"
+                                              Dense="true"
+                                              Margin="Margin.Dense"
+                                              Lines="2"
+                                              MaxLength="500"
+                                              Placeholder="Add a comment… (optional)"
+                                              Style="font-size:13px;" />
+                            </div>
+
+                            <!-- Curriculum expand toggle -->
+                            <div style="width:32px; flex-shrink:0; text-align:center;">
+                                @if (row.SubStrands.Any())
+                                {
+                                    <MudTooltip Text="@(row.IsExpanded ? "Hide curriculum details" : "View curriculum details")">
+                                        <MudIconButton Icon="@(row.IsExpanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.InfoOutlined)"
+                                                       Size="Size.Small"
+                                                       Color="@(row.IsExpanded ? Color.Primary : Color.Default)"
+                                                       OnClick="@(() => row.IsExpanded = !row.IsExpanded)" />
+                                    </MudTooltip>
+                                }
+                            </div>
+
+                        </div>
+
+                        <!-- ── CURRICULUM EXPANSION PANEL ──────── -->
+                        <MudCollapse Expanded="@row.IsExpanded">
+                            <div style="margin: 0 8px 12px 8px; padding:14px 16px;
+                                        background:#F4F6F9; border-radius:8px;
+                                        border-left:3px solid #2E86C1;">
+                                <div class="d-flex align-center gap-2 mb-2">
+                                    <MudIcon Icon="@Icons.Material.Filled.AutoStories" Size="Size.Small" Style="color:#2E86C1;" />
+                                    <MudText Typo="Typo.caption" Style="font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#2E86C1;">
+                                        Curriculum Expectations
+                                    </MudText>
+                                </div>
+                                @foreach (var sub in row.SubStrands.OrderBy(s => s.SortOrder))
+                                {
+                                    <div class="mb-3">
+                                        <MudText Typo="Typo.body2" Style="font-weight:700; color:#1A2B3C; margin-bottom:2px;">
+                                            @if (!string.IsNullOrWhiteSpace(sub.Code))
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
+                                                         Style="font-size:10px; height:18px; margin-right:6px; padding:0 6px;">
+                                                    @sub.Code
+                                                </MudChip>
+                                            }
+                                            @sub.Name
+                                        </MudText>
+                                        @if (!string.IsNullOrWhiteSpace(sub.Description))
+                                        {
+                                            <MudText Typo="Typo.body2" Style="color:#455A64; line-height:1.5; padding-left:4px;">
+                                                @sub.Description
+                                            </MudText>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </MudCollapse>
+
+                    </div>
+                }
+
+                <div class="mb-4"></div>
+            }
+
+            <!-- Bottom save -->
+            <MudDivider Class="mt-4 mb-4" />
+            <div class="d-flex justify-end">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Save"
+                           OnClick="SaveGradesAsync"
+                           Disabled="@_isSaving">
+                    @if (_isSaving)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        <span>Saving…</span>
+                    }
+                    else
+                    {
+                        <span>Save Grades</span>
+                    }
+                </MudButton>
+            </div>
+
+        </MudCardContent>
+    </MudCard>
+}
+
+<style>
+    .grade-row {
+        border-radius: 6px;
+        transition: background 0.15s;
+    }
+    .grade-row:hover {
+        background: rgba(27, 79, 114, 0.035);
+    }
+    .grade-row--expanded {
+        background: rgba(46, 134, 193, 0.05);
+        border: 1px solid rgba(46, 134, 193, 0.2);
+        border-radius: 8px;
+        margin-bottom: 4px;
+    }
+</style>
+
+@code {
+
+    // ── VIEW MODELS ───────────────────────────────────────────────
+
+    private class SubjectGroup
+    {
+        public string SubjectName { get; set; } = "";
+        public string? SubjectCode { get; set; }
+        public int SortOrder { get; set; }
+        public List<GradeRow> Rows { get; set; } = new();
+    }
+
+    private class GradeRow
+    {
+        public StudentLearningItem LearningItem { get; set; } = null!;
+        public string DisplayName { get; set; } = "";
+        public int? ExistingAssessmentId { get; set; }
+        public string?  ValueText   { get; set; }
+        public decimal? ValueNumber { get; set; }
+        public string?  Comment     { get; set; }
+        public bool IsExpanded { get; set; }
+        public List<CurriculumSubStrand> SubStrands { get; set; } = new();
+    }
+
+    // ── STATE ─────────────────────────────────────────────────────
+
+    private bool _isLoadingTerms    = true;
+    private bool _isLoadingStudents;
+    private bool _isLoadingItems;
+    private bool _isSaving;
+    private bool _gradesLoaded;
+
+    private List<TermInstance> _terms       = new();
+    private List<Enrollment>   _enrollments = new();
+    private List<SubjectGroup> _groups      = new();
+
+    private int? _selectedTermId;
+    private int? _selectedStudentId;
+    private int? _teacherId;
+    private string? _teacherName;
+    private string? _selectedStudentName;
+    private string? _selectedTermName;
+
+    // ── LIFECYCLE ─────────────────────────────────────────────────
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Try to find logged-in teacher
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var email = authState.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+        if (email != null)
+        {
+            var appUser = await Db.AppUsers
+                .Include(u => u.Teacher)
+                .FirstOrDefaultAsync(u => u.Email == email);
+
+            if (appUser?.TeacherId != null)
+            {
+                _teacherId   = appUser.TeacherId;
+                _teacherName = appUser.Teacher?.DisplayName;
+            }
+        }
+
+        // Load terms — only terms where this teacher has assignments (or all terms if no teacher found)
+        var termsQuery = Db.TermInstances
+            .Include(t => t.SchoolYear)
+            .AsQueryable();
+
+        if (_teacherId != null)
+        {
+            // Get term IDs where this teacher has at least one assignment
+            var assignedTermIds = await Db.TeacherAssignments
+                .Where(a => a.TeacherId == _teacherId)
+                .Select(a => a.ClassGroupInstance.TermInstanceId)
+                .Distinct()
+                .ToListAsync();
+
+            termsQuery = termsQuery.Where(t => assignedTermIds.Contains(t.Id));
+        }
+
+        _terms = await termsQuery
+            .OrderByDescending(t => t.SchoolYear!.IsActive)
+            .ThenByDescending(t => t.SchoolYearId)
+            .ThenBy(t => t.SortOrder)
+            .ToListAsync();
+
+        _isLoadingTerms = false;
+    }
+
+    // ── WATCHERS ──────────────────────────────────────────────────
+
+    // Blazor doesn't have computed setters so we watch via OnParametersSet equivalent
+    // — instead we just reload students whenever _selectedTermId changes via the Load button
+    // and reload grades when Load Grades is clicked.
+
+    private async Task OnTermChangedAsync()
+    {
+        _selectedStudentId   = null;
+        _selectedStudentName = null;
+        _selectedTermName    = null;
+        _enrollments         = new();
+        _groups              = new();
+        _gradesLoaded        = false;
+
+        if (_selectedTermId == null) return;
+
+        _isLoadingStudents = true;
+        StateHasChanged();
+
+        _selectedTermName = _terms.FirstOrDefault(t => t.Id == _selectedTermId) is { } term
+            ? $"{term.SchoolYear?.Name} – {term.Name}"
+            : null;
+
+        // Build enrollment query
+        var enrollmentQuery = Db.Enrollments
+            .Include(e => e.Student)
+            .Where(e => e.TermInstanceId == _selectedTermId && e.Student!.IsActive);
+
+        if (_teacherId != null)
+        {
+            // Get ClassGroupInstance IDs this teacher is assigned to in this term
+            var assignedCgiIds = await Db.TeacherAssignments
+                .Where(a => a.TeacherId == _teacherId &&
+                            a.ClassGroupInstance.TermInstanceId == _selectedTermId)
+                .Select(a => a.ClassGroupInstanceId)
+                .Distinct()
+                .ToListAsync();
+
+            enrollmentQuery = enrollmentQuery
+                .Where(e => assignedCgiIds.Contains(e.ClassGroupInstanceId));
+        }
+
+        _enrollments = await enrollmentQuery
+            .OrderBy(e => e.Student!.LastName)
+            .ThenBy(e => e.Student!.FirstName)
+            .ToListAsync();
+
+        _isLoadingStudents = false;
+    }
+
+    // Called when term select changes
+    private async Task TermChanged(int? value)
+    {
+        _selectedTermId = value;
+        await OnTermChangedAsync();
+    }
+
+    // ── LOAD GRADES ───────────────────────────────────────────────
+
+    private async Task LoadGradesAsync()
+    {
+        if (_selectedStudentId == null || _selectedTermId == null) return;
+
+        _isLoadingItems = true;
+        _gradesLoaded   = false;
+        _groups         = new();
+        StateHasChanged();
+
+        var enrollment = _enrollments.FirstOrDefault(e => e.StudentId == _selectedStudentId);
+        _selectedStudentName = enrollment?.Student is { } s
+            ? $"{s.FirstName} {s.LastName}"
+            : null;
+
+        await BuildGradeGroupsAsync();
+
+        _isLoadingItems = false;
+        _gradesLoaded   = true;
+    }
+
+    private async Task BuildGradeGroupsAsync()
+    {
+        if (_selectedStudentId == null || _selectedTermId == null) return;
+
+        // Find enrollment record
+        var enrollment = await Db.Enrollments
+            .FirstOrDefaultAsync(e =>
+                e.StudentId      == _selectedStudentId &&
+                e.TermInstanceId == _selectedTermId);
+
+        if (enrollment == null) return;
+
+        // Load learning items with full curriculum navigation
+        var items = await Db.StudentLearningItems
+            .Include(li => li.GradingScale)
+                .ThenInclude(gs => gs!.Options)
+            .Include(li => li.YearClassOffering)
+                .ThenInclude(o => o!.CurriculumClassTemplate)
+            .Include(li => li.YearSubjectOffering)
+                .ThenInclude(o => o!.CurriculumSubjectTemplate)
+                    .ThenInclude(st => st!.CurriculumClassTemplate)
+            .Include(li => li.YearSubjectOffering)
+                .ThenInclude(o => o!.CurriculumSubjectTemplate)
+                    .ThenInclude(st => st!.SubStrands)
+            .Where(li => li.EnrollmentId == enrollment.Id)
+            .ToListAsync();
+
+        // Load existing assessments for this term
+        var itemIds = items.Select(li => li.Id).ToList();
+        var assessments = await Db.Assessments
+            .Where(a => a.TermInstanceId == _selectedTermId && itemIds.Contains(a.StudentLearningItemId))
+            .ToListAsync();
+
+        var assessmentMap = assessments.ToDictionary(a => a.StudentLearningItemId);
+
+        // Build rows
+        var rows = items.Select(li =>
+        {
+            assessmentMap.TryGetValue(li.Id, out var existing);
+
+            // Determine sub-strands for curriculum expansion
+            var subStrands = li.ItemType == LearningItemType.Subject
+                ? li.YearSubjectOffering?.CurriculumSubjectTemplate?.SubStrands ?? new()
+                : new List<CurriculumSubStrand>();
+
+            return new GradeRow
+            {
+                LearningItem         = li,
+                DisplayName          = li.DisplayName,
+                ExistingAssessmentId = existing?.Id,
+                ValueText            = existing?.ValueText,
+                ValueNumber          = existing?.ValueNumber,
+                Comment              = existing?.Comment,
+                SubStrands           = subStrands,
+            };
+        }).ToList();
+
+        // Group into subject areas (CurriculumClassTemplate)
+        _groups = rows
+            .GroupBy(r =>
+            {
+                if (r.LearningItem.ItemType == LearningItemType.Class)
+                    return (
+                        Name:      r.LearningItem.YearClassOffering?.CurriculumClassTemplate?.Name ?? "General",
+                        Code:      r.LearningItem.YearClassOffering?.CurriculumClassTemplate?.Code,
+                        SortOrder: r.LearningItem.YearClassOffering?.CurriculumClassTemplate?.SortOrder ?? 999
+                    );
+                return (
+                    Name:      r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.Name ?? "General",
+                    Code:      r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.Code,
+                    SortOrder: r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.SortOrder ?? 999
+                );
+            })
+            .OrderBy(g => g.Key.SortOrder)
+            .ThenBy(g => g.Key.Name)
+            .Select(g => new SubjectGroup
+            {
+                SubjectName = g.Key.Name,
+                SubjectCode = g.Key.Code,
+                SortOrder   = g.Key.SortOrder,
+                Rows        = g
+                    .OrderBy(r => r.LearningItem.ItemType) // Class-level first, then strands
+                    .ThenBy(r => r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.SortOrder ?? 999)
+                    .ThenBy(r => r.DisplayName)
+                    .ToList()
+            })
+            .ToList();
+    }
+
+    // ── SAVE ──────────────────────────────────────────────────────
+
+    private async Task SaveGradesAsync()
+    {
+        if (_selectedStudentId == null || _selectedTermId == null) return;
+
+        _isSaving = true;
+        StateHasChanged();
+
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+
+            foreach (var group in _groups)
+            {
+                foreach (var row in group.Rows)
+                {
+                    if (row.ExistingAssessmentId is int existingId)
+                    {
+                        // Update existing
+                        var existing = await Db.Assessments.FindAsync(existingId);
+                        if (existing != null)
+                        {
+                            existing.ValueText     = row.ValueText;
+                            existing.ValueNumber   = row.ValueNumber;
+                            existing.Comment       = row.Comment;
+                            existing.LastUpdatedAt = now;
+                        }
+                    }
+                    else if (row.ValueText != null || row.ValueNumber != null || row.Comment != null)
+                    {
+                        // Insert only if something was entered (don't clutter DB with blanks)
+                        var assessment = new Assessment
+                        {
+                            StudentLearningItemId = row.LearningItem.Id,
+                            TermInstanceId        = _selectedTermId.Value,
+                            ValueText             = row.ValueText,
+                            ValueNumber           = row.ValueNumber,
+                            Comment               = row.Comment,
+                            LastUpdatedAt         = now,
+                        };
+                        Db.Assessments.Add(assessment);
+                    }
+                }
+            }
+
+            await Db.SaveChangesAsync();
+
+            // Refresh rows to pick up new assessment IDs
+            await BuildGradeGroupsAsync();
+
+            Snackbar.Add($"Grades saved for {_selectedStudentName}!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Save failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+}
