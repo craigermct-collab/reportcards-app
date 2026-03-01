@@ -3,8 +3,10 @@
 @attribute [Authorize]
 @using Microsoft.EntityFrameworkCore
 @using ReportCards.Web.Data
+@using System.Text.Json
 @inject SchoolDbContext Db
 @inject ISnackbar Snackbar
+@inject IHttpClientFactory HttpFactory
 
 <div class="d-flex align-center gap-3 mb-1">
     <MudText Typo="Typo.h4" Style="font-family:'DM Serif Display',serif;">School Years</MudText>
@@ -15,28 +17,22 @@
     </MudButton>
 </div>
 <MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
-    Manage school years and their reporting terms.
+    Manage school years, reporting terms, and the school calendar.
 </MudText>
 
 <MudCollapse Expanded="_showAddForm">
     <MudCard Class="mb-6" Elevation="1">
         <MudCardHeader>
-            <CardHeaderContent>
-                <MudText Typo="Typo.h6">Add School Year</MudText>
-            </CardHeaderContent>
+            <CardHeaderContent><MudText Typo="Typo.h6">Add School Year</MudText></CardHeaderContent>
         </MudCardHeader>
         <MudCardContent>
             <MudGrid>
                 <MudItem xs="12" sm="6" md="4">
-                    <MudTextField @bind-Value="_newYearName"
-                                  Label="School Year Name"
-                                  Placeholder="e.g. 2025-2026"
-                                  Variant="Variant.Outlined"
-                                  FullWidth="true" />
+                    <MudTextField @bind-Value="_newYearName" Label="School Year Name"
+                                  Placeholder="e.g. 2025-2026" Variant="Variant.Outlined" FullWidth="true" />
                 </MudItem>
                 <MudItem xs="12" sm="6" md="2" Class="d-flex align-end">
-                    <MudButton Variant="Variant.Filled"
-                               Color="Color.Primary"
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
                                StartIcon="@Icons.Material.Filled.Add"
                                OnClick="AddSchoolYearAsync"
                                Disabled="@(string.IsNullOrWhiteSpace(_newYearName))"
@@ -49,7 +45,6 @@
     </MudCard>
 </MudCollapse>
 
-<!-- ── School Years List ───────────────────────────────── -->
 @if (_schoolYears.Count == 0)
 {
     <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
@@ -60,7 +55,7 @@ else
 {
     @foreach (var year in _schoolYears)
     {
-        <MudCard Class="mb-4" Elevation="1">
+        <MudCard Class="mb-6" Elevation="1">
             <MudCardHeader>
                 <CardHeaderContent>
                     <div class="d-flex align-center gap-3">
@@ -81,26 +76,26 @@ else
                     @if (!year.IsActive)
                     {
                         <MudTooltip Text="Set as active year">
-                            <MudIconButton Icon="@Icons.Material.Filled.CheckCircle"
-                                           Color="Color.Success"
+                            <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success"
                                            OnClick="@(() => SetActiveAsync(year))" />
                         </MudTooltip>
                     }
                     <MudTooltip Text="@(year.IsLocked ? "Unlock year" : "Lock year")">
                         <MudIconButton Icon="@(year.IsLocked ? Icons.Material.Filled.LockOpen : Icons.Material.Filled.Lock)"
-                                       Color="Color.Warning"
-                                       OnClick="@(() => ToggleLockAsync(year))" />
+                                       Color="Color.Warning" OnClick="@(() => ToggleLockAsync(year))" />
                     </MudTooltip>
                 </CardHeaderActions>
             </MudCardHeader>
 
             <MudCardContent>
-                <!-- Terms table -->
+
+                <!-- Terms -->
+                <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);" Class="mb-2">Terms</MudText>
+
                 @if (year.TermInstances.Count > 0)
                 {
                     <MudTable Items="year.TermInstances.OrderBy(t => t.SortOrder)"
-                              Dense="true" Hover="true" Elevation="0"
-                              Class="mb-4"
+                              Dense="true" Hover="true" Elevation="0" Class="mb-4"
                               Style="border:1px solid var(--mud-palette-divider); border-radius:8px;">
                         <HeaderContent>
                             <MudTh>Term</MudTh>
@@ -113,10 +108,8 @@ else
                             <MudTd>@context.StartDate.ToString("MMM d, yyyy")</MudTd>
                             <MudTd>@context.EndDate.ToString("MMM d, yyyy")</MudTd>
                             <MudTd Style="text-align:right;">
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                               Size="Size.Small"
-                                               Color="Color.Error"
-                                               OnClick="@(() => DeleteTermAsync(context))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                               Color="Color.Error" OnClick="@(() => DeleteTermAsync(context))" />
                             </MudTd>
                         </RowTemplate>
                     </MudTable>
@@ -128,32 +121,21 @@ else
                     </MudText>
                 }
 
-                <!-- Add term inline -->
-                <MudGrid>
+                <MudGrid Class="mb-6">
                     <MudItem xs="12" sm="3">
-                        <MudTextField @bind-Value="_newTermNames[year.Id]"
-                                      Label="Term Name"
-                                      Placeholder="e.g. Term 1"
-                                      Variant="Variant.Outlined"
-                                      Margin="Margin.Dense" />
+                        <MudTextField @bind-Value="_newTermNames[year.Id]" Label="Term Name"
+                                      Placeholder="e.g. Term 1" Variant="Variant.Outlined" Margin="Margin.Dense" />
                     </MudItem>
                     <MudItem xs="12" sm="3">
-                        <MudDatePicker @bind-Date="_newTermStarts[year.Id]"
-                                       Label="Start Date"
-                                       Variant="Variant.Outlined"
-                                       Margin="Margin.Dense"
-                                       DateFormat="yyyy-MM-dd" />
+                        <MudDatePicker @bind-Date="_newTermStarts[year.Id]" Label="Start Date"
+                                       Variant="Variant.Outlined" Margin="Margin.Dense" DateFormat="yyyy-MM-dd" />
                     </MudItem>
                     <MudItem xs="12" sm="3">
-                        <MudDatePicker @bind-Date="_newTermEnds[year.Id]"
-                                       Label="End Date"
-                                       Variant="Variant.Outlined"
-                                       Margin="Margin.Dense"
-                                       DateFormat="yyyy-MM-dd" />
+                        <MudDatePicker @bind-Date="_newTermEnds[year.Id]" Label="End Date"
+                                       Variant="Variant.Outlined" Margin="Margin.Dense" DateFormat="yyyy-MM-dd" />
                     </MudItem>
                     <MudItem xs="12" sm="3" Class="d-flex align-end">
-                        <MudButton Variant="Variant.Outlined"
-                                   Color="Color.Primary"
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
                                    StartIcon="@Icons.Material.Filled.Add"
                                    OnClick="@(() => AddTermAsync(year))"
                                    Disabled="@(!CanAddTerm(year.Id))"
@@ -162,20 +144,140 @@ else
                         </MudButton>
                     </MudItem>
                 </MudGrid>
+
+                <MudDivider Class="mb-4" />
+
+                <!-- School Calendar -->
+                <div class="d-flex align-center flex-wrap gap-2 mb-3">
+                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);">
+                        School Calendar — Non-School Days
+                    </MudText>
+                    <div class="d-flex gap-2" style="margin-left:auto;">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Download"
+                                   OnClick="@(() => ImportStatHolidaysAsync(year))"
+                                   Disabled="@(_importingHolidays.Contains(year.Id))">
+                            @(_importingHolidays.Contains(year.Id) ? "Importing..." : "Import Stat Holidays")
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="@(() => OpenAddException(year.Id))">
+                            Add Day Off
+                        </MudButton>
+                    </div>
+                </div>
+
+                <!-- Legend -->
+                <div class="d-flex gap-4 mb-3 flex-wrap">
+                    <div class="d-flex align-center gap-1">
+                        <div style="width:12px;height:12px;border-radius:3px;background:#E74C3C;"></div>
+                        <MudText Typo="Typo.caption">Stat Holiday</MudText>
+                    </div>
+                    <div class="d-flex align-center gap-1">
+                        <div style="width:12px;height:12px;border-radius:3px;background:#E67E22;"></div>
+                        <MudText Typo="Typo.caption">PD / PA Day</MudText>
+                    </div>
+                    <div class="d-flex align-center gap-1">
+                        <div style="width:12px;height:12px;border-radius:3px;background:#3498DB;"></div>
+                        <MudText Typo="Typo.caption">Snow Day</MudText>
+                    </div>
+                </div>
+
+                @if (year.CalendarExceptions.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                        No non-school days defined. Use "Import Stat Holidays" or "Add Day Off" above.
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudTable Items="year.CalendarExceptions.OrderBy(e => e.Date)"
+                              Dense="true" Hover="true" Elevation="0"
+                              Style="border:1px solid var(--mud-palette-divider); border-radius:8px;">
+                        <HeaderContent>
+                            <MudTh>Date</MudTh>
+                            <MudTh>Label</MudTh>
+                            <MudTh>Type</MudTh>
+                            <MudTh></MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>
+                                <MudText Typo="Typo.body2">@context.Date.ToString("MMM d, yyyy")</MudText>
+                                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                    @context.Date.DayOfWeek
+                                </MudText>
+                            </MudTd>
+                            <MudTd>@context.Label</MudTd>
+                            <MudTd>
+                                @{
+                                    var (chipColor, chipLabel) = context.ExceptionType switch
+                                    {
+                                        CalendarExceptionType.StatHoliday => (Color.Error,   "Stat Holiday"),
+                                        CalendarExceptionType.PdPaDay     => (Color.Warning, "PD / PA Day"),
+                                        CalendarExceptionType.SnowDay     => (Color.Info,    "Snow Day"),
+                                        _                                  => (Color.Default, "Other")
+                                    };
+                                }
+                                <MudChip T="string" Color="@chipColor" Size="Size.Small" Variant="Variant.Filled">
+                                    @chipLabel
+                                </MudChip>
+                            </MudTd>
+                            <MudTd Style="text-align:right;">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                               Color="Color.Error"
+                                               OnClick="@(() => DeleteExceptionAsync(context))" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+
             </MudCardContent>
         </MudCard>
     }
 }
+
+<!-- Add Exception Dialog -->
+<MudDialog @bind-IsVisible="_addExceptionOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Add Non-School Day</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudDatePicker @bind-Date="_exceptionDate" Label="Date" Variant="Variant.Outlined"
+                       DateFormat="yyyy-MM-dd" Class="mb-3" />
+        <MudTextField @bind-Value="_exceptionLabel" Label="Label"
+                      Placeholder="e.g. PA Day 1, Board PD Day" Variant="Variant.Outlined" Class="mb-3" />
+        <MudSelect @bind-Value="_exceptionType" Label="Type" Variant="Variant.Outlined">
+            <MudSelectItem T="CalendarExceptionType" Value="CalendarExceptionType.PdPaDay">PD / PA Day</MudSelectItem>
+            <MudSelectItem T="CalendarExceptionType" Value="CalendarExceptionType.SnowDay">Snow Day</MudSelectItem>
+            <MudSelectItem T="CalendarExceptionType" Value="CalendarExceptionType.StatHoliday">Stat Holiday</MudSelectItem>
+        </MudSelect>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _addExceptionOpen = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(!CanAddException)"
+                   OnClick="SaveExceptionAsync">Add</MudButton>
+    </DialogActions>
+</MudDialog>
 
 @code {
     private List<SchoolYear> _schoolYears = new();
     private string _newYearName = "";
     private bool   _showAddForm;
 
-    // Per-year term form state
-    private Dictionary<int, string> _newTermNames = new();
+    private Dictionary<int, string>    _newTermNames  = new();
     private Dictionary<int, DateTime?> _newTermStarts = new();
-    private Dictionary<int, DateTime?> _newTermEnds = new();
+    private Dictionary<int, DateTime?> _newTermEnds   = new();
+
+    private bool                  _addExceptionOpen;
+    private int                   _addExceptionYearId;
+    private DateTime?             _exceptionDate;
+    private string                _exceptionLabel = "";
+    private CalendarExceptionType _exceptionType  = CalendarExceptionType.PdPaDay;
+    private HashSet<int>          _importingHolidays = new();
+
+    private bool CanAddException =>
+        _exceptionDate.HasValue && !string.IsNullOrWhiteSpace(_exceptionLabel);
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -183,10 +285,10 @@ else
     {
         _schoolYears = await Db.SchoolYears
             .Include(y => y.TermInstances)
+            .Include(y => y.CalendarExceptions)
             .OrderByDescending(y => y.Name)
             .ToListAsync();
 
-        // Ensure dictionaries have entries for every year
         foreach (var y in _schoolYears)
         {
             _newTermNames.TryAdd(y.Id, "");
@@ -199,74 +301,18 @@ else
     {
         var name = _newYearName.Trim();
         if (string.IsNullOrWhiteSpace(name)) return;
-
         if (await Db.SchoolYears.AnyAsync(y => y.Name == name))
-        {
-            Snackbar.Add($"School year '{name}' already exists.", Severity.Warning);
-            return;
-        }
-
+        { Snackbar.Add($"School year '{name}' already exists.", Severity.Warning); return; }
         Db.SchoolYears.Add(new SchoolYear { Name = name });
         await Db.SaveChangesAsync();
         _newYearName = ""; _showAddForm = false;
-        Snackbar.Add($"School year '{name}' added.", Severity.Success);
-        await LoadAsync();
-    }
-
-    private bool CanAddTerm(int yearId) =>
-        _newTermNames.TryGetValue(yearId, out var n) && !string.IsNullOrWhiteSpace(n) &&
-        _newTermStarts.TryGetValue(yearId, out var s) && s.HasValue &&
-        _newTermEnds.TryGetValue(yearId, out var e) && e.HasValue;
-
-    private async Task AddTermAsync(SchoolYear year)
-    {
-        if (!CanAddTerm(year.Id)) return;
-
-        var name = _newTermNames[year.Id].Trim();
-        var start = DateOnly.FromDateTime(_newTermStarts[year.Id]!.Value);
-        var end = DateOnly.FromDateTime(_newTermEnds[year.Id]!.Value);
-
-        if (start >= end)
-        {
-            Snackbar.Add("End date must be after start date.", Severity.Warning);
-            return;
-        }
-
-        var sortOrder = year.TermInstances.Count + 1;
-
-        Db.TermInstances.Add(new TermInstance
-        {
-            SchoolYearId = year.Id,
-            Name = name,
-            SortOrder = sortOrder,
-            StartDate = start,
-            EndDate = end
-        });
-
-        await Db.SaveChangesAsync();
-
-        _newTermNames[year.Id] = "";
-        _newTermStarts[year.Id] = null;
-        _newTermEnds[year.Id] = null;
-
-        Snackbar.Add($"Term '{name}' added to {year.Name}.", Severity.Success);
-        await LoadAsync();
-    }
-
-    private async Task DeleteTermAsync(TermInstance term)
-    {
-        Db.TermInstances.Remove(term);
-        await Db.SaveChangesAsync();
-        Snackbar.Add($"Term '{term.Name}' deleted.", Severity.Info);
+        Snackbar.Add($"'{name}' added.", Severity.Success);
         await LoadAsync();
     }
 
     private async Task SetActiveAsync(SchoolYear year)
     {
-        // Clear all active flags first
-        await Db.SchoolYears.ExecuteUpdateAsync(s =>
-            s.SetProperty(y => y.IsActive, false));
-
+        await Db.SchoolYears.ExecuteUpdateAsync(s => s.SetProperty(y => y.IsActive, false));
         year.IsActive = true;
         await Db.SaveChangesAsync();
         Snackbar.Add($"'{year.Name}' is now the active school year.", Severity.Success);
@@ -279,5 +325,155 @@ else
         await Db.SaveChangesAsync();
         Snackbar.Add(year.IsLocked ? $"'{year.Name}' locked." : $"'{year.Name}' unlocked.", Severity.Info);
         await LoadAsync();
+    }
+
+    private bool CanAddTerm(int yearId) =>
+        _newTermNames.TryGetValue(yearId, out var n) && !string.IsNullOrWhiteSpace(n) &&
+        _newTermStarts.TryGetValue(yearId, out var s) && s.HasValue &&
+        _newTermEnds.TryGetValue(yearId, out var e) && e.HasValue;
+
+    private async Task AddTermAsync(SchoolYear year)
+    {
+        if (!CanAddTerm(year.Id)) return;
+        var name  = _newTermNames[year.Id].Trim();
+        var start = DateOnly.FromDateTime(_newTermStarts[year.Id]!.Value);
+        var end   = DateOnly.FromDateTime(_newTermEnds[year.Id]!.Value);
+        if (start >= end) { Snackbar.Add("End date must be after start date.", Severity.Warning); return; }
+        Db.TermInstances.Add(new TermInstance
+        {
+            SchoolYearId = year.Id, Name = name,
+            SortOrder    = year.TermInstances.Count + 1,
+            StartDate    = start, EndDate = end
+        });
+        await Db.SaveChangesAsync();
+        _newTermNames[year.Id] = ""; _newTermStarts[year.Id] = null; _newTermEnds[year.Id] = null;
+        Snackbar.Add($"Term '{name}' added.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task DeleteTermAsync(TermInstance term)
+    {
+        Db.TermInstances.Remove(term);
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"Term '{term.Name}' deleted.", Severity.Info);
+        await LoadAsync();
+    }
+
+    private void OpenAddException(int yearId)
+    {
+        _addExceptionYearId = yearId;
+        _exceptionDate      = null;
+        _exceptionLabel     = "";
+        _exceptionType      = CalendarExceptionType.PdPaDay;
+        _addExceptionOpen   = true;
+    }
+
+    private async Task SaveExceptionAsync()
+    {
+        if (!CanAddException) return;
+        var date = DateOnly.FromDateTime(_exceptionDate!.Value);
+
+        if (await Db.SchoolCalendarExceptions.AnyAsync(
+                e => e.SchoolYearId == _addExceptionYearId && e.Date == date))
+        {
+            Snackbar.Add("A calendar exception already exists for that date.", Severity.Warning);
+            return;
+        }
+
+        Db.SchoolCalendarExceptions.Add(new SchoolCalendarException
+        {
+            SchoolYearId  = _addExceptionYearId,
+            Date          = date,
+            ExceptionType = _exceptionType,
+            Label         = _exceptionLabel.Trim()
+        });
+        await Db.SaveChangesAsync();
+        _addExceptionOpen = false;
+        Snackbar.Add($"'{_exceptionLabel}' added to calendar.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task DeleteExceptionAsync(SchoolCalendarException ex)
+    {
+        Db.SchoolCalendarExceptions.Remove(ex);
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"'{ex.Label}' removed.", Severity.Info);
+        await LoadAsync();
+    }
+
+    private async Task ImportStatHolidaysAsync(SchoolYear year)
+    {
+        var years = ParseSchoolYearNumbers(year.Name);
+        if (years.Count == 0)
+        {
+            Snackbar.Add("Could not parse year numbers. Expected format like '2025-2026'.", Severity.Warning);
+            return;
+        }
+
+        _importingHolidays.Add(year.Id);
+        StateHasChanged();
+
+        int imported = 0;
+        int skipped  = 0;
+
+        try
+        {
+            var http = HttpFactory.CreateClient();
+            var existing = year.CalendarExceptions
+                .Where(e => e.ExceptionType == CalendarExceptionType.StatHoliday)
+                .Select(e => e.Date)
+                .ToHashSet();
+
+            foreach (var calYear in years)
+            {
+                var url      = $"https://canada-holidays.ca/api/v1/holidays?year={calYear}&province=ON";
+                var response = await http.GetStringAsync(url);
+                using var doc = JsonDocument.Parse(response);
+
+                if (!doc.RootElement.TryGetProperty("holidays", out var holidays)) continue;
+
+                foreach (var holiday in holidays.EnumerateArray())
+                {
+                    var dateStr = holiday.GetProperty("date").GetString();
+                    if (!DateOnly.TryParse(dateStr, out var date)) continue;
+                    var label = holiday.GetProperty("nameEn").GetString() ?? "Stat Holiday";
+                    if (existing.Contains(date)) { skipped++; continue; }
+
+                    Db.SchoolCalendarExceptions.Add(new SchoolCalendarException
+                    {
+                        SchoolYearId  = year.Id,
+                        Date          = date,
+                        ExceptionType = CalendarExceptionType.StatHoliday,
+                        Label         = label
+                    });
+                    existing.Add(date);
+                    imported++;
+                }
+            }
+
+            await Db.SaveChangesAsync();
+            var msg = imported > 0
+                ? $"Imported {imported} Ontario stat holidays." + (skipped > 0 ? $" ({skipped} already existed)" : "")
+                : "No new stat holidays found to import.";
+            Snackbar.Add(msg, imported > 0 ? Severity.Success : Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Import failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _importingHolidays.Remove(year.Id);
+            await LoadAsync();
+        }
+    }
+
+    private static List<int> ParseSchoolYearNumbers(string name)
+    {
+        var years = new List<int>();
+        foreach (var part in name.Split('-', '/', ' '))
+            if (int.TryParse(part.Trim(), out var y) && y >= 2000 && y <= 2100)
+                years.Add(y);
+        return years.Distinct().Take(2).ToList();
     }
 }
