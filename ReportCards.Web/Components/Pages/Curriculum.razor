@@ -1,0 +1,905 @@
+@page "/curriculum"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@inject SchoolDbContext Db
+@inject ISnackbar Snackbar
+
+<div class="d-flex align-center gap-3 mb-1">
+    <MudText Typo="Typo.h4" Style="font-family:'DM Serif Display',serif;">Curriculum Templates</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+               StartIcon="@Icons.Material.Filled.Add"
+               OnClick="OpenAddTemplate">
+        New Template
+    </MudButton>
+</div>
+<MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
+    Define curriculum templates with grades, subjects, strands, and sub-strands. Templates are assigned to school years.
+</MudText>
+
+@if (_templates.Count == 0)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+        No curriculum templates yet. Create one to get started.
+    </MudAlert>
+}
+else
+{
+    <MudGrid>
+        <!-- LEFT: Tree -->
+        <MudItem xs="12" md="4" lg="3">
+            @foreach (var tmpl in _templates)
+            {
+                <MudCard Class="mb-3" Elevation="1"
+                         Style="@(_selectedTemplateId == tmpl.Id ? "border:2px solid var(--mud-palette-primary);" : "")">
+                    <MudCardHeader Style="cursor:pointer; padding-bottom:4px;"
+                                   @onclick="@(() => SelectTemplate(tmpl))">
+                        <CardHeaderContent>
+                            <div class="d-flex align-center gap-2">
+                                <MudIcon Icon="@Icons.Material.Filled.LibraryBooks"
+                                         Color="@(_selectedTemplateId == tmpl.Id ? Color.Primary : Color.Default)"
+                                         Size="Size.Small" />
+                                <MudText Typo="Typo.subtitle1" Style="font-weight:600;">@tmpl.Name</MudText>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(tmpl.Description))
+                            {
+                                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                    @tmpl.Description
+                                </MudText>
+                            }
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <div @onclick:stopPropagation="true">
+                                <MudTooltip Text="Delete template">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                   Color="Color.Error"
+                                                   OnClick="@(() => ConfirmDeleteTemplate(tmpl))" />
+                                </MudTooltip>
+                            </div>
+                        </CardHeaderActions>
+                    </MudCardHeader>
+
+                    @if (_selectedTemplateId == tmpl.Id)
+                    {
+                        <MudCardContent Style="padding-top:0; padding-bottom:8px;">
+                            @foreach (var grade in tmpl.GradeTemplates.OrderBy(g => g.SortOrder))
+                            {
+                                <div class="d-flex align-center"
+                                     style="padding:2px 0 2px 8px; cursor:pointer; border-radius:4px; @(_selectedGradeId == grade.Id ? "background:var(--mud-palette-action-default-hover);" : "")"
+                                     @onclick="@(() => SelectGrade(grade))">
+                                    <MudIcon Icon="@Icons.Material.Filled.ExpandMore"
+                                             Size="Size.Small"
+                                             Style="color:var(--mud-palette-text-secondary); font-size:16px;" />
+                                    <MudText Typo="Typo.body2" Style="flex:1; padding-left:4px;">
+                                        @grade.Grade?.Name
+                                    </MudText>
+                                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                        @grade.ClassTemplates.Count subj.
+                                    </MudText>
+                                </div>
+
+                                @if (_selectedGradeId == grade.Id)
+                                {
+                                    @foreach (var subj in grade.ClassTemplates.OrderBy(s => s.SortOrder))
+                                    {
+                                        <div class="d-flex align-center"
+                                             style="padding:2px 0 2px 24px; cursor:pointer; border-radius:4px; @(_selectedSubjectId == subj.Id ? "background:var(--mud-palette-action-default-hover);" : "")"
+                                             @onclick="@(() => SelectSubject(subj))">
+                                            <MudIcon Icon="@Icons.Material.Filled.Subject"
+                                                     Size="Size.Small"
+                                                     Style="color:var(--mud-palette-primary); font-size:14px;" />
+                                            <MudText Typo="Typo.body2" Style="flex:1; padding-left:4px;">
+                                                @subj.Name
+                                            </MudText>
+                                            @if (subj.GradedAtStrandLevel)
+                                            {
+                                                <MudIcon Icon="@Icons.Material.Filled.AccountTree"
+                                                         Size="Size.Small"
+                                                         Title="Graded per strand"
+                                                         Style="color:var(--mud-palette-info); font-size:14px;" />
+                                            }
+                                        </div>
+
+                                        @if (_selectedSubjectId == subj.Id)
+                                        {
+                                            @foreach (var strand in subj.SubjectTemplates.OrderBy(s => s.SortOrder))
+                                            {
+                                                <div class="d-flex align-center"
+                                                     style="padding:2px 0 2px 40px; cursor:pointer; border-radius:4px; @(_selectedStrandId == strand.Id ? "background:var(--mud-palette-action-default-hover);" : "")"
+                                                     @onclick="@(() => SelectStrand(strand))">
+                                                    <MudIcon Icon="@Icons.Material.Filled.LinearScale"
+                                                             Size="Size.Small"
+                                                             Style="color:var(--mud-palette-secondary); font-size:13px;" />
+                                                    <MudText Typo="Typo.body2" Style="flex:1; padding-left:4px; font-size:0.8rem;">
+                                                        @strand.Name
+                                                    </MudText>
+                                                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                                        @strand.SubStrands.Count sub
+                                                    </MudText>
+                                                </div>
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
+                                       StartIcon="@Icons.Material.Filled.Add"
+                                       Class="mt-2"
+                                       OnClick="@(() => OpenAddGrade(tmpl))">
+                                Add Grade
+                            </MudButton>
+                        </MudCardContent>
+                    }
+                </MudCard>
+            }
+        </MudItem>
+
+        <!-- RIGHT: Detail Panel -->
+        <MudItem xs="12" md="8" lg="9">
+            @if (_selectedStrandId != null && SelectedStrand != null)
+            {
+                <MudCard Elevation="1" Class="mb-4">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <div class="d-flex align-center gap-2">
+                                <MudIcon Icon="@Icons.Material.Filled.LinearScale" Color="Color.Secondary" />
+                                <MudText Typo="Typo.h6" Style="font-family:'DM Serif Display',serif;">
+                                    @SelectedStrand.Name
+                                </MudText>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined">Strand</MudChip>
+                            </div>
+                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                @BreadcrumbText
+                            </MudText>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <MudTooltip Text="Delete strand">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                               Color="Color.Error"
+                                               OnClick="@(() => ConfirmDeleteStrand(SelectedStrand))" />
+                            </MudTooltip>
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        @if (SelectedStrand.SubStrands.Count > 0)
+                        {
+                            <MudTable Items="SelectedStrand.SubStrands.OrderBy(s => s.SortOrder)"
+                                      Dense="true" Hover="true" Elevation="0" Class="mb-4"
+                                      Style="border:1px solid var(--mud-palette-divider); border-radius:8px;">
+                                <HeaderContent>
+                                    <MudTh Style="width:60px;">Order</MudTh>
+                                    <MudTh>Name</MudTh>
+                                    <MudTh>Code</MudTh>
+                                    <MudTh>Guidance Text</MudTh>
+                                    <MudTh></MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd>@context.SortOrder</MudTd>
+                                    <MudTd><strong>@context.Name</strong></MudTd>
+                                    <MudTd>@(context.Code ?? "—")</MudTd>
+                                    <MudTd>
+                                        @if (!string.IsNullOrWhiteSpace(context.Description))
+                                        {
+                                            <MudText Typo="Typo.caption"
+                                                     Style="display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">
+                                                @context.Description
+                                            </MudText>
+                                        }
+                                        else
+                                        {
+                                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">—</MudText>
+                                        }
+                                    </MudTd>
+                                    <MudTd Style="text-align:right;">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                       Color="Color.Default"
+                                                       OnClick="@(() => OpenEditSubStrand(context))" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                       Color="Color.Error"
+                                                       OnClick="@(() => DeleteSubStrandAsync(context))" />
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        }
+                        else
+                        {
+                            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
+                                No sub-strands yet. Add one below to provide teacher guidance text.
+                            </MudAlert>
+                        }
+                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="OpenAddSubStrand">
+                            Add Sub-Strand
+                        </MudButton>
+                    </MudCardContent>
+                </MudCard>
+            }
+            else if (_selectedSubjectId != null && SelectedSubject != null)
+            {
+                <MudCard Elevation="1" Class="mb-4">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <div class="d-flex align-center gap-2">
+                                <MudIcon Icon="@Icons.Material.Filled.Subject" Color="Color.Primary" />
+                                <MudText Typo="Typo.h6" Style="font-family:'DM Serif Display',serif;">
+                                    @SelectedSubject.Name
+                                </MudText>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">Subject</MudChip>
+                            </div>
+                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                @BreadcrumbText
+                            </MudText>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <MudTooltip Text="Delete subject">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                               Color="Color.Error"
+                                               OnClick="@(() => ConfirmDeleteSubject(SelectedSubject))" />
+                            </MudTooltip>
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <div class="d-flex align-center gap-3 mb-4 pa-3"
+                             style="border:1px solid var(--mud-palette-divider); border-radius:8px; background:var(--mud-palette-background-grey);">
+                            <MudIcon Icon="@Icons.Material.Filled.Grading" Color="Color.Primary" />
+                            <div style="flex:1;">
+                                <MudText Typo="Typo.body2" Style="font-weight:600;">Grading Mode</MudText>
+                                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                    @(SelectedSubject.GradedAtStrandLevel
+                                        ? "Teachers assign a grade to each strand individually"
+                                        : "Teachers assign a single grade for the whole subject")
+                                </MudText>
+                            </div>
+                            <MudSwitch T="bool"
+                                       Value="SelectedSubject.GradedAtStrandLevel"
+                                       ValueChanged="@((v) => ToggleGradingModeAsync(SelectedSubject, v))"
+                                       Label="@(SelectedSubject.GradedAtStrandLevel ? "Per Strand" : "Whole Subject")"
+                                       Color="Color.Primary" />
+                        </div>
+
+                        <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);" Class="mb-2">Strands</MudText>
+
+                        @if (SelectedSubject.SubjectTemplates.Count > 0)
+                        {
+                            <MudTable Items="SelectedSubject.SubjectTemplates.OrderBy(s => s.SortOrder)"
+                                      Dense="true" Hover="true" Elevation="0" Class="mb-4"
+                                      Style="border:1px solid var(--mud-palette-divider); border-radius:8px;">
+                                <HeaderContent>
+                                    <MudTh Style="width:60px;">Order</MudTh>
+                                    <MudTh>Strand Name</MudTh>
+                                    <MudTh>Code</MudTh>
+                                    <MudTh Style="width:80px;">Sub-Strands</MudTh>
+                                    <MudTh></MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd>@context.SortOrder</MudTd>
+                                    <MudTd>
+                                        <span style="cursor:pointer; color:var(--mud-palette-primary);"
+                                              @onclick="@(() => SelectStrand(context))">
+                                            @context.Name
+                                        </span>
+                                    </MudTd>
+                                    <MudTd>@(context.Code ?? "—")</MudTd>
+                                    <MudTd>@context.SubStrands.Count</MudTd>
+                                    <MudTd Style="text-align:right;">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                       Color="Color.Error"
+                                                       OnClick="@(() => ConfirmDeleteStrand(context))" />
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        }
+                        else
+                        {
+                            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
+                                No strands defined yet.
+                            </MudAlert>
+                        }
+
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="OpenAddStrand">
+                            Add Strand
+                        </MudButton>
+                    </MudCardContent>
+                </MudCard>
+            }
+            else if (_selectedGradeId != null && SelectedGrade != null)
+            {
+                <MudCard Elevation="1" Class="mb-4">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <div class="d-flex align-center gap-2">
+                                <MudIcon Icon="@Icons.Material.Filled.Class" Color="Color.Primary" />
+                                <MudText Typo="Typo.h6" Style="font-family:'DM Serif Display',serif;">
+                                    @SelectedGrade.Grade?.Name
+                                </MudText>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Grade</MudChip>
+                            </div>
+                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                @BreadcrumbText
+                            </MudText>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <MudTooltip Text="Delete grade from template">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                               Color="Color.Error"
+                                               OnClick="@(() => ConfirmDeleteGrade(SelectedGrade))" />
+                            </MudTooltip>
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        @if (SelectedGrade.ClassTemplates.Count > 0)
+                        {
+                            <MudTable Items="SelectedGrade.ClassTemplates.OrderBy(s => s.SortOrder)"
+                                      Dense="true" Hover="true" Elevation="0" Class="mb-4"
+                                      Style="border:1px solid var(--mud-palette-divider); border-radius:8px;">
+                                <HeaderContent>
+                                    <MudTh Style="width:60px;">Order</MudTh>
+                                    <MudTh>Subject Name</MudTh>
+                                    <MudTh>Code</MudTh>
+                                    <MudTh>Grading Mode</MudTh>
+                                    <MudTh Style="width:80px;">Strands</MudTh>
+                                    <MudTh></MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd>@context.SortOrder</MudTd>
+                                    <MudTd>
+                                        <span style="cursor:pointer; color:var(--mud-palette-primary);"
+                                              @onclick="@(() => SelectSubject(context))">
+                                            @context.Name
+                                        </span>
+                                    </MudTd>
+                                    <MudTd>@(context.Code ?? "—")</MudTd>
+                                    <MudTd>
+                                        @if (context.GradedAtStrandLevel)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled">Per Strand</MudChip>
+                                        }
+                                        else
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Whole Subject</MudChip>
+                                        }
+                                    </MudTd>
+                                    <MudTd>@context.SubjectTemplates.Count</MudTd>
+                                    <MudTd Style="text-align:right;">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                       Color="Color.Error"
+                                                       OnClick="@(() => ConfirmDeleteSubject(context))" />
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        }
+                        else
+                        {
+                            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
+                                No subjects defined for this grade yet.
+                            </MudAlert>
+                        }
+
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="OpenAddSubject">
+                            Add Subject
+                        </MudButton>
+                    </MudCardContent>
+                </MudCard>
+            }
+            else if (_selectedTemplateId != null && SelectedTemplate != null)
+            {
+                <MudCard Elevation="1">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <div class="d-flex align-center gap-2">
+                                <MudIcon Icon="@Icons.Material.Filled.LibraryBooks" Color="Color.Primary" />
+                                <MudText Typo="Typo.h6" Style="font-family:'DM Serif Display',serif;">
+                                    @SelectedTemplate.Name
+                                </MudText>
+                            </div>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
+                            Select a grade in the tree to view and edit its subjects and strands.
+                        </MudText>
+                        <MudText Typo="Typo.body2">
+                            <strong>@SelectedTemplate.GradeTemplates.Count</strong> grade(s),
+                            <strong>@SelectedTemplate.GradeTemplates.Sum(g => g.ClassTemplates.Count)</strong> subject(s),
+                            <strong>@SelectedTemplate.GradeTemplates.SelectMany(g => g.ClassTemplates).Sum(s => s.SubjectTemplates.Count)</strong> strand(s).
+                        </MudText>
+                    </MudCardContent>
+                </MudCard>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                    Select a curriculum template from the left panel to view its contents.
+                </MudAlert>
+            }
+        </MudItem>
+    </MudGrid>
+}
+
+<!-- Add Template Dialog -->
+<MudDialog @bind-Visible="_addTemplateOpen">
+    <TitleContent><MudText Typo="Typo.h6">New Curriculum Template</MudText></TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_newTemplateName" Label="Template Name"
+                      Placeholder="e.g. Ontario Expectations 2016"
+                      Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_newTemplateDesc" Label="Description (optional)"
+                      Placeholder="e.g. Ontario Ministry curriculum for Grades 1-6"
+                      Variant="Variant.Outlined" Lines="2" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _addTemplateOpen = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(string.IsNullOrWhiteSpace(_newTemplateName))"
+                   OnClick="SaveTemplateAsync">Create</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<!-- Add Grade Dialog -->
+<MudDialog @bind-Visible="_addGradeOpen">
+    <TitleContent><MudText Typo="Typo.h6">Add Grade to Template</MudText></TitleContent>
+    <DialogContent>
+        @if (AvailableGrades.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">All grades have already been added to this template.</MudAlert>
+        }
+        else
+        {
+            <MudSelect T="int?" @bind-Value="_newGradeId" Label="Grade"
+                       Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter">
+                @foreach (var g in AvailableGrades)
+                {
+                    <MudSelectItem T="int?" Value="@((int?)g.Id)">@g.ClassGroupType?.Name — @g.Name</MudSelectItem>
+                }
+            </MudSelect>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _addGradeOpen = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(_newGradeId == null)"
+                   OnClick="SaveGradeAsync">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<!-- Add Subject Dialog -->
+<MudDialog @bind-Visible="_addSubjectOpen">
+    <TitleContent><MudText Typo="Typo.h6">Add Subject</MudText></TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_newSubjectName" Label="Subject Name"
+                      Placeholder="e.g. Mathematics" Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_newSubjectCode" Label="Code (optional)"
+                      Placeholder="e.g. MATH" Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_newSubjectSort" Label="Sort Order"
+                      InputType="InputType.Number" Variant="Variant.Outlined" Class="mb-3" />
+        <MudSwitch @bind-Value="_newSubjectGradedAtStrand"
+                   Label="Grade per strand (rather than whole subject)"
+                   Color="Color.Primary" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _addSubjectOpen = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(string.IsNullOrWhiteSpace(_newSubjectName))"
+                   OnClick="SaveSubjectAsync">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<!-- Add Strand Dialog -->
+<MudDialog @bind-Visible="_addStrandOpen">
+    <TitleContent><MudText Typo="Typo.h6">Add Strand</MudText></TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_newStrandName" Label="Strand Name"
+                      Placeholder="e.g. Number" Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_newStrandCode" Label="Code (optional)"
+                      Placeholder="e.g. NUM" Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_newStrandSort" Label="Sort Order"
+                      InputType="InputType.Number" Variant="Variant.Outlined" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _addStrandOpen = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(string.IsNullOrWhiteSpace(_newStrandName))"
+                   OnClick="SaveStrandAsync">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<!-- Add / Edit Sub-Strand Dialog -->
+<MudDialog @bind-Visible="_addSubStrandOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_editingSubStrand == null ? "Add Sub-Strand" : "Edit Sub-Strand")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_newSubStrandName" Label="Name"
+                      Placeholder="e.g. Collection and Organization of Data"
+                      Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_newSubStrandCode" Label="Code (optional)"
+                      Placeholder="e.g. COD" Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_newSubStrandSort" Label="Sort Order"
+                      InputType="InputType.Number" Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_newSubStrandDesc" Label="Guidance Text"
+                      Placeholder="Describe what this sub-strand covers — teachers see this when grading"
+                      Variant="Variant.Outlined" Lines="4" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _addSubStrandOpen = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(string.IsNullOrWhiteSpace(_newSubStrandName))"
+                   OnClick="SaveSubStrandAsync">@(_editingSubStrand == null ? "Add" : "Save")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<!-- Confirm Delete Dialog -->
+<MudDialog @bind-Visible="_confirmDeleteOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Style="color:var(--mud-palette-error);">
+            <MudIcon Icon="@Icons.Material.Filled.Warning" Class="mr-1" />
+            Confirm Delete
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText>@_confirmDeleteMessage</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _confirmDeleteOpen = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="ExecuteDeleteAsync">Delete</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<CurriculumSchema> _templates = new();
+    private List<Grade>            _allGrades  = new();
+
+    private int? _selectedTemplateId;
+    private int? _selectedGradeId;
+    private int? _selectedSubjectId;
+    private int? _selectedStrandId;
+
+    private CurriculumSchema?          SelectedTemplate => _templates.FirstOrDefault(t => t.Id == _selectedTemplateId);
+    private CurriculumGradeTemplate?   SelectedGrade    => SelectedTemplate?.GradeTemplates.FirstOrDefault(g => g.Id == _selectedGradeId);
+    private CurriculumClassTemplate?   SelectedSubject  => SelectedGrade?.ClassTemplates.FirstOrDefault(s => s.Id == _selectedSubjectId);
+    private CurriculumSubjectTemplate? SelectedStrand   => SelectedSubject?.SubjectTemplates.FirstOrDefault(s => s.Id == _selectedStrandId);
+
+    private string BreadcrumbText
+    {
+        get
+        {
+            var parts = new List<string>();
+            if (SelectedTemplate != null) parts.Add(SelectedTemplate.Name);
+            if (SelectedGrade    != null) parts.Add(SelectedGrade.Grade?.Name ?? "");
+            if (SelectedSubject  != null) parts.Add(SelectedSubject.Name);
+            if (SelectedStrand   != null) parts.Add(SelectedStrand.Name);
+            return string.Join(" › ", parts);
+        }
+    }
+
+    private List<Grade> AvailableGrades
+    {
+        get
+        {
+            if (SelectedTemplate == null) return _allGrades;
+            var usedIds = SelectedTemplate.GradeTemplates.Select(g => g.GradeId).ToHashSet();
+            return _allGrades.Where(g => !usedIds.Contains(g.Id)).ToList();
+        }
+    }
+
+    // Dialog state — Template
+    private bool   _addTemplateOpen;
+    private string _newTemplateName = "";
+    private string _newTemplateDesc = "";
+
+    // Dialog state — Grade
+    private bool _addGradeOpen;
+    private int? _newGradeId;
+    private int  _addGradeForTemplateId;
+
+    // Dialog state — Subject
+    private bool   _addSubjectOpen;
+    private string _newSubjectName           = "";
+    private string _newSubjectCode           = "";
+    private int    _newSubjectSort           = 1;
+    private bool   _newSubjectGradedAtStrand;
+
+    // Dialog state — Strand
+    private bool   _addStrandOpen;
+    private string _newStrandName = "";
+    private string _newStrandCode = "";
+    private int    _newStrandSort = 1;
+
+    // Dialog state — Sub-Strand
+    private bool                 _addSubStrandOpen;
+    private CurriculumSubStrand? _editingSubStrand;
+    private string _newSubStrandName = "";
+    private string _newSubStrandCode = "";
+    private int    _newSubStrandSort = 1;
+    private string _newSubStrandDesc = "";
+
+    // Dialog state — Confirm Delete
+    private bool        _confirmDeleteOpen;
+    private string      _confirmDeleteMessage = "";
+    private Func<Task>? _confirmDeleteAction;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _templates = await Db.CurriculumSchemas
+            .Include(s => s.GradeTemplates)
+                .ThenInclude(g => g.Grade)
+                    .ThenInclude(g => g.ClassGroupType)
+            .Include(s => s.GradeTemplates)
+                .ThenInclude(g => g.ClassTemplates)
+                    .ThenInclude(c => c.SubjectTemplates)
+                        .ThenInclude(st => st.SubStrands)
+            .OrderBy(s => s.Name)
+            .ToListAsync();
+
+        _allGrades = await Db.Grades
+            .Include(g => g.ClassGroupType)
+            .OrderBy(g => g.ClassGroupType!.SortOrder)
+            .ThenBy(g => g.SortOrder)
+            .ToListAsync();
+    }
+
+    private void SelectTemplate(CurriculumSchema t)
+    {
+        _selectedTemplateId = t.Id;
+        _selectedGradeId    = null;
+        _selectedSubjectId  = null;
+        _selectedStrandId   = null;
+    }
+
+    private void SelectGrade(CurriculumGradeTemplate g)
+    {
+        _selectedGradeId   = g.Id;
+        _selectedSubjectId = null;
+        _selectedStrandId  = null;
+    }
+
+    private void SelectSubject(CurriculumClassTemplate s)
+    {
+        _selectedSubjectId = s.Id;
+        _selectedStrandId  = null;
+    }
+
+    private void SelectStrand(CurriculumSubjectTemplate s)
+    {
+        _selectedStrandId = s.Id;
+    }
+
+    // Template
+    private void OpenAddTemplate()
+    {
+        _newTemplateName = "";
+        _newTemplateDesc = "";
+        _addTemplateOpen = true;
+    }
+
+    private async Task SaveTemplateAsync()
+    {
+        var name = _newTemplateName.Trim();
+        if (string.IsNullOrWhiteSpace(name)) return;
+        Db.CurriculumSchemas.Add(new CurriculumSchema
+        {
+            Name        = name,
+            Description = string.IsNullOrWhiteSpace(_newTemplateDesc) ? null : _newTemplateDesc.Trim()
+        });
+        await Db.SaveChangesAsync();
+        _addTemplateOpen = false;
+        Snackbar.Add($"Template '{name}' created.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private void ConfirmDeleteTemplate(CurriculumSchema t)
+    {
+        _confirmDeleteMessage = $"Delete template '{t.Name}' and ALL its grades, subjects, strands, and sub-strands? This cannot be undone.";
+        _confirmDeleteAction  = async () =>
+        {
+            Db.CurriculumSchemas.Remove(t);
+            await Db.SaveChangesAsync();
+            _selectedTemplateId = null; _selectedGradeId = null; _selectedSubjectId = null; _selectedStrandId = null;
+            Snackbar.Add($"Template '{t.Name}' deleted.", Severity.Info);
+            await LoadAsync();
+        };
+        _confirmDeleteOpen = true;
+    }
+
+    // Grade
+    private void OpenAddGrade(CurriculumSchema tmpl)
+    {
+        _addGradeForTemplateId = tmpl.Id;
+        _newGradeId            = null;
+        _addGradeOpen          = true;
+    }
+
+    private async Task SaveGradeAsync()
+    {
+        if (_newGradeId == null) return;
+        var sortOrder = (SelectedTemplate?.GradeTemplates.Count ?? 0) + 1;
+        Db.CurriculumGradeTemplates.Add(new CurriculumGradeTemplate
+        {
+            CurriculumSchemaId = _addGradeForTemplateId,
+            GradeId            = _newGradeId.Value,
+            SortOrder          = sortOrder
+        });
+        await Db.SaveChangesAsync();
+        _addGradeOpen = false;
+        Snackbar.Add("Grade added to template.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private void ConfirmDeleteGrade(CurriculumGradeTemplate g)
+    {
+        _confirmDeleteMessage = $"Remove grade '{g.Grade?.Name}' and all its subjects and strands from this template?";
+        _confirmDeleteAction  = async () =>
+        {
+            Db.CurriculumGradeTemplates.Remove(g);
+            await Db.SaveChangesAsync();
+            _selectedGradeId = null; _selectedSubjectId = null; _selectedStrandId = null;
+            Snackbar.Add("Grade removed.", Severity.Info);
+            await LoadAsync();
+        };
+        _confirmDeleteOpen = true;
+    }
+
+    // Subject
+    private void OpenAddSubject()
+    {
+        _newSubjectName           = "";
+        _newSubjectCode           = "";
+        _newSubjectSort           = (SelectedGrade?.ClassTemplates.Count ?? 0) + 1;
+        _newSubjectGradedAtStrand = false;
+        _addSubjectOpen           = true;
+    }
+
+    private async Task SaveSubjectAsync()
+    {
+        if (SelectedGrade == null || string.IsNullOrWhiteSpace(_newSubjectName)) return;
+        Db.CurriculumClassTemplates.Add(new CurriculumClassTemplate
+        {
+            CurriculumGradeTemplateId = SelectedGrade.Id,
+            Name                      = _newSubjectName.Trim(),
+            Code                      = string.IsNullOrWhiteSpace(_newSubjectCode) ? null : _newSubjectCode.Trim(),
+            SortOrder                 = _newSubjectSort,
+            GradedAtStrandLevel       = _newSubjectGradedAtStrand
+        });
+        await Db.SaveChangesAsync();
+        _addSubjectOpen = false;
+        Snackbar.Add($"Subject '{_newSubjectName}' added.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task ToggleGradingModeAsync(CurriculumClassTemplate subj, bool value)
+    {
+        subj.GradedAtStrandLevel = value;
+        await Db.SaveChangesAsync();
+        Snackbar.Add("Grading mode updated.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private void ConfirmDeleteSubject(CurriculumClassTemplate s)
+    {
+        _confirmDeleteMessage = $"Delete subject '{s.Name}' and all its strands and sub-strands?";
+        _confirmDeleteAction  = async () =>
+        {
+            Db.CurriculumClassTemplates.Remove(s);
+            await Db.SaveChangesAsync();
+            if (_selectedSubjectId == s.Id) { _selectedSubjectId = null; _selectedStrandId = null; }
+            Snackbar.Add($"Subject '{s.Name}' deleted.", Severity.Info);
+            await LoadAsync();
+        };
+        _confirmDeleteOpen = true;
+    }
+
+    // Strand
+    private void OpenAddStrand()
+    {
+        _newStrandName = "";
+        _newStrandCode = "";
+        _newStrandSort = (SelectedSubject?.SubjectTemplates.Count ?? 0) + 1;
+        _addStrandOpen = true;
+    }
+
+    private async Task SaveStrandAsync()
+    {
+        if (SelectedSubject == null || string.IsNullOrWhiteSpace(_newStrandName)) return;
+        Db.CurriculumSubjectTemplates.Add(new CurriculumSubjectTemplate
+        {
+            CurriculumClassTemplateId = SelectedSubject.Id,
+            Name                      = _newStrandName.Trim(),
+            Code                      = string.IsNullOrWhiteSpace(_newStrandCode) ? null : _newStrandCode.Trim(),
+            SortOrder                 = _newStrandSort
+        });
+        await Db.SaveChangesAsync();
+        _addStrandOpen = false;
+        Snackbar.Add($"Strand '{_newStrandName}' added.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private void ConfirmDeleteStrand(CurriculumSubjectTemplate s)
+    {
+        _confirmDeleteMessage = $"Delete strand '{s.Name}' and all its sub-strands?";
+        _confirmDeleteAction  = async () =>
+        {
+            Db.CurriculumSubjectTemplates.Remove(s);
+            await Db.SaveChangesAsync();
+            if (_selectedStrandId == s.Id) _selectedStrandId = null;
+            Snackbar.Add($"Strand '{s.Name}' deleted.", Severity.Info);
+            await LoadAsync();
+        };
+        _confirmDeleteOpen = true;
+    }
+
+    // Sub-Strand
+    private void OpenAddSubStrand()
+    {
+        _editingSubStrand = null;
+        _newSubStrandName = "";
+        _newSubStrandCode = "";
+        _newSubStrandSort = (SelectedStrand?.SubStrands.Count ?? 0) + 1;
+        _newSubStrandDesc = "";
+        _addSubStrandOpen = true;
+    }
+
+    private void OpenEditSubStrand(CurriculumSubStrand ss)
+    {
+        _editingSubStrand = ss;
+        _newSubStrandName = ss.Name;
+        _newSubStrandCode = ss.Code ?? "";
+        _newSubStrandSort = ss.SortOrder;
+        _newSubStrandDesc = ss.Description ?? "";
+        _addSubStrandOpen = true;
+    }
+
+    private async Task SaveSubStrandAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newSubStrandName)) return;
+
+        if (_editingSubStrand != null)
+        {
+            _editingSubStrand.Name        = _newSubStrandName.Trim();
+            _editingSubStrand.Code        = string.IsNullOrWhiteSpace(_newSubStrandCode) ? null : _newSubStrandCode.Trim();
+            _editingSubStrand.SortOrder   = _newSubStrandSort;
+            _editingSubStrand.Description = string.IsNullOrWhiteSpace(_newSubStrandDesc) ? null : _newSubStrandDesc.Trim();
+        }
+        else
+        {
+            if (SelectedStrand == null) return;
+            Db.CurriculumSubStrands.Add(new CurriculumSubStrand
+            {
+                CurriculumSubjectTemplateId = SelectedStrand.Id,
+                Name                        = _newSubStrandName.Trim(),
+                Code                        = string.IsNullOrWhiteSpace(_newSubStrandCode) ? null : _newSubStrandCode.Trim(),
+                SortOrder                   = _newSubStrandSort,
+                Description                 = string.IsNullOrWhiteSpace(_newSubStrandDesc) ? null : _newSubStrandDesc.Trim()
+            });
+        }
+
+        await Db.SaveChangesAsync();
+        _addSubStrandOpen = false;
+        Snackbar.Add(_editingSubStrand != null ? "Sub-strand updated." : $"Sub-strand '{_newSubStrandName}' added.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task DeleteSubStrandAsync(CurriculumSubStrand ss)
+    {
+        Db.CurriculumSubStrands.Remove(ss);
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"'{ss.Name}' deleted.", Severity.Info);
+        await LoadAsync();
+    }
+
+    private async Task ExecuteDeleteAsync()
+    {
+        _confirmDeleteOpen = false;
+        if (_confirmDeleteAction != null)
+            await _confirmDeleteAction();
+        _confirmDeleteAction = null;
+    }
+}
