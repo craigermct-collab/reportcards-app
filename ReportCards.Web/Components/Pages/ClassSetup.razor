@@ -20,37 +20,48 @@
 </MudText>
 
 <!-- ── Year + Term Selector ───────────────────────────── -->
-<MudCard Class="mb-6" Elevation="1">
-    <MudCardContent>
-        <MudGrid>
-            <MudItem xs="12" sm="4">
-                <MudSelect T="int?" @bind-Value="_selectedYearId"
-                           Label="School Year"
-                           Variant="Variant.Outlined"
-                           AnchorOrigin="Origin.BottomCenter">
-                    @foreach (var y in _schoolYears)
-                    {
-                        <MudSelectItem T="int?" Value="@((int?)y.Id)">
-                            @y.Name @(y.IsActive ? "★" : "")
-                        </MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-            <MudItem xs="12" sm="4">
-                <MudSelect T="int?" @bind-Value="_selectedTermId"
-                           Label="Term"
-                           Variant="Variant.Outlined"
-                           Disabled="@(_selectedYearId == null)"
-                           AnchorOrigin="Origin.BottomCenter">
-                    @foreach (var t in TermsForYear)
-                    {
-                        <MudSelectItem T="int?" Value="@((int?)t.Id)">@t.Name</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-        </MudGrid>
-    </MudCardContent>
-</MudCard>
+@if (_isLoading)
+{
+    <MudCard Class="mb-6" Elevation="1">
+        <MudCardContent Class="d-flex justify-center pa-6">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+        </MudCardContent>
+    </MudCard>
+}
+else
+{
+    <MudCard Class="mb-6" Elevation="1">
+        <MudCardContent>
+            <MudGrid>
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="int?" @bind-Value="_selectedYearId"
+                               Label="School Year"
+                               Variant="Variant.Outlined"
+                               AnchorOrigin="Origin.BottomCenter">
+                        @foreach (var y in _schoolYears)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)y.Id)">
+                                @y.Name @(y.IsActive ? "★" : "")
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="int?" @bind-Value="_selectedTermId"
+                               Label="Term"
+                               Variant="Variant.Outlined"
+                               Disabled="@(_selectedYearId == null)"
+                               AnchorOrigin="Origin.BottomCenter">
+                        @foreach (var t in TermsForYear)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)t.Id)">@t.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+}
 
 @if (_selectedTermId != null)
 {
@@ -219,6 +230,7 @@
 
 @code {
     // ── Data ──────────────────────────────────────────────
+    private bool _isLoading = true;
     private List<SchoolYear> _schoolYears = new();
     private List<ClassGroupType> _classGroupTypes = new();
     private List<Teacher> _activeTeachers = new();
@@ -282,6 +294,7 @@
         }
 
         await LoadClassGroupsAsync();
+        _isLoading = false;
     }
 
     private async Task LoadClassGroupsAsync()
