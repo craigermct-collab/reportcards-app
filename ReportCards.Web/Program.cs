@@ -20,6 +20,14 @@ builder.Services.AddMudServices();
 // Add Razor Pages for login/logout handling
 builder.Services.AddRazorPages();
 
+builder.Services.AddDbContextFactory<SchoolDbContext>(options =>
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        sql => sql.EnableRetryOnFailure(
+            maxRetryCount: 10,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorNumbersToAdd: null)));
+
 builder.Services.AddDbContext<SchoolDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection"),
