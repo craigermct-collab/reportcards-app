@@ -3,10 +3,8 @@
 @attribute [Authorize]
 @using Microsoft.EntityFrameworkCore
 @using ReportCards.Web.Data
-@using System.Text.Json
 @inject SchoolDbContext Db
 @inject ISnackbar Snackbar
-@inject IHttpClientFactory HttpFactory
 
 <div class="d-flex align-center gap-3 mb-1">
     <MudText Typo="Typo.h4" Style="font-family:'DM Serif Display',serif;">School Years</MudText>
@@ -410,12 +408,51 @@ else
         await LoadAsync();
     }
 
+    // ── Ontario Stat Holidays hardcoded dataset ─────────────────────────────────
+    // Source: https://www.ontario.ca/document/your-guide-employment-standards-act-0/public-holidays
+    // Covers 2025 and 2026 calendar years
+    private static readonly List<(DateOnly Date, string Label)> OntarioStatHolidays =
+    [
+        // 2025
+        (new DateOnly(2025,  1,  1), "New Year's Day"),
+        (new DateOnly(2025,  2, 17), "Family Day"),
+        (new DateOnly(2025,  4, 18), "Good Friday"),
+        (new DateOnly(2025,  5, 19), "Victoria Day"),
+        (new DateOnly(2025,  7,  1), "Canada Day"),
+        (new DateOnly(2025,  9,  1), "Labour Day"),
+        (new DateOnly(2025,  9, 30), "National Day for Truth and Reconciliation"),
+        (new DateOnly(2025, 10, 13), "Thanksgiving Day"),
+        (new DateOnly(2025, 11, 11), "Remembrance Day"),
+        (new DateOnly(2025, 12, 25), "Christmas Day"),
+        (new DateOnly(2025, 12, 26), "Boxing Day"),
+        // 2026
+        (new DateOnly(2026,  1,  1), "New Year's Day"),
+        (new DateOnly(2026,  2, 16), "Family Day"),
+        (new DateOnly(2026,  4,  3), "Good Friday"),
+        (new DateOnly(2026,  5, 18), "Victoria Day"),
+        (new DateOnly(2026,  7,  1), "Canada Day"),
+        (new DateOnly(2026,  9,  7), "Labour Day"),
+        (new DateOnly(2026,  9, 30), "National Day for Truth and Reconciliation"),
+        (new DateOnly(2026, 10, 12), "Thanksgiving Day"),
+        (new DateOnly(2026, 11, 11), "Remembrance Day"),
+        (new DateOnly(2026, 12, 25), "Christmas Day"),
+        (new DateOnly(2026, 12, 26), "Boxing Day"),
+    ];
+
     private async Task ImportStatHolidaysAsync(SchoolYear year)
     {
-        var years = ParseSchoolYearNumbers(year.Name);
-        if (years.Count == 0)
+        var calYears = ParseSchoolYearNumbers(year.Name);
+        if (calYears.Count == 0)
         {
             Snackbar.Add("Could not parse year numbers. Expected format like '2025-2026'.", Severity.Warning);
+            return;
+        }
+
+        var availableYears = OntarioStatHolidays.Select(h => h.Date.Year).Distinct().ToHashSet();
+        var missing = calYears.Where(y => !availableYears.Contains(y)).ToList();
+        if (missing.Count == calYears.Count)
+        {
+            Snackbar.Add($"Stat holiday data is only available for {string.Join(", ", availableYears.Order())}. Please add holidays manually for other years.", Severity.Warning);
             return;
         }
 
@@ -427,43 +464,28 @@ else
 
         try
         {
-            var http = HttpFactory.CreateClient();
-            var existing = year.CalendarExceptions
-                .Where(e => e.ExceptionType == CalendarExceptionType.StatHoliday)
-                .Select(e => e.Date)
-                .ToHashSet();
+            var existing = year.CalendarExceptions.Select(e => e.Date).ToHashSet();
+            var holidays = OntarioStatHolidays.Where(h => calYears.Contains(h.Date.Year));
 
-            foreach (var calYear in years)
+            foreach (var (date, label) in holidays)
             {
-                var url      = $"https://canada-holidays.ca/api/v1/holidays?year={calYear}&province=ON";
-                var response = await http.GetStringAsync(url);
-                using var doc = JsonDocument.Parse(response);
+                if (existing.Contains(date)) { skipped++; continue; }
 
-                if (!doc.RootElement.TryGetProperty("holidays", out var holidays)) continue;
-
-                foreach (var holiday in holidays.EnumerateArray())
+                Db.SchoolCalendarExceptions.Add(new SchoolCalendarException
                 {
-                    var dateStr = holiday.GetProperty("date").GetString();
-                    if (!DateOnly.TryParse(dateStr, out var date)) continue;
-                    var label = holiday.GetProperty("nameEn").GetString() ?? "Stat Holiday";
-                    if (existing.Contains(date)) { skipped++; continue; }
-
-                    Db.SchoolCalendarExceptions.Add(new SchoolCalendarException
-                    {
-                        SchoolYearId  = year.Id,
-                        Date          = date,
-                        ExceptionType = CalendarExceptionType.StatHoliday,
-                        Label         = label
-                    });
-                    existing.Add(date);
-                    imported++;
-                }
+                    SchoolYearId  = year.Id,
+                    Date          = date,
+                    ExceptionType = CalendarExceptionType.StatHoliday,
+                    Label         = label
+                });
+                existing.Add(date);
+                imported++;
             }
 
             await Db.SaveChangesAsync();
             var msg = imported > 0
                 ? $"Imported {imported} Ontario stat holidays." + (skipped > 0 ? $" ({skipped} already existed)" : "")
-                : "No new stat holidays found to import.";
+                : "No new stat holidays found to import — all already existed.";
             Snackbar.Add(msg, imported > 0 ? Severity.Success : Severity.Info);
         }
         catch (Exception ex)
