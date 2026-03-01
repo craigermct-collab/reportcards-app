@@ -722,27 +722,26 @@ else
         public int          TotalSubStrands { get; set; }
         public List<string> SkippedGrades   { get; set; } = new();
     }
-    private const string JsonFormatHint = """
-{
-  "name": "Ontario Curriculum 2026",
-  "description": "Optional description",
-  "grades": [
+    private const string JsonFormatHint = @"{
+  ""name"": ""Ontario Curriculum 2026"",
+  ""description"": ""Optional description"",
+  ""grades"": [
     {
-      "name": "Grade 1",
-      "subjects": [
+      ""name"": ""Grade 1"",
+      ""subjects"": [
         {
-          "name": "Mathematics",
-          "code": "MATH",
-          "gradedAtStrandLevel": true,
-          "strands": [
+          ""name"": ""Mathematics"",
+          ""code"": ""MATH"",
+          ""gradedAtStrandLevel"": true,
+          ""strands"": [
             {
-              "name": "Number Sense",
-              "code": "NUM",
-              "subStrands": [
+              ""name"": ""Number Sense"",
+              ""code"": ""NUM"",
+              ""subStrands"": [
                 {
-                  "name": "Counting and Quantity",
-                  "code": "CQ",
-                  "description": "Teacher guidance text"
+                  ""name"": ""Counting and Quantity"",
+                  ""code"": ""CQ"",
+                  ""description"": ""Teacher guidance text""
                 }
               ]
             }
@@ -751,9 +750,7 @@ else
       ]
     }
   ]
-}
-""";
-
+}";
     // ── Dialog state — New Template ───────────────────────────────────
     private bool   _addTemplateOpen;
     private string _newTemplateName    = "";
