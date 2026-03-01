@@ -36,9 +36,13 @@ public class SchoolDbContext : DbContext
     public DbSet<CurriculumGradeTemplate> CurriculumGradeTemplates => Set<CurriculumGradeTemplate>();
     public DbSet<CurriculumClassTemplate> CurriculumClassTemplates => Set<CurriculumClassTemplate>();
     public DbSet<CurriculumSubjectTemplate> CurriculumSubjectTemplates => Set<CurriculumSubjectTemplate>();
+    public DbSet<CurriculumSubStrand> CurriculumSubStrands => Set<CurriculumSubStrand>();
     public DbSet<YearCurriculum> YearCurriculums => Set<YearCurriculum>();
     public DbSet<YearClassOffering> YearClassOfferings => Set<YearClassOffering>();
     public DbSet<YearSubjectOffering> YearSubjectOfferings => Set<YearSubjectOffering>();
+
+    // Report card formats
+    public DbSet<ClassGroupReportFormat> ClassGroupReportFormats => Set<ClassGroupReportFormat>();
 
     // Report mapping
     public DbSet<ReportTemplateFieldMap> ReportTemplateFieldMaps => Set<ReportTemplateFieldMap>();
@@ -319,6 +323,33 @@ public class SchoolDbContext : DbContext
         // SchoolConfig — unique key
         m.Entity<SchoolConfig>()
             .HasIndex(c => c.Key).IsUnique();
+
+        // CurriculumSubStrand — cascades from Strand (simple chain, no ambiguity)
+        // EF default CASCADE is fine here.
+
+        // SchoolYear → CurriculumSchema (NoAction — schema can exist without years)
+        m.Entity<SchoolYear>()
+            .HasOne(y => y.CurriculumSchema)
+            .WithMany()
+            .HasForeignKey(y => y.CurriculumSchemaId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        // ClassGroupReportFormat — unique per year + class group type
+        m.Entity<ClassGroupReportFormat>()
+            .HasIndex(f => new { f.SchoolYearId, f.ClassGroupTypeId }).IsUnique();
+
+        m.Entity<ClassGroupReportFormat>()
+            .HasOne(f => f.SchoolYear)
+            .WithMany(y => y.ClassGroupReportFormats)
+            .HasForeignKey(f => f.SchoolYearId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        m.Entity<ClassGroupReportFormat>()
+            .HasOne(f => f.ClassGroupType)
+            .WithMany()
+            .HasForeignKey(f => f.ClassGroupTypeId)
+            .OnDelete(DeleteBehavior.NoAction);
 
         m.Entity<AttendanceEvent>()
             .HasOne(a => a.Student)

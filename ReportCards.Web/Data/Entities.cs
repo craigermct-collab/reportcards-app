@@ -110,9 +110,38 @@ public class SchoolYear
     public bool IsLocked { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
+    /// <summary>The curriculum template this school year is based on. Set at creation time.</summary>
+    public int? CurriculumSchemaId { get; set; }
+    public CurriculumSchema? CurriculumSchema { get; set; }
+
     public List<TermInstance> TermInstances { get; set; } = new();
     public List<YearCurriculum> YearCurriculums { get; set; } = new();
     public List<SchoolCalendarException> CalendarExceptions { get; set; } = new();
+    public List<ClassGroupReportFormat> ClassGroupReportFormats { get; set; } = new();
+}
+
+/// <summary>Well-known report card format codes.</summary>
+public static class ReportCardFormatCodes
+{
+    public const string KindergartenInitial  = "KG-INITIAL";   // Term 1 Kindergarten
+    public const string KindergartenReport   = "KG-REPORT";    // Term 2/3 Kindergarten
+    public const string ElementaryProgress   = "EL-PROGRESS";  // Term 1 Elementary
+    public const string ElementaryReport     = "EL-REPORT";    // Term 2/3 Elementary
+
+    public static readonly string[] All =
+    [
+        KindergartenInitial, KindergartenReport,
+        ElementaryProgress,  ElementaryReport
+    ];
+
+    public static string DisplayName(string code) => code switch
+    {
+        KindergartenInitial => "Kindergarten Initial Observations",
+        KindergartenReport  => "Kindergarten Communication of Learning",
+        ElementaryProgress  => "Elementary Progress Report",
+        ElementaryReport    => "Elementary Provincial Report Card",
+        _                   => code
+    };
 }
 
 public class TermInstance
@@ -122,6 +151,9 @@ public class TermInstance
     public int SortOrder { get; set; }
     public DateOnly StartDate { get; set; }
     public DateOnly EndDate { get; set; }
+
+    /// <summary>Which report card format is produced at the end of this term.</summary>
+    public string? ReportCardFormatCode { get; set; }
 
     public int SchoolYearId { get; set; }
     public SchoolYear? SchoolYear { get; set; }
@@ -165,6 +197,25 @@ public class TermGradeGradingRule
 
     public int GradingScaleId { get; set; }
     public GradingScale? GradingScale { get; set; }
+}
+
+/// <summary>
+/// Defines which report card format family applies to a class group type within a school year.
+/// e.g. Kindergarten → KG, Primary → EL
+/// This drives which report card document is generated for students in that class group.
+/// </summary>
+public class ClassGroupReportFormat
+{
+    public int Id { get; set; }
+
+    /// <summary>Format family prefix: "KG" or "EL"</summary>
+    public required string FormatFamily { get; set; }
+
+    public int SchoolYearId { get; set; }
+    public SchoolYear? SchoolYear { get; set; }
+
+    public int ClassGroupTypeId { get; set; }
+    public ClassGroupType? ClassGroupType { get; set; }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -376,6 +427,12 @@ public class CurriculumClassTemplate
     public string? Code { get; set; }
     public int SortOrder { get; set; }
 
+    /// <summary>
+    /// If true, teachers grade each Strand individually.
+    /// If false, teachers assign a single grade for the whole Subject.
+    /// </summary>
+    public bool GradedAtStrandLevel { get; set; } = false;
+
     public int CurriculumGradeTemplateId { get; set; }
     public CurriculumGradeTemplate? CurriculumGradeTemplate { get; set; }
 
@@ -394,7 +451,25 @@ public class CurriculumSubjectTemplate
     public int CurriculumClassTemplateId { get; set; }
     public CurriculumClassTemplate? CurriculumClassTemplate { get; set; }
 
+    public List<CurriculumSubStrand> SubStrands { get; set; } = new();
     public List<YearSubjectOffering> YearSubjectOfferings { get; set; } = new();
+}
+
+/// <summary>
+/// Read-only reference guidance text for a strand. Describes what the strand covers
+/// to help teachers understand the expectations when applying a grade.
+/// Not graded — displayed as a reference panel in the grade entry UI.
+/// </summary>
+public class CurriculumSubStrand
+{
+    public int Id { get; set; }
+    public required string Name { get; set; }
+    public string? Code { get; set; }
+    public string? Description { get; set; }   // full guidance text visible to teacher
+    public int SortOrder { get; set; }
+
+    public int CurriculumSubjectTemplateId { get; set; }
+    public CurriculumSubjectTemplate? CurriculumSubjectTemplate { get; set; }
 }
 
 /// <summary>Ties a curriculum schema to a school year (unique per year).</summary>
