@@ -81,6 +81,7 @@ public class SchoolYear
 
     public List<TermInstance> TermInstances { get; set; } = new();
     public List<YearCurriculum> YearCurriculums { get; set; } = new();
+    public List<SchoolCalendarException> CalendarExceptions { get; set; } = new();
 }
 
 public class TermInstance
@@ -175,6 +176,7 @@ public class Student
     public string? InactivatedReason { get; set; }
 
     public List<Enrollment> Enrollments { get; set; } = new();
+    public List<AttendanceEvent> AttendanceEvents { get; set; } = new();
 }
 
 public class AppUser
@@ -201,6 +203,38 @@ public class TeacherAssignment
 
     public int? GradeId { get; set; }
     public Grade? Grade { get; set; }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// D2) CALENDAR + ATTENDANCE
+// ═══════════════════════════════════════════════════════════════════
+
+public enum CalendarExceptionType { StatHoliday, PdPaDay, SnowDay }
+
+/// <summary>A non-school day within a school year (stat holidays, PD/PA days, snow days).</summary>
+public class SchoolCalendarException
+{
+    public int Id { get; set; }
+    public DateOnly Date { get; set; }
+    public CalendarExceptionType ExceptionType { get; set; }
+    public required string Label { get; set; }
+
+    public int SchoolYearId { get; set; }
+    public SchoolYear? SchoolYear { get; set; }
+}
+
+public enum AttendanceType { Absent, Late }
+
+/// <summary>Sparse attendance record — only absences and lates are stored. Presence is inferred.</summary>
+public class AttendanceEvent
+{
+    public int Id { get; set; }
+    public DateOnly Date { get; set; }
+    public AttendanceType Type { get; set; }
+    public string? Note { get; set; }
+
+    public int StudentId { get; set; }
+    public Student? Student { get; set; }
 }
 
 // ═══════════════════════════════════════════════════════════════════
