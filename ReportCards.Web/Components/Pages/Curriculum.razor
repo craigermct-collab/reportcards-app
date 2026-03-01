@@ -1247,7 +1247,6 @@ else
 
     private async Task DownloadBlankSchemaAsync()
     {
-        // A real, well-commented example a teacher can hand to Claude/ChatGPT
         var blank = new
         {
             name        = "Your Template Name",
@@ -1256,14 +1255,14 @@ else
             {
                 new
                 {
-                    name     = "Grade 1",   // must match a grade name already set up in your school
+                    name     = "Grade 1",
                     subjects = new object[]
                     {
                         new
                         {
                             name                = "Mathematics",
-                            code                = "MATH",         // optional short code
-                            gradedAtStrandLevel = true,           // true = teachers grade each strand separately
+                            code                = "MATH",
+                            gradedAtStrandLevel = true,
                             strands             = new object[]
                             {
                                 new
@@ -1318,8 +1317,8 @@ else
                         {
                             name                = "Health and Physical Education",
                             code                = "HPE",
-                            gradedAtStrandLevel = false,  // false = one overall grade for the whole subject
-                            strands             = new object[] { }   // leave empty if gradedAtStrandLevel is false
+                            gradedAtStrandLevel = false,
+                            strands             = new object[] { }
                         }
                     }
                 },
@@ -1338,7 +1337,6 @@ else
 
     private async Task DownloadFileAsync(string fileName, string content)
     {
-        // Base64-encode and trigger a browser download without a server round-trip
         var b64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(content));
         var js = $"(function(){{var a=document.createElement('a');a.href='data:application/json;base64,{b64}';a.download='{fileName}';document.body.appendChild(a);a.click();document.body.removeChild(a);}})();";
         await JS.InvokeVoidAsync("eval", js);
