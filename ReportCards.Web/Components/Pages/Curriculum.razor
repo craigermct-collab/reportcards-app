@@ -1325,8 +1325,8 @@ else
                 },
                 new
                 {
-                    name     = "Grade 2",   // repeat pattern for each grade
-                    subjects = new object[] { /* ... */ }
+                    name     = "Grade 2",
+                    subjects = new object[] { }
                 }
             }
         };
@@ -1340,6 +1340,7 @@ else
     {
         // Base64-encode and trigger a browser download without a server round-trip
         var b64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(content));
-        await JS.InvokeVoidAsync("eval", $"""(function(){{var a=document.createElement('a');a.href='data:application/json;base64,{b64}';a.download='{fileName}';document.body.appendChild(a);a.click();document.body.removeChild(a);}})();""");
+        var js = $"(function(){{var a=document.createElement('a');a.href='data:application/json;base64,{b64}';a.download='{fileName}';document.body.appendChild(a);a.click();document.body.removeChild(a);}})();";
+        await JS.InvokeVoidAsync("eval", js);
     }
 }
