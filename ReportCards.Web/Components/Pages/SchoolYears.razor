@@ -158,14 +158,7 @@ else
                                    Disabled="@(_importingHolidays.Contains(year.Id))">
                             @(_importingHolidays.Contains(year.Id) ? "Creating..." : "Create Stat Holidays")
                         </MudButton>
-                        <MudTooltip Text="Import PDSB PA days for 2025-2026 (Regular Elementary calendar)">
-                            <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small"
-                                       StartIcon="@Icons.Material.Filled.School"
-                                       OnClick="@(() => ImportPdsbPaDaysAsync(year))"
-                                       Disabled="@(_importingPaDays.Contains(year.Id))">
-                                @(_importingPaDays.Contains(year.Id) ? "Importing..." : "Import PDSB PA Days")
-                            </MudButton>
-                        </MudTooltip>
+
                         <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small"
                                    StartIcon="@Icons.Material.Filled.Add"
                                    OnClick="@(() => OpenAddException(year.Id))">
@@ -282,7 +275,7 @@ else
     private string                _exceptionLabel = "";
     private CalendarExceptionType _exceptionType  = CalendarExceptionType.PdPaDay;
     private HashSet<int>          _importingHolidays = new();
-    private HashSet<int>          _importingPaDays   = new();
+
 
     private bool CanAddException =>
         _exceptionDate.HasValue && !string.IsNullOrWhiteSpace(_exceptionLabel);
@@ -471,73 +464,7 @@ else
         }
     }
 
-    // ── PDSB PA Day hardcoded dataset (updated annually from peelschools.org/calendar) ────
-    // Source: 2025-2026 Regular School Year Calendar - Elementary and Secondary
-    // https://www.peelschools.org/documents/b1682c3b-d4d0-4da8-8e38-9470d42e847b/SYC_2025-2026_Regular-Elementary-and-Secondary-chart.pdf
-    private static readonly List<(DateOnly Date, string Label)> PdsbPaDays2025_2026 =
-    [
-        (new DateOnly(2025,  9, 19), "PA Day - Elementary Reorganization"),
-        (new DateOnly(2025, 10, 10), "PA Day - Provincial Education Priorities"),
-        (new DateOnly(2025, 11, 28), "PA Day - Reporting to Parents"),
-        (new DateOnly(2026,  1, 19), "PA Day - Provincial Education Priorities"),
-        (new DateOnly(2026,  2, 13), "PA Day - Reporting to Parents"),
-        (new DateOnly(2026,  4, 17), "PA Day - Provincial Education Priorities"),
-        (new DateOnly(2026,  6, 26), "PA Day - Report Card Writing"),
-    ];
 
-    private async Task ImportPdsbPaDaysAsync(SchoolYear year)
-    {
-        var years = year.Name.Split('-', '/', ' ')
-            .Where(p => int.TryParse(p.Trim(), out _))
-            .Select(p => int.Parse(p.Trim()))
-            .ToList();
-        if (!years.Contains(2025) && !years.Contains(2026))
-        {
-            Snackbar.Add("PDSB PA day data is only available for 2025-2026. Please add PA days manually for other years.", Severity.Warning);
-            return;
-        }
-
-        _importingPaDays.Add(year.Id);
-        StateHasChanged();
-
-        int imported = 0;
-        int skipped  = 0;
-
-        try
-        {
-            var existing = year.CalendarExceptions.Select(e => e.Date).ToHashSet();
-
-            foreach (var (date, label) in PdsbPaDays2025_2026)
-            {
-                if (existing.Contains(date)) { skipped++; continue; }
-
-                Db.SchoolCalendarExceptions.Add(new SchoolCalendarException
-                {
-                    SchoolYearId  = year.Id,
-                    Date          = date,
-                    ExceptionType = CalendarExceptionType.PdPaDay,
-                    Label         = label
-                });
-                existing.Add(date);
-                imported++;
-            }
-
-            await Db.SaveChangesAsync();
-            var msg = imported > 0
-                ? $"Imported {imported} PDSB PA days." + (skipped > 0 ? $" ({skipped} already existed)" : "")
-                : "No new PA days to import — all already existed.";
-            Snackbar.Add(msg, imported > 0 ? Severity.Success : Severity.Info);
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Import failed: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            _importingPaDays.Remove(year.Id);
-            await LoadAsync();
-        }
-    }
 
 
 }
