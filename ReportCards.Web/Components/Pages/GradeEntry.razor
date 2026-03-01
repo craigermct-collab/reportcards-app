@@ -210,11 +210,10 @@ else if (_groups.Any())
                                                      Value="@row.ValueNumber"
                                                      ValueChanged="@(v => row.ValueNumber = v)"
                                                      Variant="Variant.Outlined"
-                                                     Dense="true"
                                                      Margin="Margin.Dense"
-                                                     Min="@((double)(row.LearningItem.GradingScale.MinValue ?? 0))"
-                                                     Max="@((double)(row.LearningItem.GradingScale.MaxValue ?? 100))"
-                                                     Step="@((double)(row.LearningItem.GradingScale.Step ?? 1))"
+                                                     Min="@(row.LearningItem.GradingScale.MinValue ?? 0m)"
+                                                     Max="@(row.LearningItem.GradingScale.MaxValue ?? 100m)"
+                                                     Step="@(row.LearningItem.GradingScale.Step ?? 1m)"
                                                      Adornment="@(row.LearningItem.GradingScale.DisplaySuffix != null ? Adornment.End : Adornment.None)"
                                                      AdornmentText="@row.LearningItem.GradingScale.DisplaySuffix" />
                                 }
@@ -224,7 +223,6 @@ else if (_groups.Any())
                                                   Value="@row.ValueText"
                                                   ValueChanged="@(v => row.ValueText = v)"
                                                   Variant="Variant.Outlined"
-                                                  Dense="true"
                                                   Margin="Margin.Dense"
                                                   Placeholder="Enter grade" />
                                 }
@@ -236,7 +234,6 @@ else if (_groups.Any())
                                               Value="@row.Comment"
                                               ValueChanged="@(v => row.Comment = v)"
                                               Variant="Variant.Outlined"
-                                              Dense="true"
                                               Margin="Margin.Dense"
                                               Lines="2"
                                               MaxLength="500"
@@ -249,7 +246,7 @@ else if (_groups.Any())
                                 @if (row.SubStrands.Any())
                                 {
                                     <MudTooltip Text="@(row.IsExpanded ? "Hide curriculum details" : "View curriculum details")">
-                                        <MudIconButton Icon="@(row.IsExpanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.InfoOutlined)"
+                                        <MudIconButton Icon="@(row.IsExpanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Outlined.Info)"
                                                        Size="Size.Small"
                                                        Color="@(row.IsExpanded ? Color.Primary : Color.Default)"
                                                        OnClick="@(() => row.IsExpanded = !row.IsExpanded)" />
@@ -370,7 +367,7 @@ else if (_groups.Any())
     private bool _isLoadingStudents;
     private bool _isLoadingItems;
     private bool _isSaving;
-    private bool _gradesLoaded;
+    private bool _gradesLoaded = false;
 
     private List<TermInstance> _terms       = new();
     private List<Enrollment>   _enrollments = new();
