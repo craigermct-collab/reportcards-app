@@ -146,6 +146,35 @@ else
 
                 <MudDivider Class="mb-4" />
 
+                <!-- Curriculum -->
+                <div class="d-flex align-center gap-2 mb-3">
+                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);">Curriculum</MudText>
+                    @if (_yearCurriculums.TryGetValue(year.Id, out var yc))
+                    {
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled"
+                                 Icon="@Icons.Material.Filled.CheckCircle">
+                            @yc.CurriculumSchema?.Name
+                        </MudChip>
+                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                            @yc.TotalOfferings offering(s) generated
+                        </MudText>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Outlined"
+                                 Icon="@Icons.Material.Filled.Warning">
+                            No curriculum applied
+                        </MudChip>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.LibraryBooks"
+                                   OnClick="@(() => OpenApplyCurriculum(year))">
+                            Apply Curriculum
+                        </MudButton>
+                    }
+                </div>
+
+                <MudDivider Class="mb-4" />
+
                 <!-- School Calendar -->
                 <div class="d-flex align-center flex-wrap gap-2 mb-3">
                     <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);">
@@ -236,6 +265,33 @@ else
     }
 }
 
+<!-- Apply Curriculum Dialog -->
+<MudDialog @bind-Visible="_applyCurriculumOpen">
+    <TitleContent><MudText Typo="Typo.h6">Apply Curriculum to @_applyCurriculumYear?.Name</MudText></TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
+            This creates YearClassOffering and YearSubjectOffering records for every grade/subject combination
+            in the template. Existing students can then be reseeded from the Enrollments page.
+        </MudText>
+        <MudSelect T="int?" @bind-Value="_applyCurriculumSchemaId"
+                   Label="Curriculum Template" Variant="Variant.Outlined"
+                   AnchorOrigin="Origin.BottomCenter">
+            @foreach (var s in _curriculumSchemas)
+            {
+                <MudSelectItem T="int?" Value="@((int?)s.Id)">@s.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _applyCurriculumOpen = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(_applyCurriculumSchemaId == null || _applyingCurriculum)"
+                   OnClick="ApplyCurriculumAsync">
+            @(_applyingCurriculum ? "Applying..." : "Apply")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
 <!-- Add Exception Dialog -->
 <MudDialog @bind-Visible="_addExceptionOpen">
     <TitleContent>
@@ -261,7 +317,15 @@ else
 </MudDialog>
 
 @code {
-    private List<SchoolYear> _schoolYears = new();
+    private class YearCurriculumInfo
+    {
+        public CurriculumSchema? CurriculumSchema { get; set; }
+        public int TotalOfferings { get; set; }
+    }
+
+    private List<SchoolYear>          _schoolYears       = new();
+    private List<CurriculumSchema>    _curriculumSchemas = new();
+    private Dictionary<int, YearCurriculumInfo> _yearCurriculums = new();
     private string _newYearName = "";
     private bool   _showAddForm;
 
@@ -275,6 +339,12 @@ else
     private string                _exceptionLabel = "";
     private CalendarExceptionType _exceptionType  = CalendarExceptionType.PdPaDay;
     private HashSet<int>          _importingHolidays = new();
+
+    // Apply curriculum dialog
+    private bool             _applyCurriculumOpen;
+    private bool             _applyingCurriculum;
+    private SchoolYear?      _applyCurriculumYear;
+    private int?             _applyCurriculumSchemaId;
 
 
     private bool CanAddException =>
@@ -290,11 +360,122 @@ else
             .OrderByDescending(y => y.Name)
             .ToListAsync();
 
+        _curriculumSchemas = await Db.CurriculumSchemas
+            .OrderBy(s => s.Name)
+            .ToListAsync();
+
+        // Load YearCurriculum per school year
+        var yearCurriculums = await Db.YearCurriculums
+            .Include(yc => yc.CurriculumSchema)
+            .ToListAsync();
+        var offeringCounts = await Db.YearClassOfferings
+            .GroupBy(o => o.YearCurriculumId)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToListAsync();
+        var countMap = offeringCounts.ToDictionary(x => x.Key, x => x.Count);
+        _yearCurriculums = yearCurriculums.ToDictionary(
+            yc => yc.SchoolYearId,
+            yc => new YearCurriculumInfo { CurriculumSchema = yc.CurriculumSchema, TotalOfferings = countMap.GetValueOrDefault(yc.Id) });
+
         foreach (var y in _schoolYears)
         {
             _newTermNames.TryAdd(y.Id, "");
             _newTermStarts.TryAdd(y.Id, null);
             _newTermEnds.TryAdd(y.Id, null);
+        }
+    }
+
+    private void OpenApplyCurriculum(SchoolYear year)
+    {
+        _applyCurriculumYear     = year;
+        _applyCurriculumSchemaId = _curriculumSchemas.FirstOrDefault()?.Id;
+        _applyCurriculumOpen     = true;
+    }
+
+    private async Task ApplyCurriculumAsync()
+    {
+        if (_applyCurriculumYear == null || _applyCurriculumSchemaId == null) return;
+        _applyingCurriculum = true;
+        StateHasChanged();
+        try
+        {
+            // Remove existing YearCurriculum for this year if any (clean re-apply)
+            var existing = await Db.YearCurriculums
+                .Where(yc => yc.SchoolYearId == _applyCurriculumYear.Id)
+                .FirstOrDefaultAsync();
+            if (existing != null)
+            {
+                // Remove all offerings under it first
+                var existingOfferings = await Db.YearClassOfferings
+                    .Where(o => o.YearCurriculumId == existing.Id)
+                    .ToListAsync();
+                Db.YearClassOfferings.RemoveRange(existingOfferings);
+                Db.YearCurriculums.Remove(existing);
+                await Db.SaveChangesAsync();
+            }
+
+            // Create new YearCurriculum
+            var yc = new YearCurriculum
+            {
+                SchoolYearId       = _applyCurriculumYear.Id,
+                CurriculumSchemaId = _applyCurriculumSchemaId.Value,
+                AppliedAt          = DateTimeOffset.UtcNow
+            };
+            Db.YearCurriculums.Add(yc);
+            await Db.SaveChangesAsync();
+
+            // Load the full schema with grades/subjects/strands
+            var schema = await Db.CurriculumSchemas
+                .Include(s => s.GradeTemplates)
+                    .ThenInclude(g => g.Grade)
+                .Include(s => s.GradeTemplates)
+                    .ThenInclude(g => g.ClassTemplates)
+                        .ThenInclude(c => c.SubjectTemplates)
+                .FirstOrDefaultAsync(s => s.Id == _applyCurriculumSchemaId.Value);
+
+            if (schema == null) return;
+
+            int classCount = 0, subjectCount = 0;
+            foreach (var gradeTemplate in schema.GradeTemplates)
+            {
+                foreach (var classTemplate in gradeTemplate.ClassTemplates)
+                {
+                    var classOffering = new YearClassOffering
+                    {
+                        YearCurriculumId          = yc.Id,
+                        GradeId                   = gradeTemplate.GradeId,
+                        CurriculumClassTemplateId = classTemplate.Id,
+                        IsEnabled                 = true
+                    };
+                    Db.YearClassOfferings.Add(classOffering);
+                    await Db.SaveChangesAsync();
+                    classCount++;
+
+                    foreach (var subjectTemplate in classTemplate.SubjectTemplates)
+                    {
+                        Db.YearSubjectOfferings.Add(new YearSubjectOffering
+                        {
+                            YearClassOfferingId          = classOffering.Id,
+                            CurriculumSubjectTemplateId  = subjectTemplate.Id,
+                            IsEnabled                    = true
+                        });
+                        subjectCount++;
+                    }
+                    await Db.SaveChangesAsync();
+                }
+            }
+
+            _applyCurriculumOpen = false;
+            Snackbar.Add($"Curriculum applied: {classCount} class offering(s), {subjectCount} subject offering(s) created. Now reseed students from the Enrollments page.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _applyingCurriculum = false;
         }
     }
 
