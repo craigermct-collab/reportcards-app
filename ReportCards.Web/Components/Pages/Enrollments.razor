@@ -270,6 +270,12 @@ else
         {
             _selectedYearId = activeYear.Id;
             _selectedTermId = activeYear.TermInstances.OrderBy(t => t.SortOrder).FirstOrDefault()?.Id;
+            // Auto-select first class group for the active term so students show immediately
+            _selectedClassGroupId = _allClassGroups
+                .Where(c => c.TermInstanceId == _selectedTermId)
+                .OrderBy(c => c.ClassGroupType?.SortOrder)
+                .ThenBy(c => c.DisplayName)
+                .FirstOrDefault()?.Id;
         }
 
         await LoadEnrollmentsAsync();
