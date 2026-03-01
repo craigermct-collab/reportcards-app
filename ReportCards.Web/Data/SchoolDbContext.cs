@@ -45,6 +45,10 @@ public class SchoolDbContext : DbContext
     public DbSet<HomeworkAnalysis> HomeworkAnalyses => Set<HomeworkAnalysis>();
     public DbSet<HomeworkAnalysisImage> HomeworkAnalysisImages => Set<HomeworkAnalysisImage>();
 
+    // Calendar + attendance
+    public DbSet<SchoolCalendarException> SchoolCalendarExceptions => Set<SchoolCalendarException>();
+    public DbSet<AttendanceEvent> AttendanceEvents => Set<AttendanceEvent>();
+
     // AI prompt config
     public DbSet<SchoolAiConfig> SchoolAiConfigs => Set<SchoolAiConfig>();
     public DbSet<TeacherAiConfig> TeacherAiConfigs => Set<TeacherAiConfig>();
@@ -294,5 +298,25 @@ public class SchoolDbContext : DbContext
             .WithMany()
             .HasForeignKey(t => t.TeacherId)
             .OnDelete(DeleteBehavior.NoAction);
+
+        // SchoolCalendarException — unique date per school year
+        m.Entity<SchoolCalendarException>()
+            .HasIndex(e => new { e.SchoolYearId, e.Date }).IsUnique();
+
+        m.Entity<SchoolCalendarException>()
+            .HasOne(e => e.SchoolYear)
+            .WithMany(y => y.CalendarExceptions)
+            .HasForeignKey(e => e.SchoolYearId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // AttendanceEvent — unique student + date + type
+        m.Entity<AttendanceEvent>()
+            .HasIndex(a => new { a.StudentId, a.Date, a.Type }).IsUnique();
+
+        m.Entity<AttendanceEvent>()
+            .HasOne(a => a.Student)
+            .WithMany(s => s.AttendanceEvents)
+            .HasForeignKey(a => a.StudentId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

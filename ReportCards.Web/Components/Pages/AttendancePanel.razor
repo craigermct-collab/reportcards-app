@@ -1,0 +1,229 @@
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@using ReportCards.Web.Services
+@inject SchoolDbContext Db
+@inject ISnackbar Snackbar
+@inject AttendanceService AttendanceSvc
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="ma-4" />
+}
+else
+{
+    <div class="d-flex align-center flex-wrap gap-3 mb-4">
+        <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary);">
+            Attendance
+        </MudText>
+        <div class="d-flex align-center gap-2" style="margin-left:auto;">
+            <MudDatePicker @bind-Date="_selectedDate"
+                           Label="Date" Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           DateFormat="MMM d, yyyy"
+                           Style="width:180px;"
+                           IsDateDisabledFunc="IsNonSchoolDay" />
+            @if (_isNonSchoolDay)
+            {
+                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">
+                    Non-school day
+                </MudChip>
+            }
+        </div>
+    </div>
+
+    @if (_enrolledStudents.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+            No students enrolled in this class group yet.
+        </MudAlert>
+    }
+    else if (_isNonSchoolDay)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            The selected date is a non-school day (holiday, PD/PA, or snow day) — attendance cannot be recorded.
+        </MudAlert>
+    }
+    else
+    {
+        <MudTable Items="_enrolledStudents" Dense="true" Hover="true" Elevation="0"
+                  Style="border:1px solid var(--mud-palette-divider); border-radius:8px;">
+            <HeaderContent>
+                <MudTh>Student</MudTh>
+                <MudTh Style="text-align:center;">Today</MudTh>
+                <MudTh Style="text-align:center;">Absences</MudTh>
+                <MudTh Style="text-align:center;">Lates</MudTh>
+                <MudTh Style="text-align:center;">Eligible Days</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                @{
+                    var sid = context.StudentId;
+                    var evt = _todayEvents.GetValueOrDefault(sid);
+                    _summaries.TryGetValue(sid, out var summary);
+                }
+                <MudTd>
+                    <MudText Typo="Typo.body2" Style="font-weight:600;">
+                        @context.Student?.FirstName @context.Student?.LastName
+                    </MudText>
+                </MudTd>
+                <MudTd Style="text-align:center;">
+                    <div class="d-flex justify-center gap-1">
+                        <MudTooltip Text="Present">
+                            <MudIconButton Size="Size.Small"
+                                           Icon="@Icons.Material.Filled.CheckCircle"
+                                           Color="@(evt == null ? Color.Success : Color.Default)"
+                                           Style="@(evt == null ? "background:rgba(46,204,113,0.12);border-radius:50%;" : "")"
+                                           OnClick="@(() => SetAttendanceAsync(sid, null))" />
+                        </MudTooltip>
+                        <MudTooltip Text="Late">
+                            <MudIconButton Size="Size.Small"
+                                           Icon="@Icons.Material.Filled.Schedule"
+                                           Color="@(evt?.Type == AttendanceType.Late ? Color.Warning : Color.Default)"
+                                           Style="@(evt?.Type == AttendanceType.Late ? "background:rgba(230,126,34,0.12);border-radius:50%;" : "")"
+                                           OnClick="@(() => SetAttendanceAsync(sid, AttendanceType.Late))" />
+                        </MudTooltip>
+                        <MudTooltip Text="Absent">
+                            <MudIconButton Size="Size.Small"
+                                           Icon="@Icons.Material.Filled.Cancel"
+                                           Color="@(evt?.Type == AttendanceType.Absent ? Color.Error : Color.Default)"
+                                           Style="@(evt?.Type == AttendanceType.Absent ? "background:rgba(231,76,60,0.12);border-radius:50%;" : "")"
+                                           OnClick="@(() => SetAttendanceAsync(sid, AttendanceType.Absent))" />
+                        </MudTooltip>
+                    </div>
+                </MudTd>
+                <MudTd Style="text-align:center;">
+                    @if (summary != null && summary.Absences > 0)
+                    {
+                        <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled">
+                            @summary.Absences
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-disabled);">0</MudText>
+                    }
+                </MudTd>
+                <MudTd Style="text-align:center;">
+                    @if (summary != null && summary.Lates > 0)
+                    {
+                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">
+                            @summary.Lates
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-disabled);">0</MudText>
+                    }
+                </MudTd>
+                <MudTd Style="text-align:center;">
+                    <MudText Typo="Typo.body2">@(summary?.EligibleDays ?? 0)</MudText>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+
+        <MudText Typo="Typo.caption" Class="mt-2" Style="color:var(--mud-palette-text-secondary);">
+            Eligible days = weekdays within term dates, excluding stat holidays, PD/PA days, and snow days.
+        </MudText>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public int ClassGroupInstanceId { get; set; }
+    [Parameter, EditorRequired] public int TermInstanceId       { get; set; }
+    [Parameter, EditorRequired] public int SchoolYearId         { get; set; }
+
+    private bool                               _loading          = true;
+    private List<Enrollment>                   _enrolledStudents = new();
+    private HashSet<DateOnly>                  _nonSchoolDays    = new();
+    private Dictionary<int, AttendanceEvent>   _todayEvents      = new();
+    private Dictionary<int, AttendanceSummary> _summaries        = new();
+
+    private DateTime? _selectedDate     = DateTime.Today;
+    private DateTime? _lastLoadedDate;
+
+    private DateOnly SelectedDateOnly =>
+        _selectedDate.HasValue ? DateOnly.FromDateTime(_selectedDate.Value) : DateOnly.FromDateTime(DateTime.Today);
+
+    private bool _isNonSchoolDay =>
+        _nonSchoolDays.Contains(SelectedDateOnly) ||
+        SelectedDateOnly.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+
+    private bool IsNonSchoolDay(DateTime dt)
+    {
+        var d = DateOnly.FromDateTime(dt);
+        return d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday || _nonSchoolDays.Contains(d);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        _enrolledStudents = await Db.Enrollments
+            .Where(e => e.ClassGroupInstanceId == ClassGroupInstanceId
+                     && e.TermInstanceId       == TermInstanceId)
+            .Include(e => e.Student)
+            .OrderBy(e => e.Student!.LastName).ThenBy(e => e.Student!.FirstName)
+            .ToListAsync();
+
+        _nonSchoolDays = (await Db.SchoolCalendarExceptions
+            .Where(e => e.SchoolYearId == SchoolYearId)
+            .Select(e => e.Date)
+            .ToListAsync()).ToHashSet();
+
+        await RefreshDayAndSummariesAsync();
+    }
+
+    private async Task RefreshDayAndSummariesAsync()
+    {
+        var date       = SelectedDateOnly;
+        var studentIds = _enrolledStudents.Select(e => e.StudentId).ToList();
+
+        var todayList  = await Db.AttendanceEvents
+            .Where(a => studentIds.Contains(a.StudentId) && a.Date == date)
+            .ToListAsync();
+        _todayEvents   = todayList.ToDictionary(a => a.StudentId);
+
+        _summaries = new();
+        foreach (var sid in studentIds)
+            _summaries[sid] = await AttendanceSvc.GetTermSummaryAsync(sid, TermInstanceId);
+
+        _lastLoadedDate = _selectedDate;
+    }
+
+    private async Task SetAttendanceAsync(int studentId, AttendanceType? type)
+    {
+        var date     = SelectedDateOnly;
+        var existing = await Db.AttendanceEvents
+            .Where(a => a.StudentId == studentId && a.Date == date)
+            .ToListAsync();
+
+        if (existing.Any()) Db.AttendanceEvents.RemoveRange(existing);
+
+        if (type.HasValue)
+        {
+            Db.AttendanceEvents.Add(new AttendanceEvent
+            {
+                StudentId = studentId,
+                Date      = date,
+                Type      = type.Value
+            });
+        }
+
+        await Db.SaveChangesAsync();
+        await RefreshDayAndSummariesAsync();
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender && _selectedDate != _lastLoadedDate)
+        {
+            await RefreshDayAndSummariesAsync();
+            StateHasChanged();
+        }
+    }
+}

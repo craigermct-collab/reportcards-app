@@ -47,6 +47,8 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddScoped<HomeworkAnalysisService>();
+builder.Services.AddScoped<AttendanceService>();
+builder.Services.AddHttpClient();
 builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddHttpContextAccessor();
