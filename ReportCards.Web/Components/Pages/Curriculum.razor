@@ -5,6 +5,7 @@
 @using ReportCards.Web.Data
 @inject SchoolDbContext Db
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <div class="d-flex align-center gap-3 mb-1">
     <MudText Typo="Typo.h4" Style="font-family:'DM Serif Display',serif;">Curriculum Templates</MudText>
@@ -13,6 +14,13 @@
                OnClick="OpenAddTemplate">
         New Template
     </MudButton>
+    <MudTooltip Text="Download blank JSON format to use with Claude or ChatGPT">
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small"
+                   StartIcon="@Icons.Material.Filled.Code"
+                   OnClick="DownloadBlankSchemaAsync">
+            JSON Format
+        </MudButton>
+    </MudTooltip>
 </div>
 <MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
     Define curriculum templates with grades, subjects, strands, and sub-strands. Templates are assigned to school years.
@@ -50,7 +58,12 @@ else
                             }
                         </CardHeaderContent>
                         <CardHeaderActions>
-                            <div @onclick:stopPropagation="true">
+                            <div @onclick:stopPropagation="true" class="d-flex">
+                                <MudTooltip Text="Export as JSON">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Download" Size="Size.Small"
+                                                   Color="Color.Primary"
+                                                   OnClick="@(() => ExportTemplateAsync(tmpl))" />
+                                </MudTooltip>
                                 <MudTooltip Text="Delete template">
                                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
                                                    Color="Color.Error"
@@ -1194,5 +1207,139 @@ else
         if (_confirmDeleteAction != null)
             await _confirmDeleteAction();
         _confirmDeleteAction = null;
+    }
+
+    // ── JSON Export ───────────────────────────────────────────────────
+    private async Task ExportTemplateAsync(CurriculumSchema tmpl)
+    {
+        var export = new
+        {
+            name        = tmpl.Name,
+            description = tmpl.Description,
+            grades      = tmpl.GradeTemplates.OrderBy(g => g.SortOrder).Select(g => new
+            {
+                name     = g.Grade?.Name,
+                subjects = g.ClassTemplates.OrderBy(s => s.SortOrder).Select(s => new
+                {
+                    name                = s.Name,
+                    code                = s.Code,
+                    gradedAtStrandLevel = s.GradedAtStrandLevel,
+                    strands             = s.SubjectTemplates.OrderBy(r => r.SortOrder).Select(r => new
+                    {
+                        name       = r.Name,
+                        code       = r.Code,
+                        subStrands = r.SubStrands.OrderBy(b => b.SortOrder).Select(b => new
+                        {
+                            name        = b.Name,
+                            code        = b.Code,
+                            description = b.Description
+                        })
+                    })
+                })
+            })
+        };
+        var opts     = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+        var json     = System.Text.Json.JsonSerializer.Serialize(export, opts);
+        var fileName = $"{tmpl.Name.Replace(" ", "_")}_curriculum.json";
+        await DownloadFileAsync(fileName, json);
+        Snackbar.Add($"'{tmpl.Name}' exported as JSON.", Severity.Success);
+    }
+
+    private async Task DownloadBlankSchemaAsync()
+    {
+        // A real, well-commented example a teacher can hand to Claude/ChatGPT
+        var blank = new
+        {
+            name        = "Your Template Name",
+            description = "Optional description — e.g. Ontario Curriculum 2027",
+            grades      = new[]
+            {
+                new
+                {
+                    name     = "Grade 1",   // must match a grade name already set up in your school
+                    subjects = new object[]
+                    {
+                        new
+                        {
+                            name                = "Mathematics",
+                            code                = "MATH",         // optional short code
+                            gradedAtStrandLevel = true,           // true = teachers grade each strand separately
+                            strands             = new object[]
+                            {
+                                new
+                                {
+                                    name       = "Number Sense",
+                                    code       = "NUM",
+                                    subStrands = new object[]
+                                    {
+                                        new { name = "Counting and Quantity",    code = "CQ",  description = "Students count, read, and represent whole numbers..." },
+                                        new { name = "Place Value and Numerals", code = "PV",  description = "Students understand the value of digits in multi-digit numbers..." }
+                                    }
+                                },
+                                new
+                                {
+                                    name       = "Algebraic Thinking",
+                                    code       = "ALG",
+                                    subStrands = new object[]
+                                    {
+                                        new { name = "Patterns and Relationships", code = "PAT", description = "Students identify, describe and extend patterns..." }
+                                    }
+                                }
+                            }
+                        },
+                        new
+                        {
+                            name                = "Language",
+                            code                = "LANG",
+                            gradedAtStrandLevel = true,
+                            strands             = new object[]
+                            {
+                                new
+                                {
+                                    name       = "Reading",
+                                    code       = "READ",
+                                    subStrands = new object[]
+                                    {
+                                        new { name = "Reading Comprehension", code = "RC", description = "Students demonstrate understanding of a variety of texts..." }
+                                    }
+                                },
+                                new
+                                {
+                                    name       = "Writing",
+                                    code       = "WRIT",
+                                    subStrands = new object[]
+                                    {
+                                        new { name = "Developing and Organizing Ideas", code = "DOI", description = "Students generate, gather, and organize ideas for writing..." }
+                                    }
+                                }
+                            }
+                        },
+                        new
+                        {
+                            name                = "Health and Physical Education",
+                            code                = "HPE",
+                            gradedAtStrandLevel = false,  // false = one overall grade for the whole subject
+                            strands             = new object[] { }   // leave empty if gradedAtStrandLevel is false
+                        }
+                    }
+                },
+                new
+                {
+                    name     = "Grade 2",   // repeat pattern for each grade
+                    subjects = new object[] { /* ... */ }
+                }
+            }
+        };
+        var opts = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+        var json = System.Text.Json.JsonSerializer.Serialize(blank, opts);
+        await DownloadFileAsync("curriculum_import_format.json", json);
+        Snackbar.Add("Blank JSON format downloaded — hand it to Claude or ChatGPT with your PDF curriculum docs!", Severity.Info);
+    }
+
+    private async Task DownloadFileAsync(string fileName, string content)
+    {
+        // Base64-encode and trigger a browser download without a server round-trip
+        var b64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(content));
+        await JS.InvokeVoidAsync("eval", $"""(function(){{var a=document.createElement('a');a.href='data:application/json;base64,{b64}';a.download='{fileName}';document.body.appendChild(a);a.click();document.body.removeChild(a);}})();""");
     }
 }
