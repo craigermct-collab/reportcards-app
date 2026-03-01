@@ -87,30 +87,23 @@
     </MudCardContent>
 </MudCard>
 
-<!-- ── LOADING ──────────────────────────────────────────────────── -->
 @if (_isLoadingItems)
 {
     <MudCard Elevation="1" Class="pa-8 d-flex justify-center">
         <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
     </MudCard>
 }
-
-<!-- ── NO ITEMS ─────────────────────────────────────────────────── -->
 else if (_gradesLoaded && !_groups.Any())
 {
     <MudAlert Severity="Severity.Info" Class="rounded-lg">
         No learning items found for this student in the selected term. Make sure the student is enrolled and learning items have been seeded from the curriculum.
     </MudAlert>
 }
-
-<!-- ── GRADE FORM ────────────────────────────────────────────────── -->
 else if (_groups.Any())
 {
     <MudCard Elevation="1">
-        <!-- Card header -->
         <MudCardHeader>
-            <CardHeaderContent>
-                <MudText Typo="Typo.h6">@_selectedStudentName</MudText>
+            <CardHeaderContent><MudText Typo="Typo.h6">@_selectedStudentName</MudText>
                 <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">@_selectedTermName</MudText>
             </CardHeaderContent>
             <CardHeaderActions>
@@ -138,7 +131,6 @@ else if (_groups.Any())
 
             @foreach (var subjectGroup in _groups)
             {
-                <!-- ── SUBJECT HEADING ─────────────────────────── -->
                 <div class="d-flex align-center gap-2 mt-5 mb-1" style="@(_groups.First() == subjectGroup ? "margin-top:0!important" : "")">
                     <MudIcon Icon="@Icons.Material.Filled.MenuBook" Size="Size.Small" Style="color:#1B4F72;" />
                     <MudText Typo="Typo.subtitle1" Style="font-weight:700; color:#1A2B3C;">
@@ -154,7 +146,6 @@ else if (_groups.Any())
                 </div>
                 <MudDivider Class="mb-3" />
 
-                <!-- ── COLUMN HEADERS ─────────────────────────── -->
                 <div class="d-flex align-center gap-3 mb-2 px-2"
                      style="font-family:'DM Sans',sans-serif; font-size:11px; font-weight:700;
                             text-transform:uppercase; letter-spacing:0.06em; color:#6B7A8D;">
@@ -166,12 +157,9 @@ else if (_groups.Any())
 
                 @foreach (var row in subjectGroup.Rows)
                 {
-                    <!-- ── GRADE ROW ───────────────────────────── -->
                     <div class="grade-row @(row.IsExpanded ? "grade-row--expanded" : "")">
 
                         <div class="d-flex align-center gap-3 px-2 py-2">
-
-                            <!-- Label -->
                             <div style="flex:1; min-width:0;">
                                 <MudText Typo="Typo.body2" Style="font-weight:500; color:#1A2B3C;">
                                     @row.DisplayName
@@ -183,8 +171,6 @@ else if (_groups.Any())
                                     </MudText>
                                 }
                             </div>
-
-                            <!-- Grade input -->
                             <div style="width:160px; flex-shrink:0;">
                                 @if (row.LearningItem.GradingScale?.ValueType == GradingValueType.OptionList)
                                 {
@@ -227,8 +213,6 @@ else if (_groups.Any())
                                                   Placeholder="Enter grade" />
                                 }
                             </div>
-
-                            <!-- Comment (placeholder for next phase — sized for ~2 sentences) -->
                             <div style="flex:1.4; min-width:0;">
                                 <MudTextField T="string?"
                                               Value="@row.Comment"
@@ -240,8 +224,6 @@ else if (_groups.Any())
                                               Placeholder="Add a comment… (optional)"
                                               Style="font-size:13px;" />
                             </div>
-
-                            <!-- Curriculum expand toggle -->
                             <div style="width:32px; flex-shrink:0; text-align:center;">
                                 @if (row.SubStrands.Any())
                                 {
@@ -256,7 +238,6 @@ else if (_groups.Any())
 
                         </div>
 
-                        <!-- ── CURRICULUM EXPANSION PANEL ──────── -->
                         <MudCollapse Expanded="@row.IsExpanded">
                             <div style="margin: 0 8px 12px 8px; padding:14px 16px;
                                         background:#F4F6F9; border-radius:8px;
@@ -297,7 +278,6 @@ else if (_groups.Any())
                 <div class="mb-4"></div>
             }
 
-            <!-- Bottom save -->
             <MudDivider Class="mt-4 mb-4" />
             <div class="d-flex justify-end">
                 <MudButton Variant="Variant.Filled"
