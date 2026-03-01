@@ -152,10 +152,10 @@ else
                     </MudText>
                     <div class="d-flex gap-2" style="margin-left:auto;">
                         <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
-                                   StartIcon="@Icons.Material.Filled.Download"
+                                   StartIcon="@Icons.Material.Filled.EventAvailable"
                                    OnClick="@(() => ImportStatHolidaysAsync(year))"
                                    Disabled="@(_importingHolidays.Contains(year.Id))">
-                            @(_importingHolidays.Contains(year.Id) ? "Importing..." : "Import Stat Holidays")
+                            @(_importingHolidays.Contains(year.Id) ? "Creating..." : "Create Stat Holidays")
                         </MudButton>
                         <MudTooltip Text="Import PDSB PA days for 2025-2026 (Regular Elementary calendar)">
                             <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small"
