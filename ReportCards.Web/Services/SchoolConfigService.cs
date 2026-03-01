@@ -5,23 +5,32 @@ namespace ReportCards.Web.Services;
 
 /// <summary>
 /// Loads school configuration from the DB once per Blazor circuit.
-/// Inject as scoped — call EnsureLoadedAsync() before accessing properties.
+/// Uses IDbContextFactory to avoid DbContext concurrency conflicts with pages.
 /// </summary>
 public class SchoolConfigService
 {
-    private readonly SchoolDbContext _db;
+    private readonly IDbContextFactory<SchoolDbContext> _factory;
     private Dictionary<string, string> _values = new();
     private bool _loaded;
 
-    public SchoolConfigService(SchoolDbContext db) => _db = db;
+    public SchoolConfigService(IDbContextFactory<SchoolDbContext> factory) => _factory = factory;
 
     public async Task EnsureLoadedAsync()
     {
         if (_loaded) return;
-        var rows = await _db.SchoolConfigs.ToListAsync();
-        _values = rows
-            .Where(r => !string.IsNullOrWhiteSpace(r.Value))
-            .ToDictionary(r => r.Key, r => r.Value!);
+        try
+        {
+            await using var db = await _factory.CreateDbContextAsync();
+            var rows = await db.SchoolConfigs.ToListAsync();
+            _values = rows
+                .Where(r => !string.IsNullOrWhiteSpace(r.Value))
+                .ToDictionary(r => r.Key, r => r.Value!);
+        }
+        catch
+        {
+            // Table may not exist yet (pending migration) — fall back to defaults silently
+            _values = new Dictionary<string, string>();
+        }
         _loaded = true;
     }
 

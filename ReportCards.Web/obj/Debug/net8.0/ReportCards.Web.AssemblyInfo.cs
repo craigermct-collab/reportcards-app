@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ReportCards.Web")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+60e17b886e547d425dd232415abff65b55deed59")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+42d1205195f9427fa8586a0b8fc673b48d20e413")]
 [assembly: System.Reflection.AssemblyProductAttribute("ReportCards.Web")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ReportCards.Web")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
