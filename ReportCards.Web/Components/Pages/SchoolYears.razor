@@ -3,6 +3,7 @@
 @attribute [Authorize]
 @using Microsoft.EntityFrameworkCore
 @using ReportCards.Web.Data
+@using ReportCards.Web.Services
 @inject SchoolDbContext Db
 @inject ISnackbar Snackbar
 
@@ -427,18 +428,18 @@ else
         {
             var existing = year.CalendarExceptions.Select(e => e.Date).ToHashSet();
 
-            foreach (var (date, label) in holidays)
+            foreach (var h in holidays)
             {
-                if (existing.Contains(date)) { skipped++; continue; }
+                if (existing.Contains(h.Date)) { skipped++; continue; }
 
                 Db.SchoolCalendarExceptions.Add(new SchoolCalendarException
                 {
                     SchoolYearId  = year.Id,
-                    Date          = date,
+                    Date          = h.Date,
                     ExceptionType = CalendarExceptionType.StatHoliday,
-                    Label         = label
+                    Label         = h.Name
                 });
-                existing.Add(date);
+                existing.Add(h.Date);
                 imported++;
             }
 
@@ -475,7 +476,10 @@ else
 
     private async Task ImportPdsbPaDaysAsync(SchoolYear year)
     {
-        var years = ParseSchoolYearNumbers(year.Name);
+        var years = year.Name.Split('-', '/', ' ')
+            .Where(p => int.TryParse(p.Trim(), out _))
+            .Select(p => int.Parse(p.Trim()))
+            .ToList();
         if (!years.Contains(2025) && !years.Contains(2026))
         {
             Snackbar.Add("PDSB PA day data is only available for 2025-2026. Please add PA days manually for other years.", Severity.Warning);
