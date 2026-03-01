@@ -161,6 +161,11 @@
                                     </MudText>
                                 </MudTd>
                                 <MudTd Style="text-align:right;">
+                                    <MudTooltip Text="Reseed learning items">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                                                       Color="Color.Info" Size="Size.Small"
+                                                       OnClick="@(() => ReseedAsync(context))" />
+                                    </MudTooltip>
                                     <MudTooltip Text="Unenroll student">
                                         <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
                                                        Color="Color.Error" Size="Size.Small"
@@ -274,18 +279,143 @@
 
         if (exists) { Snackbar.Add("Student is already enrolled in this class group.", Severity.Warning); return; }
 
-        Db.Enrollments.Add(new Enrollment
+        var enrollment = new Enrollment
         {
-            StudentId = _newStudentId!.Value,
-            TermInstanceId = _selectedTermId!.Value,
+            StudentId            = _newStudentId!.Value,
+            TermInstanceId       = _selectedTermId!.Value,
             ClassGroupInstanceId = _selectedClassGroupId!.Value,
-            GradeId = _newGradeId!.Value
-        });
+            GradeId              = _newGradeId!.Value
+        };
+        Db.Enrollments.Add(enrollment);
+        await Db.SaveChangesAsync();
+
+        var seeded = await SeedLearningItemsAsync(enrollment);
+        _newStudentId = null; _newGradeId = null; _showAddForm = false;
+        Snackbar.Add($"Student enrolled with {seeded} learning item(s) seeded.", Severity.Success);
+        await LoadEnrollmentsAsync();
+    }
+
+    private async Task ReseedAsync(Enrollment enrollment)
+    {
+        // Remove existing items that have no assessments yet (safe to reseed)
+        var existing = await Db.StudentLearningItems
+            .Where(li => li.EnrollmentId == enrollment.Id)
+            .ToListAsync();
+
+        var withAssessments = await Db.Assessments
+            .Where(a => existing.Select(li => li.Id).Contains(a.StudentLearningItemId))
+            .Select(a => a.StudentLearningItemId)
+            .Distinct()
+            .ToListAsync();
+
+        var removable = existing.Where(li => !withAssessments.Contains(li.Id)).ToList();
+        Db.StudentLearningItems.RemoveRange(removable);
+        await Db.SaveChangesAsync();
+
+        var seeded = await SeedLearningItemsAsync(enrollment);
+        Snackbar.Add($"Reseeded: {seeded} learning item(s) added.", Severity.Success);
+        StateHasChanged();
+    }
+
+    private async Task<int> SeedLearningItemsAsync(Enrollment enrollment)
+    {
+        // Find the YearCurriculum for this school year
+        var yearCurriculum = await Db.YearCurriculums
+            .FirstOrDefaultAsync(yc => yc.SchoolYearId ==
+                Db.TermInstances
+                    .Where(t => t.Id == enrollment.TermInstanceId)
+                    .Select(t => t.SchoolYearId)
+                    .FirstOrDefault());
+
+        if (yearCurriculum == null) return 0;
+
+        // Load class group type for fallback grading rule lookup
+        var classGroupInstance = await Db.ClassGroupInstances
+            .FirstOrDefaultAsync(c => c.Id == enrollment.ClassGroupInstanceId);
+
+        // Load enabled class offerings for this grade
+        var classOfferings = await Db.YearClassOfferings
+            .Include(o => o.CurriculumClassTemplate)
+            .Include(o => o.SubjectOfferings)
+                .ThenInclude(so => so.CurriculumSubjectTemplate)
+            .Where(o => o.YearCurriculumId == yearCurriculum.Id
+                     && o.GradeId          == enrollment.GradeId
+                     && o.IsEnabled)
+            .ToListAsync();
+
+        // Load fallback grading rules for this term+grade+classgroup
+        var gradingRules = await Db.TermGradeGradingRules
+            .Where(r => r.TermInstanceId    == enrollment.TermInstanceId
+                     && r.GradeId           == enrollment.GradeId
+                     && r.ClassGroupTypeId  == classGroupInstance!.ClassGroupTypeId)
+            .ToListAsync();
+        var fallbackScaleId = gradingRules.FirstOrDefault()?.GradingScaleId;
+
+        // Track already-seeded items to avoid duplicates
+        var existingClassOfferingIds   = await Db.StudentLearningItems
+            .Where(li => li.EnrollmentId == enrollment.Id && li.YearClassOfferingId != null)
+            .Select(li => li.YearClassOfferingId!.Value).ToListAsync();
+        var existingSubjectOfferingIds = await Db.StudentLearningItems
+            .Where(li => li.EnrollmentId == enrollment.Id && li.YearSubjectOfferingId != null)
+            .Select(li => li.YearSubjectOfferingId!.Value).ToListAsync();
+
+        int count = 0;
+        foreach (var classOffering in classOfferings)
+        {
+            var template = classOffering.CurriculumClassTemplate;
+            if (template == null) continue;
+
+            if (!template.GradedAtStrandLevel)
+            {
+                // One item for the whole subject
+                if (!existingClassOfferingIds.Contains(classOffering.Id))
+                {
+                    Db.StudentLearningItems.Add(new StudentLearningItem
+                    {
+                        EnrollmentId       = enrollment.Id,
+                        DisplayName        = template.Name,
+                        ItemType           = LearningItemType.Class,
+                        YearClassOfferingId = classOffering.Id,
+                        GradingScaleId     = classOffering.GradingScaleId ?? fallbackScaleId
+                            ?? await GetDefaultScaleIdAsync()
+                    });
+                    count++;
+                }
+            }
+            else
+            {
+                // One item per enabled strand
+                foreach (var subjectOffering in classOffering.SubjectOfferings.Where(so => so.IsEnabled))
+                {
+                    if (existingSubjectOfferingIds.Contains(subjectOffering.Id)) continue;
+                    var strandTemplate = subjectOffering.CurriculumSubjectTemplate;
+                    if (strandTemplate == null) continue;
+
+                    Db.StudentLearningItems.Add(new StudentLearningItem
+                    {
+                        EnrollmentId          = enrollment.Id,
+                        DisplayName           = strandTemplate.Name,
+                        ItemType              = LearningItemType.Subject,
+                        YearClassOfferingId   = classOffering.Id,
+                        YearSubjectOfferingId = subjectOffering.Id,
+                        GradingScaleId        = subjectOffering.GradingScaleId
+                            ?? classOffering.GradingScaleId
+                            ?? fallbackScaleId
+                            ?? await GetDefaultScaleIdAsync()
+                    });
+                    count++;
+                }
+            }
+        }
 
         await Db.SaveChangesAsync();
-        _newStudentId = null; _newGradeId = null; _showAddForm = false;
-        Snackbar.Add("Student enrolled.", Severity.Success);
-        await LoadEnrollmentsAsync();
+        return count;
+    }
+
+    private async Task<int> GetDefaultScaleIdAsync()
+    {
+        // Last resort: grab any grading scale from the DB
+        return await Db.GradingScales.Select(g => g.Id).FirstOrDefaultAsync();
     }
 
     private async Task UnenrollAsync(Enrollment enrollment)
