@@ -398,6 +398,7 @@ public class CurriculumSchema
 {
     public int Id { get; set; }
     public required string Name { get; set; }
+    public string? Description { get; set; }
     public string? Version { get; set; }
     public DateTimeOffset UploadedAt { get; set; } = DateTimeOffset.UtcNow;
     public string? RawArtifactData { get; set; }
@@ -409,6 +410,7 @@ public class CurriculumSchema
 public class CurriculumGradeTemplate
 {
     public int Id { get; set; }
+    public int SortOrder { get; set; }
 
     public int CurriculumSchemaId { get; set; }
     public CurriculumSchema? CurriculumSchema { get; set; }
