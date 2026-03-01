@@ -1,6 +1,37 @@
 namespace ReportCards.Web.Data;
 
 // ═══════════════════════════════════════════════════════════════════
+// Z) APP CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════
+
+/// <summary>
+/// Key/value store for school-wide app configuration.
+/// Add new keys as the app grows — no migrations needed for new settings.
+/// Well-known keys are defined as constants in SchoolConfigKeys.
+/// </summary>
+public class SchoolConfig
+{
+    public int Id { get; set; }
+    public required string Key { get; set; }
+    public string? Value { get; set; }
+    public string? Description { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>Well-known SchoolConfig key constants.</summary>
+public static class SchoolConfigKeys
+{
+    public const string SchoolName        = "school.name";
+    public const string LogoUrl           = "school.logo_url";
+    public const string PrimaryColor      = "theme.primary_color";
+    public const string SecondaryColor    = "theme.secondary_color";
+    public const string NavDarkColor      = "theme.nav_dark_color";
+    public const string ContactEmail      = "school.contact_email";
+    public const string ContactPhone      = "school.contact_phone";
+    public const string Address           = "school.address";
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // A) REFERENCE / IMMUTABLE DATA
 // ═══════════════════════════════════════════════════════════════════
 
