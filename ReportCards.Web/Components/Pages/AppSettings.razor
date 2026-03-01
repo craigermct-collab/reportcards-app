@@ -1,0 +1,325 @@
+@page "/app-settings"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@inject SchoolDbContext Db
+@inject ISnackbar Snackbar
+
+<div class="d-flex align-center gap-3 mb-1">
+    <MudText Typo="Typo.h4" Style="font-family:'DM Serif Display',serif;">App Settings</MudText>
+</div>
+<MudText Typo="Typo.body2" Class="mb-6" Style="color:var(--mud-palette-text-secondary);">
+    School-wide configuration. Changes take effect on next page load.
+</MudText>
+
+@if (_groups.Count == 0)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    @foreach (var group in _groups)
+    {
+        <MudCard Class="mb-6" Elevation="1">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@group.Icon" Color="Color.Primary" />
+                        <MudText Typo="Typo.h6" Style="font-family:'DM Serif Display',serif;">@group.Title</MudText>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(group.Subtitle))
+                    {
+                        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">@group.Subtitle</MudText>
+                    }
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid>
+                    @foreach (var item in group.Items)
+                    {
+                        <MudItem xs="12" sm="6">
+                            @if (item.Type == SettingType.Color)
+                            {
+                                <div class="mb-2">
+                                    <MudText Typo="Typo.body2" Class="mb-1" Style="font-weight:500;">@item.Label</MudText>
+                                    @if (!string.IsNullOrWhiteSpace(item.Description))
+                                    {
+                                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);" Class="mb-2 d-block">@item.Description</MudText>
+                                    }
+                                    <div class="d-flex align-center gap-3">
+                                        <div style="width:36px;height:36px;border-radius:8px;border:1px solid var(--mud-palette-divider);background:@(item.EditValue ?? "#000000");flex-shrink:0;"></div>
+                                        <MudTextField @bind-Value="item.EditValue"
+                                                      Placeholder="#1A5276"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense"
+                                                      FullWidth="true"
+                                                      Adornment="Adornment.End"
+                                                      AdornmentIcon="@Icons.Material.Filled.ColorLens" />
+                                    </div>
+                                </div>
+                            }
+                            else if (item.Type == SettingType.Url)
+                            {
+                                <MudTextField @bind-Value="item.EditValue"
+                                              Label="@item.Label"
+                                              HelperText="@item.Description"
+                                              Placeholder="https://..."
+                                              Variant="Variant.Outlined"
+                                              Margin="Margin.Dense"
+                                              FullWidth="true"
+                                              Adornment="Adornment.End"
+                                              AdornmentIcon="@Icons.Material.Filled.Link" />
+                                @if (!string.IsNullOrWhiteSpace(item.EditValue))
+                                {
+                                    <div class="mt-2">
+                                        <img src="@item.EditValue" alt="Logo preview"
+                                             style="height:40px;object-fit:contain;border:1px solid var(--mud-palette-divider);border-radius:6px;padding:4px 8px;background:white;"
+                                             onerror="this.style.display='none'" />
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <MudTextField @bind-Value="item.EditValue"
+                                              Label="@item.Label"
+                                              HelperText="@item.Description"
+                                              Variant="Variant.Outlined"
+                                              Margin="Margin.Dense"
+                                              FullWidth="true" />
+                            }
+                        </MudItem>
+                    }
+                </MudGrid>
+                <div class="d-flex justify-end mt-4">
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Save"
+                               OnClick="@(() => SaveGroupAsync(group))">
+                        Save @group.Title
+                    </MudButton>
+                </div>
+            </MudCardContent>
+        </MudCard>
+    }
+
+    <!-- Custom / advanced settings -->
+    <MudCard Elevation="1">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <div class="d-flex align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Filled.Tune" Color="Color.Primary" />
+                    <MudText Typo="Typo.h6" Style="font-family:'DM Serif Display',serif;">All Settings</MudText>
+                </div>
+                <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+                    Raw key/value table. Add custom config keys here as the app grows.
+                </MudText>
+            </CardHeaderContent>
+            <CardHeaderActions>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="OpenAddCustom">
+                    Add Setting
+                </MudButton>
+            </CardHeaderActions>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudTable Items="_allSettings" Dense="true" Hover="true" Elevation="0"
+                      Style="border:1px solid var(--mud-palette-divider);border-radius:8px;">
+                <HeaderContent>
+                    <MudTh>Key</MudTh>
+                    <MudTh>Value</MudTh>
+                    <MudTh>Description</MudTh>
+                    <MudTh>Updated</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>
+                        <MudText Typo="Typo.body2" Style="font-family:monospace;font-size:12px;">@context.Key</MudText>
+                    </MudTd>
+                    <MudTd>
+                        <MudText Typo="Typo.body2" Style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                            @(context.Value ?? "—")
+                        </MudText>
+                    </MudTd>
+                    <MudTd Style="color:var(--mud-palette-text-secondary);">@(context.Description ?? "—")</MudTd>
+                    <MudTd>
+                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                            @context.UpdatedAt.LocalDateTime.ToString("MMM d, yyyy h:mm tt")
+                        </MudText>
+                    </MudTd>
+                    <MudTd Style="text-align:right;">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                       Color="Color.Error"
+                                       OnClick="@(() => DeleteSettingAsync(context))" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudCardContent>
+    </MudCard>
+}
+
+<!-- Add Custom Setting Dialog -->
+<MudDialog @bind-Visible="_addCustomOpen">
+    <TitleContent><MudText Typo="Typo.h6">Add Custom Setting</MudText></TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_customKey" Label="Key"
+                      Placeholder="e.g. report.footer_text"
+                      HelperText="Use dot notation: section.name"
+                      Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_customValue" Label="Value"
+                      Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_customDescription" Label="Description (optional)"
+                      Variant="Variant.Outlined" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _addCustomOpen = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(string.IsNullOrWhiteSpace(_customKey))"
+                   OnClick="SaveCustomAsync">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<SettingGroup> _groups = new();
+    private List<SchoolConfig> _allSettings = new();
+
+    private bool   _addCustomOpen;
+    private string _customKey         = "";
+    private string _customValue       = "";
+    private string _customDescription = "";
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _allSettings = await Db.SchoolConfigs.OrderBy(c => c.Key).ToListAsync();
+        var dict = _allSettings.ToDictionary(c => c.Key, c => c.Value ?? "");
+
+        _groups = new List<SettingGroup>
+        {
+            new()
+            {
+                Title    = "School Identity",
+                Subtitle = "Displayed on reports and the app header.",
+                Icon     = Icons.Material.Filled.School,
+                Items    =
+                [
+                    new(SchoolConfigKeys.SchoolName,   "School Name",    SettingType.Text,  "e.g. KinderKollege Primary School"),
+                    new(SchoolConfigKeys.LogoUrl,      "Logo URL",       SettingType.Url,   "Public URL to your school logo image"),
+                    new(SchoolConfigKeys.ContactEmail, "Contact Email",  SettingType.Text,  null),
+                    new(SchoolConfigKeys.ContactPhone, "Contact Phone",  SettingType.Text,  null),
+                    new(SchoolConfigKeys.Address,      "Address",        SettingType.Text,  null),
+                ]
+            },
+            new()
+            {
+                Title    = "Theme & Colours",
+                Subtitle = "Hex values — changes apply on next full page load.",
+                Icon     = Icons.Material.Filled.Palette,
+                Items    =
+                [
+                    new(SchoolConfigKeys.PrimaryColor,   "Primary Colour",   SettingType.Color, "Main action colour (buttons, highlights)"),
+                    new(SchoolConfigKeys.SecondaryColor, "Secondary Colour", SettingType.Color, "Accents and secondary actions"),
+                    new(SchoolConfigKeys.NavDarkColor,   "Sidebar Colour",   SettingType.Color, "Background colour of the navigation sidebar"),
+                ]
+            },
+        };
+
+        // Populate edit values from DB
+        foreach (var g in _groups)
+            foreach (var item in g.Items)
+                item.EditValue = dict.GetValueOrDefault(item.Key, "");
+    }
+
+    private async Task SaveGroupAsync(SettingGroup group)
+    {
+        foreach (var item in group.Items)
+        {
+            var existing = _allSettings.FirstOrDefault(c => c.Key == item.Key);
+            if (existing is not null)
+            {
+                existing.Value     = item.EditValue?.Trim();
+                existing.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+            else
+            {
+                var newEntry = new SchoolConfig
+                {
+                    Key         = item.Key,
+                    Value       = item.EditValue?.Trim(),
+                    Description = item.Description,
+                    UpdatedAt   = DateTimeOffset.UtcNow
+                };
+                Db.SchoolConfigs.Add(newEntry);
+            }
+        }
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"{group.Title} saved.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task DeleteSettingAsync(SchoolConfig setting)
+    {
+        Db.SchoolConfigs.Remove(setting);
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"Setting '{setting.Key}' deleted.", Severity.Info);
+        await LoadAsync();
+    }
+
+    private void OpenAddCustom()
+    {
+        _customKey = _customValue = _customDescription = "";
+        _addCustomOpen = true;
+    }
+
+    private async Task SaveCustomAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_customKey)) return;
+        var key = _customKey.Trim().ToLowerInvariant();
+
+        if (_allSettings.Any(c => c.Key == key))
+        {
+            Snackbar.Add($"A setting with key '{key}' already exists.", Severity.Warning);
+            return;
+        }
+
+        Db.SchoolConfigs.Add(new SchoolConfig
+        {
+            Key         = key,
+            Value       = _customValue.Trim(),
+            Description = string.IsNullOrWhiteSpace(_customDescription) ? null : _customDescription.Trim(),
+            UpdatedAt   = DateTimeOffset.UtcNow
+        });
+        await Db.SaveChangesAsync();
+        _addCustomOpen = false;
+        Snackbar.Add($"Setting '{key}' added.", Severity.Success);
+        await LoadAsync();
+    }
+
+    // ── View models ───────────────────────────────────────────────
+
+    private enum SettingType { Text, Url, Color }
+
+    private class SettingItem
+    {
+        public string Key         { get; }
+        public string Label       { get; }
+        public SettingType Type   { get; }
+        public string? Description { get; }
+        public string? EditValue  { get; set; }
+
+        public SettingItem(string key, string label, SettingType type, string? description)
+        {
+            Key = key; Label = label; Type = type; Description = description;
+        }
+    }
+
+    private class SettingGroup
+    {
+        public required string Title    { get; init; }
+        public string? Subtitle         { get; init; }
+        public required string Icon     { get; init; }
+        public required List<SettingItem> Items { get; init; }
+    }
+}

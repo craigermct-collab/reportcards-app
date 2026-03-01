@@ -2,8 +2,9 @@
 @rendermode InteractiveServer
 @inject NavigationManager Nav
 @inject AuthenticationStateProvider AuthStateProvider
+@inject ReportCards.Web.Services.SchoolConfigService Config
 
-<MudThemeProvider Theme="@AppTheme.Theme" />
+<MudThemeProvider Theme="@_theme" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -22,8 +23,8 @@
         <MudDrawerHeader Class="pa-4" Style="border-bottom: 1px solid rgba(255,255,255,0.08);">
             <div class="d-flex align-center justify-space-between" style="width:100%;">
                 <div class="d-flex flex-column align-start gap-1">
-                    <img src="https://www.kinderkollege.ca/images/logo_4.png"
-                         alt="KinderKollege"
+                    <img src="@Config.LogoUrl"
+                         alt="@Config.SchoolName"
                          style="height:48px; object-fit:contain; background:white; border-radius:8px; padding:4px 8px;" />
                     <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.45); letter-spacing:0.06em; text-transform:uppercase;">
                         Report Card Builder
@@ -41,45 +42,21 @@
         <div style="flex:1; overflow-y:auto;">
         <MudNavMenu Class="px-2 py-3">
 
-            <MudText Typo="Typo.overline" Class="px-3 mb-1" Style="color:rgba(255,255,255,0.35);">
-                Admin
-            </MudText>
             <MudNavLink Href="/"
                         Match="NavLinkMatch.All"
                         Icon="@Icons.Material.Filled.Dashboard">
                 Dashboard
             </MudNavLink>
-            <MudNavLink Href="/school-years"
-                        Icon="@Icons.Material.Filled.CalendarMonth">
-                School Years
-            </MudNavLink>
-            <MudNavLink Href="/curriculum"
-                        Icon="@Icons.Material.Filled.MenuBook">
-                Curriculum
-            </MudNavLink>
-            <MudNavLink Href="/grading-scales"
-                        Icon="@Icons.Material.Filled.Scale">
-                Grading Scales
-            </MudNavLink>
-            <MudDivider Class="my-2" Style="border-color:rgba(255,255,255,0.1);" />
-            <MudNavLink Href="/homework-checker"
-                        Icon="@Icons.Material.Filled.DocumentScanner">
-                Homework Checker
-            </MudNavLink>
-            <MudNavLink Href="/saved-analyses"
-                        Icon="@Icons.Material.Filled.FolderOpen">
-                Saved Analyses
-            </MudNavLink>
-            <MudNavLink Href="/ai-settings"
-                        Icon="@Icons.Material.Filled.Tune">
-                AI Settings
-            </MudNavLink>
 
             <MudDivider Class="my-3" Style="border-color:rgba(255,255,255,0.08);" />
 
             <MudText Typo="Typo.overline" Class="px-3 mb-1" Style="color:rgba(255,255,255,0.35);">
-                People
+                Setup
             </MudText>
+            <MudNavLink Href="/school-years"
+                        Icon="@Icons.Material.Filled.CalendarMonth">
+                School Years
+            </MudNavLink>
             <MudNavLink Href="/teachers"
                         Icon="@Icons.Material.Filled.Person">
                 Teachers
@@ -100,32 +77,64 @@
             <MudDivider Class="my-3" Style="border-color:rgba(255,255,255,0.08);" />
 
             <MudText Typo="Typo.overline" Class="px-3 mb-1" Style="color:rgba(255,255,255,0.35);">
-                Reports
+                Academics
             </MudText>
-            <MudNavLink Href="/grade-entry"
-                        Icon="@Icons.Material.Filled.Grading">
-                Grade Entry
+            <MudNavLink Href="/curriculum"
+                        Icon="@Icons.Material.Filled.MenuBook">
+                Curriculum
             </MudNavLink>
-            <MudNavLink Href="/generate-reports"
-                        Icon="@Icons.Material.Filled.Print">
-                Generate Reports
+            <MudNavLink Href="/grading-scales"
+                        Icon="@Icons.Material.Filled.Scale">
+                Grading Scales
             </MudNavLink>
 
             <MudDivider Class="my-3" Style="border-color:rgba(255,255,255,0.08);" />
 
             <MudText Typo="Typo.overline" Class="px-3 mb-1" Style="color:rgba(255,255,255,0.35);">
-                My Account
+                Classroom
             </MudText>
-            <MudNavLink Href="/my-ai-preferences"
-                        Icon="@Icons.Material.Filled.ManageAccounts">
-                My AI Preferences
+            <MudNavLink Href="/homework-checker"
+                        Icon="@Icons.Material.Filled.DocumentScanner">
+                Homework Checker
+            </MudNavLink>
+            <MudNavLink Href="/saved-analyses"
+                        Icon="@Icons.Material.Filled.FolderOpen">
+                Saved Analyses
+            </MudNavLink>
+            <MudNavLink Href="/grade-entry"
+                        Icon="@Icons.Material.Filled.Grading">
+                Grade Entry
+            </MudNavLink>
+
+            <MudDivider Class="my-3" Style="border-color:rgba(255,255,255,0.08);" />
+
+            <MudText Typo="Typo.overline" Class="px-3 mb-1" Style="color:rgba(255,255,255,0.35);">
+                Reports
+            </MudText>
+            <MudNavLink Href="/report-cards"
+                        Icon="@Icons.Material.Filled.Print">
+                Report Cards
+            </MudNavLink>
+
+            <MudDivider Class="my-3" Style="border-color:rgba(255,255,255,0.08);" />
+
+            <MudText Typo="Typo.overline" Class="px-3 mb-1" Style="color:rgba(255,255,255,0.35);">
+                System
+            </MudText>
+            <MudNavLink Href="/app-settings"
+                        Icon="@Icons.Material.Filled.Settings">
+                App Settings
+            </MudNavLink>
+            <MudNavLink Href="/ai-settings"
+                        Icon="@Icons.Material.Filled.Tune">
+                AI Settings
             </MudNavLink>
 
         </MudNavMenu>
         </div>
 
         <!-- User tile — pinned to bottom -->
-        <div style="flex-shrink:0; padding:12px 16px; border-top:1px solid rgba(255,255,255,0.08); background:#1B4F72;">
+        <div style="flex-shrink:0; padding:12px 16px; border-top:1px solid rgba(255,255,255,0.08); background:@Config.NavDarkColor;">
             @{
                 var initials = GetInitials(_userName);
             }
@@ -213,6 +222,7 @@
     private bool isLoggedIn = false;
     private string? _userName;
     private string? _userEmail;
+    private MudBlazor.MudTheme _theme = AppTheme.Build();
 
     private List<BreadcrumbItem> _breadcrumbs = new()
     {
@@ -227,6 +237,12 @@
         isLoggedIn = user.Identity?.IsAuthenticated ?? false;
         _userName = user.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
         _userEmail = user.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+
+        await Config.EnsureLoadedAsync();
+        _theme = AppTheme.Build(
+            primary:   Config.PrimaryColor,
+            secondary: Config.SecondaryColor,
+            navDark:   Config.NavDarkColor);
     }
 
     private void ToggleDrawer()

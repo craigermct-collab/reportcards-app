@@ -49,6 +49,9 @@ public class SchoolDbContext : DbContext
     public DbSet<SchoolCalendarException> SchoolCalendarExceptions => Set<SchoolCalendarException>();
     public DbSet<AttendanceEvent> AttendanceEvents => Set<AttendanceEvent>();
 
+    // App configuration
+    public DbSet<SchoolConfig> SchoolConfigs => Set<SchoolConfig>();
+
     // AI prompt config
     public DbSet<SchoolAiConfig> SchoolAiConfigs => Set<SchoolAiConfig>();
     public DbSet<TeacherAiConfig> TeacherAiConfigs => Set<TeacherAiConfig>();
@@ -312,6 +315,10 @@ public class SchoolDbContext : DbContext
         // AttendanceEvent — unique student + date + type
         m.Entity<AttendanceEvent>()
             .HasIndex(a => new { a.StudentId, a.Date, a.Type }).IsUnique();
+
+        // SchoolConfig — unique key
+        m.Entity<SchoolConfig>()
+            .HasIndex(c => c.Key).IsUnique();
 
         m.Entity<AttendanceEvent>()
             .HasOne(a => a.Student)
