@@ -34,7 +34,9 @@ else
         <MudCardContent>
             <MudGrid>
                 <MudItem xs="12" sm="4">
-                    <MudSelect T="int?" @bind-Value="_selectedYearId"
+                    <MudSelect T="int?"
+                               Value="_selectedYearId"
+                               ValueChanged="@(async (int? v) => { _selectedYearId = v; _selectedTermId = null; _classGroupInstances = new(); })"
                                Label="School Year"
                                Variant="Variant.Outlined"
                                AnchorOrigin="Origin.BottomCenter">
@@ -47,7 +49,9 @@ else
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="4">
-                    <MudSelect T="int?" @bind-Value="_selectedTermId"
+                    <MudSelect T="int?"
+                               Value="_selectedTermId"
+                               ValueChanged="@(async (int? v) => { _selectedTermId = v; await LoadClassGroupsAsync(); })"
                                Label="Term"
                                Variant="Variant.Outlined"
                                Disabled="@(_selectedYearId == null)"
