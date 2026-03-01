@@ -428,17 +428,50 @@ else
     <TitleContent><MudText Typo="Typo.h6">New Curriculum Template</MudText></TitleContent>
     <DialogContent>
         <MudTextField @bind-Value="_newTemplateName" Label="Template Name"
-                      Placeholder="e.g. Ontario Expectations 2016"
+                      Placeholder="e.g. Ontario Curriculum 2027"
                       Variant="Variant.Outlined" Class="mb-3" />
         <MudTextField @bind-Value="_newTemplateDesc" Label="Description (optional)"
-                      Placeholder="e.g. Ontario Ministry curriculum for Grades 1-6"
-                      Variant="Variant.Outlined" Lines="2" />
+                      Placeholder="e.g. Based on Ontario Ministry curriculum"
+                      Variant="Variant.Outlined" Lines="2" Class="mb-4" />
+
+        <MudDivider Class="mb-4" />
+
+        <div class="d-flex align-center gap-2 mb-3">
+            <MudSwitch @bind-Value="_copyFromExisting" Label="Copy from existing template" Color="Color.Primary" />
+        </div>
+
+        @if (_copyFromExisting)
+        {
+            @if (_templates.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">No existing templates to copy from.</MudAlert>
+            }
+            else
+            {
+                <MudSelect T="int?" @bind-Value="_copyFromTemplateId" Label="Copy from"
+                           Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter"
+                           HelperText="All grades, subjects, strands, and sub-strands will be duplicated.">
+                    @foreach (var t in _templates)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)t.Id)">
+                            @t.Name
+                            @if (!string.IsNullOrWhiteSpace(t.Description))
+                            {
+                                <text> — @t.Description</text>
+                            }
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+            }
+        }
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="@(() => _addTemplateOpen = false)">Cancel</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                   Disabled="@(string.IsNullOrWhiteSpace(_newTemplateName))"
-                   OnClick="SaveTemplateAsync">Create</MudButton>
+                   Disabled="@(!CanCreateTemplate)"
+                   OnClick="SaveTemplateAsync">
+            @(_copyFromExisting ? "Copy & Create" : "Create")
+        </MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -591,8 +624,14 @@ else
 
     // Dialog state — Template
     private bool   _addTemplateOpen;
-    private string _newTemplateName = "";
-    private string _newTemplateDesc = "";
+    private string _newTemplateName    = "";
+    private string _newTemplateDesc    = "";
+    private bool   _copyFromExisting;
+    private int?   _copyFromTemplateId;
+
+    private bool CanCreateTemplate =>
+        !string.IsNullOrWhiteSpace(_newTemplateName) &&
+        (!_copyFromExisting || _copyFromTemplateId != null);
 
     // Dialog state — Grade
     private bool _addGradeOpen;
@@ -676,23 +715,100 @@ else
     // Template
     private void OpenAddTemplate()
     {
-        _newTemplateName = "";
-        _newTemplateDesc = "";
-        _addTemplateOpen = true;
+        _newTemplateName    = "";
+        _newTemplateDesc    = "";
+        _copyFromExisting   = false;
+        _copyFromTemplateId = null;
+        _addTemplateOpen    = true;
     }
 
     private async Task SaveTemplateAsync()
     {
         var name = _newTemplateName.Trim();
         if (string.IsNullOrWhiteSpace(name)) return;
-        Db.CurriculumSchemas.Add(new CurriculumSchema
+
+        var schema = new CurriculumSchema
         {
             Name        = name,
-            Description = string.IsNullOrWhiteSpace(_newTemplateDesc) ? null : _newTemplateDesc.Trim()
-        });
+            Description = string.IsNullOrWhiteSpace(_newTemplateDesc) ? null : _newTemplateDesc.Trim(),
+            Version     = "1.0",
+            UploadedAt  = DateTimeOffset.UtcNow
+        };
+        Db.CurriculumSchemas.Add(schema);
         await Db.SaveChangesAsync();
+
+        if (_copyFromExisting && _copyFromTemplateId != null)
+        {
+            // Load source template with full tree
+            var source = await Db.CurriculumSchemas
+                .Include(s => s.GradeTemplates)
+                    .ThenInclude(g => g.ClassTemplates)
+                        .ThenInclude(c => c.SubjectTemplates)
+                            .ThenInclude(st => st.SubStrands)
+                .FirstOrDefaultAsync(s => s.Id == _copyFromTemplateId);
+
+            if (source != null)
+            {
+                foreach (var srcGrade in source.GradeTemplates.OrderBy(g => g.SortOrder))
+                {
+                    var newGrade = new CurriculumGradeTemplate
+                    {
+                        CurriculumSchemaId = schema.Id,
+                        GradeId            = srcGrade.GradeId,
+                        SortOrder          = srcGrade.SortOrder
+                    };
+                    Db.CurriculumGradeTemplates.Add(newGrade);
+                    await Db.SaveChangesAsync();
+
+                    foreach (var srcSubj in srcGrade.ClassTemplates.OrderBy(s => s.SortOrder))
+                    {
+                        var newSubj = new CurriculumClassTemplate
+                        {
+                            CurriculumGradeTemplateId = newGrade.Id,
+                            Name                      = srcSubj.Name,
+                            Code                      = srcSubj.Code,
+                            SortOrder                 = srcSubj.SortOrder,
+                            GradedAtStrandLevel       = srcSubj.GradedAtStrandLevel
+                        };
+                        Db.CurriculumClassTemplates.Add(newSubj);
+                        await Db.SaveChangesAsync();
+
+                        foreach (var srcStrand in srcSubj.SubjectTemplates.OrderBy(s => s.SortOrder))
+                        {
+                            var newStrand = new CurriculumSubjectTemplate
+                            {
+                                CurriculumClassTemplateId = newSubj.Id,
+                                Name                      = srcStrand.Name,
+                                Code                      = srcStrand.Code,
+                                SortOrder                 = srcStrand.SortOrder
+                            };
+                            Db.CurriculumSubjectTemplates.Add(newStrand);
+                            await Db.SaveChangesAsync();
+
+                            foreach (var srcSub in srcStrand.SubStrands.OrderBy(s => s.SortOrder))
+                            {
+                                Db.CurriculumSubStrands.Add(new CurriculumSubStrand
+                                {
+                                    CurriculumSubjectTemplateId = newStrand.Id,
+                                    Name                        = srcSub.Name,
+                                    Code                        = srcSub.Code,
+                                    SortOrder                   = srcSub.SortOrder,
+                                    Description                 = srcSub.Description
+                                });
+                            }
+                            await Db.SaveChangesAsync();
+                        }
+                    }
+                }
+            }
+        }
+
         _addTemplateOpen = false;
-        Snackbar.Add($"Template '{name}' created.", Severity.Success);
+        Snackbar.Add(
+            _copyFromExisting
+                ? $"Template '{name}' created as a copy. Make your modifications!"
+                : $"Template '{name}' created.",
+            Severity.Success);
         await LoadAsync();
     }
 
