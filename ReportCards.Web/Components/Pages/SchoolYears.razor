@@ -408,51 +408,12 @@ else
         await LoadAsync();
     }
 
-    // ── Ontario Stat Holidays hardcoded dataset ─────────────────────────────────
-    // Source: https://www.ontario.ca/document/your-guide-employment-standards-act-0/public-holidays
-    // Covers 2025 and 2026 calendar years
-    private static readonly List<(DateOnly Date, string Label)> OntarioStatHolidays =
-    [
-        // 2025
-        (new DateOnly(2025,  1,  1), "New Year's Day"),
-        (new DateOnly(2025,  2, 17), "Family Day"),
-        (new DateOnly(2025,  4, 18), "Good Friday"),
-        (new DateOnly(2025,  5, 19), "Victoria Day"),
-        (new DateOnly(2025,  7,  1), "Canada Day"),
-        (new DateOnly(2025,  9,  1), "Labour Day"),
-        (new DateOnly(2025,  9, 30), "National Day for Truth and Reconciliation"),
-        (new DateOnly(2025, 10, 13), "Thanksgiving Day"),
-        (new DateOnly(2025, 11, 11), "Remembrance Day"),
-        (new DateOnly(2025, 12, 25), "Christmas Day"),
-        (new DateOnly(2025, 12, 26), "Boxing Day"),
-        // 2026
-        (new DateOnly(2026,  1,  1), "New Year's Day"),
-        (new DateOnly(2026,  2, 16), "Family Day"),
-        (new DateOnly(2026,  4,  3), "Good Friday"),
-        (new DateOnly(2026,  5, 18), "Victoria Day"),
-        (new DateOnly(2026,  7,  1), "Canada Day"),
-        (new DateOnly(2026,  9,  7), "Labour Day"),
-        (new DateOnly(2026,  9, 30), "National Day for Truth and Reconciliation"),
-        (new DateOnly(2026, 10, 12), "Thanksgiving Day"),
-        (new DateOnly(2026, 11, 11), "Remembrance Day"),
-        (new DateOnly(2026, 12, 25), "Christmas Day"),
-        (new DateOnly(2026, 12, 26), "Boxing Day"),
-    ];
-
     private async Task ImportStatHolidaysAsync(SchoolYear year)
     {
-        var calYears = ParseSchoolYearNumbers(year.Name);
-        if (calYears.Count == 0)
+        var holidays = OntarioStatHolidayService.GetHolidaysForSchoolYear(year.Name);
+        if (holidays.Count == 0)
         {
-            Snackbar.Add("Could not parse year numbers. Expected format like '2025-2026'.", Severity.Warning);
-            return;
-        }
-
-        var availableYears = OntarioStatHolidays.Select(h => h.Date.Year).Distinct().ToHashSet();
-        var missing = calYears.Where(y => !availableYears.Contains(y)).ToList();
-        if (missing.Count == calYears.Count)
-        {
-            Snackbar.Add($"Stat holiday data is only available for {string.Join(", ", availableYears.Order())}. Please add holidays manually for other years.", Severity.Warning);
+            Snackbar.Add("Could not parse year numbers from school year name. Expected format like '2025-2026'.", Severity.Warning);
             return;
         }
 
@@ -465,7 +426,6 @@ else
         try
         {
             var existing = year.CalendarExceptions.Select(e => e.Date).ToHashSet();
-            var holidays = OntarioStatHolidays.Where(h => calYears.Contains(h.Date.Year));
 
             foreach (var (date, label) in holidays)
             {
@@ -485,7 +445,7 @@ else
             await Db.SaveChangesAsync();
             var msg = imported > 0
                 ? $"Imported {imported} Ontario stat holidays." + (skipped > 0 ? $" ({skipped} already existed)" : "")
-                : "No new stat holidays found to import — all already existed.";
+                : "No new stat holidays to import — all already existed.";
             Snackbar.Add(msg, imported > 0 ? Severity.Success : Severity.Info);
         }
         catch (Exception ex)
@@ -564,12 +524,5 @@ else
         }
     }
 
-    private static List<int> ParseSchoolYearNumbers(string name)
-    {
-        var years = new List<int>();
-        foreach (var part in name.Split('-', '/', ' '))
-            if (int.TryParse(part.Trim(), out var y) && y >= 2000 && y <= 2100)
-                years.Add(y);
-        return years.Distinct().Take(2).ToList();
-    }
+
 }
