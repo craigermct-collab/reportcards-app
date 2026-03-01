@@ -33,7 +33,9 @@ else
         <MudCardContent>
             <MudGrid>
                 <MudItem xs="12" sm="4">
-                    <MudSelect T="int?" @bind-Value="_selectedYearId"
+                    <MudSelect T="int?"
+                               Value="_selectedYearId"
+                               ValueChanged="@(async (int? v) => { _selectedYearId = v; _selectedTermId = null; _selectedClassGroupId = null; _enrollments = new(); })"
                                Label="School Year" Variant="Variant.Outlined"
                                AnchorOrigin="Origin.BottomCenter">
                         @foreach (var y in _schoolYears)
@@ -45,7 +47,9 @@ else
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="4">
-                    <MudSelect T="int?" @bind-Value="_selectedTermId"
+                    <MudSelect T="int?"
+                               Value="_selectedTermId"
+                               ValueChanged="@(async (int? v) => { _selectedTermId = v; _selectedClassGroupId = null; _enrollments = new(); })"
                                Label="Term" Variant="Variant.Outlined"
                                Disabled="@(_selectedYearId == null)"
                                AnchorOrigin="Origin.BottomCenter">
@@ -56,7 +60,9 @@ else
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="4">
-                    <MudSelect T="int?" @bind-Value="_selectedClassGroupId"
+                    <MudSelect T="int?"
+                               Value="_selectedClassGroupId"
+                               ValueChanged="@(async (int? v) => { _selectedClassGroupId = v; await LoadEnrollmentsAsync(); })"
                                Label="Class Group" Variant="Variant.Outlined"
                                Disabled="@(_selectedTermId == null)"
                                AnchorOrigin="Origin.BottomCenter">
@@ -252,7 +258,7 @@ else
 
         _allClassGroups = await Db.ClassGroupInstances
             .Include(c => c.ClassGroupType)
-                .ThenInclude(ct => ct.Grades)
+                .ThenInclude(ct => ct.Grades.OrderBy(g => g.SortOrder))
             .ToListAsync();
 
         _activeStudents = await Db.Students
