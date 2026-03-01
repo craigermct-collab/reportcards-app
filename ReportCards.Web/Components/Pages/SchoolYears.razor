@@ -428,7 +428,18 @@ else
         {
             var existing = year.CalendarExceptions.Select(e => e.Date).ToHashSet();
 
-            foreach (var h in holidays)
+            // Only import holidays that fall within at least one term's date range
+            var termRanges = year.TermInstances.Select(t => (t.StartDate, t.EndDate)).ToList();
+            var inScope = holidays.Where(h =>
+                termRanges.Any(r => h.Date >= r.StartDate && h.Date <= r.EndDate)).ToList();
+
+            if (inScope.Count == 0)
+            {
+                Snackbar.Add("No stat holidays fall within any of the defined term date ranges.", Severity.Info);
+                return;
+            }
+
+            foreach (var h in inScope)
             {
                 if (existing.Contains(h.Date)) { skipped++; continue; }
 
