@@ -85,7 +85,7 @@ else if (!_enrollments.Any())
 }
 else
 {
-    @{ var gradeGroups = GradeGroups; }
+    var gradeGroups = GradeGroups;
     @foreach (var gradeGroup in gradeGroups)
     {
         <div class="d-flex align-center gap-2 mb-2 mt-3" style="@(gradeGroup == gradeGroups.First() ? "margin-top:0!important;" : "")">
