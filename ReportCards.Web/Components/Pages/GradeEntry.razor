@@ -30,7 +30,7 @@
 <!-- ── TERM SELECTOR ─────────────────────────────────────────────── -->
 <MudCard Elevation="1" Class="mb-5 mt-4">
     <MudCardContent Class="py-3">
-        <MudGrid Spacing="3" AlignItems="Center">
+        <MudGrid Spacing="3">
             <MudItem xs="12" sm="4">
                 <MudSelect T="int?"
                            Label="Term"
@@ -85,18 +85,18 @@ else if (!_enrollments.Any())
 }
 else
 {
-    @{ var _gradeGroups = _enrollments.GroupBy(e => new { e.GradeId, e.Grade?.Name, SortOrder = e.Grade?.SortOrder ?? 999 }).OrderBy(g => g.Key.SortOrder).ToList(); }
-    @foreach (var gradeGroup in _gradeGroups)
+    @{ var gradeGroups = GradeGroups; }
+    @foreach (var gradeGroup in gradeGroups)
     {
-        <div class="d-flex align-center gap-2 mb-2 mt-3" style="@(gradeGroup == _gradeGroups.First() ? "margin-top:0!important;" : "")">
+        <div class="d-flex align-center gap-2 mb-2 mt-3" style="@(gradeGroup == gradeGroups.First() ? "margin-top:0!important;" : "")">
             <div style="height:1px; flex:1; background:var(--mud-palette-divider);"></div>
             <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); padding:0 8px; font-size:11px; letter-spacing:0.08em;">
-                @gradeGroup.Key.Name
+                @gradeGroup.Name
             </MudText>
             <div style="height:1px; flex:1; background:var(--mud-palette-divider);"></div>
         </div>
 
-    @foreach (var enrollment in gradeGroup)
+    @foreach (var enrollment in gradeGroup.Enrollments)
     {
         var state = _studentStates.GetValueOrDefault(enrollment.StudentId);
         var isExpanded = _expandedStudentId == enrollment.StudentId;
@@ -686,6 +686,15 @@ else
             state.IsSaving = false;
         }
     }
+
+    // ── COMPUTED ──────────────────────────────────────────────────
+
+    private List<(string? Name, int SortOrder, List<Enrollment> Enrollments)> GradeGroups =>
+        _enrollments
+            .GroupBy(e => new { e.GradeId, e.Grade?.Name, SortOrder = e.Grade?.SortOrder ?? 999 })
+            .OrderBy(g => g.Key.SortOrder)
+            .Select(g => (g.Key.Name, g.Key.SortOrder, g.ToList()))
+            .ToList();
 
     // ── HELPERS ───────────────────────────────────────────────────
 
