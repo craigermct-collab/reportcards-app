@@ -629,6 +629,29 @@ public class HomeworkAnalysis
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// J) PEER REVIEW
+// ═══════════════════════════════════════════════════════════════════
+
+/// <summary>
+/// Records that a teacher has peer-reviewed another teacher's grade
+/// entry for a specific enrollment in a specific term.
+/// </summary>
+public class EnrollmentPeerReview
+{
+    public int Id { get; set; }
+    public DateTimeOffset ReviewedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public int EnrollmentId { get; set; }
+    public Enrollment? Enrollment { get; set; }
+
+    public int TermInstanceId { get; set; }
+    public TermInstance? TermInstance { get; set; }
+
+    public int ReviewerTeacherId { get; set; }
+    public Teacher? ReviewerTeacher { get; set; }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // G) REPORT TEMPLATE FIELD MAPPING
 // ═══════════════════════════════════════════════════════════════════
 
