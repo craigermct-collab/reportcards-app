@@ -1,0 +1,267 @@
+@page "/comment-templates"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@using ReportCards.Web.Services
+@inject SchoolDbContext Db
+@inject CommentTemplateService TemplateSvc
+@inject ISnackbar Snackbar
+
+<div class="d-flex align-center gap-3 mb-1">
+    <MudText Typo="Typo.h4" Style="font-family:'DM Serif Display',serif;">Comment Templates</MudText>
+</div>
+<MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
+    Import and manage comment templates from your ETeach XML library.
+</MudText>
+
+@* ── Import Section ──────────────────────────────────────────────────────── *@
+<MudCard Class="mb-6" Elevation="1">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">Import from ETeach XML</MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Export your comment library from ETeach as XML, then upload the file here.
+            Existing templates with matching source codes will be updated; new ones will be added.
+        </MudText>
+        <div class="d-flex align-center gap-3 flex-wrap">
+            <MudFileUpload T="IBrowserFile" FilesChanged="OnFileSelected" Accept=".xml">
+                <ActivatorContent>
+                    <MudButton Variant="Variant.Outlined"
+                               StartIcon="@Icons.Material.Filled.UploadFile"
+                               Color="Color.Primary">
+                        Choose XML File
+                    </MudButton>
+                </ActivatorContent>
+            </MudFileUpload>
+            @if (_selectedFile != null)
+            {
+                <MudText Typo="Typo.body2">@_selectedFile.Name (@FormatBytes(_selectedFile.Size))</MudText>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.CloudUpload"
+                           OnClick="ImportAsync"
+                           Disabled="_importing">
+                    @(_importing ? "Importing…" : "Import")
+                </MudButton>
+            }
+        </div>
+        @if (_importResult != null)
+        {
+            <MudAlert Class="mt-3" Severity="Severity.Success" Dense="true">
+                Import complete — @_importResult.Value.Inserted added,
+                @_importResult.Value.Updated updated,
+                @_importResult.Value.Skipped skipped.
+            </MudAlert>
+        }
+    </MudCardContent>
+</MudCard>
+
+@* ── Filter Bar ──────────────────────────────────────────────────────────── *@
+<div class="d-flex gap-3 mb-4 flex-wrap align-end">
+    <MudTextField @bind-Value="_searchText"
+                  Label="Search"
+                  Placeholder="keyword…"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  Variant="Variant.Outlined"
+                  Immediate="true"
+                  Style="min-width:220px" />
+
+    <MudSelect T="string" @bind-Value="_filterSubject"
+               Label="Subject" Variant="Variant.Outlined"
+               Clearable="true"
+               Style="min-width:180px"
+               AnchorOrigin="Origin.BottomCenter">
+        @foreach (var s in _subjects)
+        {
+            <MudSelectItem T="string" Value="s">@s</MudSelectItem>
+        }
+    </MudSelect>
+
+    <MudSelect T="string" @bind-Value="_filterGrade"
+               Label="Grade" Variant="Variant.Outlined"
+               Clearable="true"
+               Style="min-width:140px"
+               AnchorOrigin="Origin.BottomCenter">
+        @foreach (var g in _grades)
+        {
+            <MudSelectItem T="string" Value="g">@g</MudSelectItem>
+        }
+    </MudSelect>
+
+    <MudSelect T="string" @bind-Value="_filterCategory"
+               Label="Category" Variant="Variant.Outlined"
+               Clearable="true"
+               Style="min-width:160px"
+               AnchorOrigin="Origin.BottomCenter">
+        @foreach (var c in _categories)
+        {
+            <MudSelectItem T="string" Value="c">@c</MudSelectItem>
+        }
+    </MudSelect>
+
+    <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary); align-self:center">
+        @FilteredTemplates.Count() template@(FilteredTemplates.Count() == 1 ? "" : "s")
+    </MudText>
+</div>
+
+@* ── Template Table ──────────────────────────────────────────────────────── *@
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+}
+else if (!_templates.Any())
+{
+    <MudAlert Severity="Severity.Info">
+        No comment templates yet. Import an ETeach XML file to get started.
+    </MudAlert>
+}
+else
+{
+    <MudTable Items="@FilteredTemplates"
+              Dense="true"
+              Hover="true"
+              Striped="true"
+              Elevation="1"
+              FixedHeader="true"
+              Height="600px">
+        <HeaderContent>
+            <MudTh>Subject</MudTh>
+            <MudTh>Grade</MudTh>
+            <MudTh>Category</MudTh>
+            <MudTh>Code</MudTh>
+            <MudTh>Comment Text</MudTh>
+            <MudTh Style="width:60px"></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@(context.Subject ?? "—")</MudTd>
+            <MudTd>@(context.GradeLabel ?? "—")</MudTd>
+            <MudTd>@(context.Category ?? "—")</MudTd>
+            <MudTd>
+                @if (context.SourceCode != null)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Default">@context.SourceCode</MudChip>
+                }
+            </MudTd>
+            <MudTd>
+                <MudText Typo="Typo.body2" Style="white-space:pre-wrap; max-width:600px;">@context.TemplateText</MudText>
+            </MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                               Size="Size.Small"
+                               Color="Color.Error"
+                               Title="Delete"
+                               OnClick="@(() => DeleteAsync(context))" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    // ── State ────────────────────────────────────────────────────────────────
+    private bool _loading = true;
+    private bool _importing = false;
+
+    private List<CommentTemplate> _templates = new();
+    private IBrowserFile? _selectedFile;
+    private (int Inserted, int Updated, int Skipped)? _importResult;
+
+    // Filter state
+    private string _searchText = "";
+    private string? _filterSubject;
+    private string? _filterGrade;
+    private string? _filterCategory;
+
+    // Distinct values for dropdowns
+    private List<string> _subjects    = new();
+    private List<string> _grades      = new();
+    private List<string> _categories  = new();
+
+    // ── Lifecycle ────────────────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _templates = await Db.CommentTemplates
+            .OrderBy(t => t.Subject)
+            .ThenBy(t => t.GradeLabel)
+            .ThenBy(t => t.Category)
+            .ThenBy(t => t.SortOrder)
+            .ToListAsync();
+
+        _subjects   = _templates.Where(t => t.Subject   != null).Select(t => t.Subject!).Distinct().OrderBy(x => x).ToList();
+        _grades     = _templates.Where(t => t.GradeLabel != null).Select(t => t.GradeLabel!).Distinct().OrderBy(x => x).ToList();
+        _categories = _templates.Where(t => t.Category  != null).Select(t => t.Category!).Distinct().OrderBy(x => x).ToList();
+
+        _loading = false;
+    }
+
+    // ── Filtered view ────────────────────────────────────────────────────────
+    private IEnumerable<CommentTemplate> FilteredTemplates => _templates.Where(t =>
+    {
+        if (_filterSubject  != null && t.Subject    != _filterSubject)  return false;
+        if (_filterGrade    != null && t.GradeLabel != _filterGrade)    return false;
+        if (_filterCategory != null && t.Category   != _filterCategory) return false;
+        if (!string.IsNullOrWhiteSpace(_searchText) &&
+            !t.TemplateText.Contains(_searchText, StringComparison.OrdinalIgnoreCase) &&
+            !(t.SourceCode?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false))
+            return false;
+        return true;
+    });
+
+    // ── Import ───────────────────────────────────────────────────────────────
+    private void OnFileSelected(IBrowserFile file)
+    {
+        _selectedFile  = file;
+        _importResult  = null;
+    }
+
+    private async Task ImportAsync()
+    {
+        if (_selectedFile == null) return;
+        _importing = true;
+        _importResult = null;
+        try
+        {
+            await using var stream = _selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+            _importResult = await TemplateSvc.ImportXmlAsync(stream);
+            _selectedFile = null;
+            Snackbar.Add($"Import complete: {_importResult.Value.Inserted} added, {_importResult.Value.Updated} updated.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Import failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _importing = false;
+        }
+    }
+
+    // ── Delete ───────────────────────────────────────────────────────────────
+    private async Task DeleteAsync(CommentTemplate template)
+    {
+        Db.CommentTemplates.Remove(template);
+        await Db.SaveChangesAsync();
+        _templates.Remove(template);
+        Snackbar.Add("Template deleted.", Severity.Success);
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    private static string FormatBytes(long bytes) =>
+        bytes switch
+        {
+            < 1024         => $"{bytes} B",
+            < 1024 * 1024  => $"{bytes / 1024.0:F1} KB",
+            _              => $"{bytes / (1024.0 * 1024):F1} MB"
+        };
+}

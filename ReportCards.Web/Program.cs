@@ -55,10 +55,10 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddScoped<HomeworkAnalysisService>();
+builder.Services.AddScoped<CommentTemplateService>();
 builder.Services.AddScoped<AttendanceService>();
 builder.Services.AddScoped<SchoolConfigService>();
 builder.Services.AddScoped<CurriculumStampService>();
-builder.Services.AddScoped<CommentTemplateService>();
 builder.Services.AddHttpClient();
 builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
