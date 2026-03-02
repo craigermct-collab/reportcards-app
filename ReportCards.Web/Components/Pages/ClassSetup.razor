@@ -350,6 +350,61 @@ else
                         }
                     }
 
+                    <MudDivider Class="mt-5 mb-4" />
+
+                    <!-- ── Grading Scales ───────────────────────── -->
+                    <MudText Typo="Typo.overline" Class="mb-3"
+                             Style="color:var(--mud-palette-text-secondary);">Default Grading Scale per Grade</MudText>
+
+                    @if (_gradingScales.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">
+                            No grading scales defined yet. Add scales on the Grading Scales page first.
+                        </MudAlert>
+                    }
+                    else if (grades.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+                            No grades configured for this class group type.
+                        </MudText>
+                    }
+                    else
+                    {
+                        <MudGrid>
+                            @foreach (var grade in grades)
+                            {
+                                var ruleKey = (cgi.ClassGroupTypeId, grade.Id);
+                                var currentScaleId = _gradingRuleScaleIds.GetValueOrDefault(ruleKey);
+                                <MudItem xs="12" sm="6" md="4">
+                                    <MudSelect T="int?"
+                                               Value="@currentScaleId"
+                                               ValueChanged="@(async (int? v) => await SetGradingRuleAsync(cgi.ClassGroupTypeId, grade.Id, v))"
+                                               Label="@grade.Name"
+                                               Variant="Variant.Outlined"
+                                               Margin="Margin.Dense"
+                                               Clearable="true"
+                                               AnchorOrigin="Origin.BottomCenter"
+                                               HelperText="@(currentScaleId == null ? "Not set — will use first scale as fallback" : null)">
+                                        @foreach (var scale in _gradingScales)
+                                        {
+                                            <MudSelectItem T="int?" Value="@((int?)scale.Id)">
+                                                @scale.Name
+                                                @if (scale.ValueType == GradingValueType.OptionList)
+                                                {
+                                                    <span style="opacity:0.6;"> · @scale.Options.Count options</span>
+                                                }
+                                                else
+                                                {
+                                                    <span style="opacity:0.6;"> · Numeric</span>
+                                                }
+                                            </MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                            }
+                        </MudGrid>
+                    }
+
                 </MudCardContent>
             </MudCard>
         }
@@ -385,6 +440,11 @@ else
     // ── Per-group enrollment state ─────────────────────────
     private Dictionary<int, int?> _newEnrollStudentIds = new();
     private Dictionary<int, int?> _newEnrollGradeIds   = new();
+
+    // ── Grading rules: keyed by (ClassGroupTypeId, GradeId) ──
+    // Value is the selected GradingScaleId (null = not set)
+    private Dictionary<(int ClassGroupTypeId, int GradeId), int?> _gradingRuleScaleIds = new();
+    private List<GradingScale> _gradingScales = new();
 
     // ── Computed ──────────────────────────────────────────
     private bool CanAddGroup =>
@@ -428,6 +488,11 @@ else
         _activeStudents = await Db.Students
             .Where(s => s.IsActive)
             .OrderBy(s => s.LastName).ThenBy(s => s.FirstName)
+            .ToListAsync();
+
+        _gradingScales = await Db.GradingScales
+            .Include(s => s.Options)
+            .OrderBy(s => s.Name)
             .ToListAsync();
 
         var activeYear = _schoolYears.FirstOrDefault(y => y.IsActive);
@@ -482,6 +547,15 @@ else
             _newEnrollStudentIds.TryAdd(cgi.Id, null);
             _newEnrollGradeIds.TryAdd(cgi.Id, null);
         }
+
+        // Load existing grading rules for this term
+        var existingRules = await Db.TermGradeGradingRules
+            .Where(r => r.TermInstanceId == _selectedTermId)
+            .ToListAsync();
+        _gradingRuleScaleIds = existingRules
+            .ToDictionary(
+                r => (r.ClassGroupTypeId, r.GradeId),
+                r => (int?)r.GradingScaleId);
     }
 
     // ── Teacher actions ───────────────────────────────────
@@ -691,6 +765,42 @@ else
         await Db.SaveChangesAsync();
         Snackbar.Add($"'{cgi.DisplayName}' deleted.", Severity.Info);
         await LoadClassGroupsAsync();
+    }
+
+    // ── Grading rule upsert ──────────────────────────────
+    private async Task SetGradingRuleAsync(int classGroupTypeId, int gradeId, int? scaleId)
+    {
+        var key = (classGroupTypeId, gradeId);
+        _gradingRuleScaleIds[key] = scaleId;
+
+        var existing = await Db.TermGradeGradingRules
+            .FirstOrDefaultAsync(r =>
+                r.TermInstanceId   == _selectedTermId &&
+                r.ClassGroupTypeId == classGroupTypeId &&
+                r.GradeId          == gradeId);
+
+        if (scaleId == null)
+        {
+            if (existing != null) { Db.TermGradeGradingRules.Remove(existing); await Db.SaveChangesAsync(); }
+            return;
+        }
+
+        if (existing != null)
+        {
+            existing.GradingScaleId = scaleId.Value;
+        }
+        else
+        {
+            Db.TermGradeGradingRules.Add(new TermGradeGradingRule
+            {
+                TermInstanceId   = _selectedTermId!.Value,
+                ClassGroupTypeId = classGroupTypeId,
+                GradeId          = gradeId,
+                GradingScaleId   = scaleId.Value
+            });
+        }
+        await Db.SaveChangesAsync();
+        Snackbar.Add("Grading scale saved.", Severity.Success);
     }
 
     // ── Helpers ───────────────────────────────────────────
