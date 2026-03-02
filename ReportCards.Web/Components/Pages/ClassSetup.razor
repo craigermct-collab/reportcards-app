@@ -16,7 +16,7 @@
     </MudButton>
 </div>
 <MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
-    Set up class groups and teacher assignments per term.
+    Set up class groups, assign teachers, and enroll students per term.
 </MudText>
 
 <!-- ── Year + Term Selector ───────────────────────────── -->
@@ -36,7 +36,7 @@ else
                 <MudItem xs="12" sm="4">
                     <MudSelect T="int?"
                                Value="_selectedYearId"
-                               ValueChanged="@(async (int? v) => { _selectedYearId = v; _selectedTermId = null; _classGroupInstances = new(); })"
+                               ValueChanged="@(async (int? v) => { _selectedYearId = v; _selectedTermId = null; _classGroupInstances = new(); _enrollmentsByGroup = new(); })"
                                Label="School Year"
                                Variant="Variant.Outlined"
                                AnchorOrigin="Origin.BottomCenter">
@@ -122,6 +122,12 @@ else
     {
         @foreach (var cgi in _classGroupInstances)
         {
+            var enrollments = _enrollmentsByGroup.GetValueOrDefault(cgi.Id) ?? new();
+            var enrolledStudentIds = enrollments.Select(e => e.StudentId).ToHashSet();
+            var available = _activeStudents.Where(s => !enrolledStudentIds.Contains(s.Id))
+                                           .OrderBy(s => s.LastName).ThenBy(s => s.FirstName).ToList();
+            var grades = GradesForGroup(cgi.ClassGroupTypeId);
+
             <MudCard Class="mb-4" Elevation="1">
                 <MudCardHeader>
                     <CardHeaderContent>
@@ -148,11 +154,15 @@ else
                 </MudCardHeader>
 
                 <MudCardContent>
-                    <!-- Teacher Assignments -->
+
+                    <!-- ── Teachers ───────────────────────────────── -->
+                    <MudText Typo="Typo.overline" Class="mb-2"
+                             Style="color:var(--mud-palette-text-secondary);">Teachers</MudText>
+
                     @if (cgi.TeacherAssignments.Count > 0)
                     {
                         <MudTable Items="cgi.TeacherAssignments" Dense="true" Hover="true"
-                                  Elevation="0" Class="mb-4"
+                                  Elevation="0" Class="mb-3"
                                   Style="border:1px solid var(--mud-palette-divider); border-radius:8px;">
                             <HeaderContent>
                                 <MudTh>Teacher</MudTh>
@@ -182,7 +192,7 @@ else
                     }
 
                     <!-- Add teacher assignment -->
-                    <MudGrid>
+                    <MudGrid Class="mb-5">
                         <MudItem xs="12" sm="3">
                             <MudSelect T="int?" @bind-Value="_newTeacherIds[cgi.Id]"
                                        Label="Teacher"
@@ -202,7 +212,7 @@ else
                                        Margin="Margin.Dense"
                                        Clearable="true"
                                        AnchorOrigin="Origin.BottomCenter">
-                                @foreach (var g in GradesForGroup(cgi.ClassGroupTypeId))
+                                @foreach (var g in grades)
                                 {
                                     <MudSelectItem T="int?" Value="@((int?)g.Id)">@g.Name</MudSelectItem>
                                 }
@@ -226,6 +236,120 @@ else
                             </MudButton>
                         </MudItem>
                     </MudGrid>
+
+                    <MudDivider Class="mb-4" />
+
+                    <!-- ── Students ───────────────────────────────── -->
+                    <MudText Typo="Typo.overline" Class="mb-2"
+                             Style="color:var(--mud-palette-text-secondary);">
+                        Students
+                        <MudChip T="string" Size="Size.Small" Color="Color.Primary"
+                                 Variant="Variant.Filled" Class="ml-1">
+                            @enrollments.Count
+                        </MudChip>
+                    </MudText>
+
+                    @if (enrollments.Count > 0)
+                    {
+                        <MudTable Items="enrollments" Dense="true" Hover="true"
+                                  Elevation="0" Class="mb-3"
+                                  Style="border:1px solid var(--mud-palette-divider); border-radius:8px;">
+                            <HeaderContent>
+                                <MudTh>Student</MudTh>
+                                <MudTh>Grade</MudTh>
+                                <MudTh>Enrolled</MudTh>
+                                <MudTh></MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>
+                                    <div class="d-flex align-center gap-2">
+                                        <MudAvatar Style="background:#1B4F72; color:white; width:26px; height:26px; font-size:10px; font-weight:700;">
+                                            @GetInitials(context.Student?.FirstName, context.Student?.LastName)
+                                        </MudAvatar>
+                                        <MudText Typo="Typo.body2" Style="font-weight:600;">
+                                            @context.Student?.LastName, @context.Student?.FirstName
+                                        </MudText>
+                                    </div>
+                                </MudTd>
+                                <MudTd>@context.Grade?.Name</MudTd>
+                                <MudTd>
+                                    <MudText Typo="Typo.caption">
+                                        @context.EnrolledOn.ToString("MMM d, yyyy")
+                                    </MudText>
+                                </MudTd>
+                                <MudTd Style="text-align:right;">
+                                    <MudTooltip Text="Reseed learning items">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                                                       Color="Color.Info" Size="Size.Small"
+                                                       OnClick="@(() => ReseedAsync(context))" />
+                                    </MudTooltip>
+                                    <MudTooltip Text="Unenroll student">
+                                        <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
+                                                       Color="Color.Error" Size="Size.Small"
+                                                       OnClick="@(() => UnenrollAsync(context, cgi.Id))" />
+                                    </MudTooltip>
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Class="mb-3"
+                                 Style="color:var(--mud-palette-text-secondary);">
+                            No students enrolled yet.
+                        </MudText>
+                    }
+
+                    <!-- Add student enrollment -->
+                    @if (available.Count > 0 || grades.Count > 0)
+                    {
+                        <MudGrid>
+                            <MudItem xs="12" sm="5">
+                                <MudSelect T="int?" @bind-Value="_newEnrollStudentIds[cgi.Id]"
+                                           Label="Student"
+                                           Variant="Variant.Outlined"
+                                           Margin="Margin.Dense"
+                                           AnchorOrigin="Origin.BottomCenter">
+                                    @foreach (var s in available)
+                                    {
+                                        <MudSelectItem T="int?" Value="@((int?)s.Id)">
+                                            @s.LastName, @s.FirstName
+                                        </MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" sm="4">
+                                <MudSelect T="int?" @bind-Value="_newEnrollGradeIds[cgi.Id]"
+                                           Label="Grade"
+                                           Variant="Variant.Outlined"
+                                           Margin="Margin.Dense"
+                                           AnchorOrigin="Origin.BottomCenter">
+                                    @foreach (var g in grades)
+                                    {
+                                        <MudSelectItem T="int?" Value="@((int?)g.Id)">@g.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" sm="3" Class="d-flex align-end">
+                                <MudButton Variant="Variant.Outlined"
+                                           Color="Color.Secondary"
+                                           StartIcon="@Icons.Material.Filled.HowToReg"
+                                           OnClick="@(() => EnrollStudentAsync(cgi))"
+                                           Disabled="@(!CanEnroll(cgi.Id))"
+                                           FullWidth="true">
+                                    Enroll
+                                </MudButton>
+                            </MudItem>
+                        </MudGrid>
+                        @if (available.Count == 0)
+                        {
+                            <MudText Typo="Typo.caption" Class="mt-1"
+                                     Style="color:var(--mud-palette-text-secondary);">
+                                All active students are already enrolled in this class group.
+                            </MudText>
+                        }
+                    }
+
                 </MudCardContent>
             </MudCard>
         }
@@ -235,24 +359,32 @@ else
 @code {
     // ── Data ──────────────────────────────────────────────
     private bool _isLoading = true;
-    private List<SchoolYear> _schoolYears = new();
-    private List<ClassGroupType> _classGroupTypes = new();
-    private List<Teacher> _activeTeachers = new();
-    private List<ClassGroupInstance> _classGroupInstances = new();
+    private List<SchoolYear>          _schoolYears        = new();
+    private List<ClassGroupType>      _classGroupTypes    = new();
+    private List<Teacher>             _activeTeachers     = new();
+    private List<Student>             _activeStudents     = new();
+    private List<ClassGroupInstance>  _classGroupInstances = new();
+
+    // enrollments keyed by ClassGroupInstance.Id
+    private Dictionary<int, List<Enrollment>> _enrollmentsByGroup = new();
 
     // ── Selection state ───────────────────────────────────
     private int? _selectedYearId;
     private int? _selectedTermId;
 
     // ── Add group form ────────────────────────────────────
-    private bool _showAddForm;
-    private int? _newClassGroupTypeId;
+    private bool   _showAddForm;
+    private int?   _newClassGroupTypeId;
     private string _newDisplayName = "";
 
-    // ── Per-group assignment form state ───────────────────
-    private Dictionary<int, int?> _newTeacherIds = new();
-    private Dictionary<int, int?> _newAssignmentGradeIds = new();
-    private Dictionary<int, string> _newAssignmentRoles = new();
+    // ── Per-group teacher assignment state ─────────────────
+    private Dictionary<int, int?>   _newTeacherIds         = new();
+    private Dictionary<int, int?>   _newAssignmentGradeIds = new();
+    private Dictionary<int, string> _newAssignmentRoles    = new();
+
+    // ── Per-group enrollment state ─────────────────────────
+    private Dictionary<int, int?> _newEnrollStudentIds = new();
+    private Dictionary<int, int?> _newEnrollGradeIds   = new();
 
     // ── Computed ──────────────────────────────────────────
     private bool CanAddGroup =>
@@ -262,6 +394,10 @@ else
 
     private bool CanAddAssignment(int cgiId) =>
         _newTeacherIds.TryGetValue(cgiId, out var t) && t != null;
+
+    private bool CanEnroll(int cgiId) =>
+        _newEnrollStudentIds.TryGetValue(cgiId, out var s) && s != null &&
+        _newEnrollGradeIds.TryGetValue(cgiId, out var g) && g != null;
 
     private List<TermInstance> TermsForYear =>
         _schoolYears.FirstOrDefault(y => y.Id == _selectedYearId)?.TermInstances
@@ -289,7 +425,11 @@ else
             .OrderBy(t => t.DisplayName)
             .ToListAsync();
 
-        // Default to active year
+        _activeStudents = await Db.Students
+            .Where(s => s.IsActive)
+            .OrderBy(s => s.LastName).ThenBy(s => s.FirstName)
+            .ToListAsync();
+
         var activeYear = _schoolYears.FirstOrDefault(y => y.IsActive);
         if (activeYear != null)
         {
@@ -306,12 +446,14 @@ else
         if (_selectedTermId == null)
         {
             _classGroupInstances = new();
+            _enrollmentsByGroup  = new();
             return;
         }
 
         _classGroupInstances = await Db.ClassGroupInstances
             .Where(c => c.TermInstanceId == _selectedTermId)
             .Include(c => c.ClassGroupType)
+                .ThenInclude(ct => ct.Grades.OrderBy(g => g.SortOrder))
             .Include(c => c.TeacherAssignments)
                 .ThenInclude(a => a.Teacher)
             .Include(c => c.TeacherAssignments)
@@ -320,31 +462,221 @@ else
             .ThenBy(c => c.DisplayName)
             .ToListAsync();
 
+        // Load enrollments for all groups in one query
+        var cgiIds = _classGroupInstances.Select(c => c.Id).ToList();
+        var allEnrollments = await Db.Enrollments
+            .Where(e => cgiIds.Contains(e.ClassGroupInstanceId))
+            .Include(e => e.Student)
+            .Include(e => e.Grade)
+            .OrderBy(e => e.Student!.LastName).ThenBy(e => e.Student!.FirstName)
+            .ToListAsync();
+        _enrollmentsByGroup = allEnrollments.GroupBy(e => e.ClassGroupInstanceId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         // Init per-group form state
         foreach (var cgi in _classGroupInstances)
         {
             _newTeacherIds.TryAdd(cgi.Id, null);
             _newAssignmentGradeIds.TryAdd(cgi.Id, null);
             _newAssignmentRoles.TryAdd(cgi.Id, "");
+            _newEnrollStudentIds.TryAdd(cgi.Id, null);
+            _newEnrollGradeIds.TryAdd(cgi.Id, null);
         }
     }
 
-    // ── Term selection change ─────────────────────────────
-    private async Task OnTermChangedAsync()
+    // ── Teacher actions ───────────────────────────────────
+    private async Task AddAssignmentAsync(ClassGroupInstance cgi)
     {
+        if (!CanAddAssignment(cgi.Id)) return;
+
+        Db.TeacherAssignments.Add(new TeacherAssignment
+        {
+            ClassGroupInstanceId = cgi.Id,
+            TeacherId            = _newTeacherIds[cgi.Id]!.Value,
+            GradeId              = _newAssignmentGradeIds.GetValueOrDefault(cgi.Id),
+            Role                 = string.IsNullOrWhiteSpace(_newAssignmentRoles.GetValueOrDefault(cgi.Id))
+                                   ? null : _newAssignmentRoles[cgi.Id].Trim()
+        });
+
+        await Db.SaveChangesAsync();
+        _newTeacherIds[cgi.Id]         = null;
+        _newAssignmentGradeIds[cgi.Id] = null;
+        _newAssignmentRoles[cgi.Id]    = "";
+        Snackbar.Add("Teacher assigned.", Severity.Success);
         await LoadClassGroupsAsync();
     }
 
-    // ── Actions ───────────────────────────────────────────
+    private async Task DeleteAssignmentAsync(TeacherAssignment assignment)
+    {
+        Db.TeacherAssignments.Remove(assignment);
+        await Db.SaveChangesAsync();
+        Snackbar.Add("Assignment removed.", Severity.Info);
+        await LoadClassGroupsAsync();
+    }
+
+    // ── Student enrollment actions ─────────────────────────
+    private async Task EnrollStudentAsync(ClassGroupInstance cgi)
+    {
+        if (!CanEnroll(cgi.Id)) return;
+
+        var studentId = _newEnrollStudentIds[cgi.Id]!.Value;
+        var gradeId   = _newEnrollGradeIds[cgi.Id]!.Value;
+
+        var exists = await Db.Enrollments.AnyAsync(e =>
+            e.StudentId == studentId && e.ClassGroupInstanceId == cgi.Id);
+        if (exists)
+        {
+            Snackbar.Add("Student is already enrolled in this class group.", Severity.Warning);
+            return;
+        }
+
+        var enrollment = new Enrollment
+        {
+            StudentId            = studentId,
+            TermInstanceId       = _selectedTermId!.Value,
+            ClassGroupInstanceId = cgi.Id,
+            GradeId              = gradeId
+        };
+        Db.Enrollments.Add(enrollment);
+        await Db.SaveChangesAsync();
+
+        var seeded = await SeedLearningItemsAsync(enrollment);
+        _newEnrollStudentIds[cgi.Id] = null;
+        _newEnrollGradeIds[cgi.Id]   = null;
+        Snackbar.Add($"Student enrolled with {seeded} learning item(s) seeded.", Severity.Success);
+        await LoadClassGroupsAsync();
+    }
+
+    private async Task UnenrollAsync(Enrollment enrollment, int cgiId)
+    {
+        Db.Enrollments.Remove(enrollment);
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"{enrollment.Student?.FirstName} {enrollment.Student?.LastName} unenrolled.", Severity.Info);
+        await LoadClassGroupsAsync();
+    }
+
+    private async Task ReseedAsync(Enrollment enrollment)
+    {
+        var existing = await Db.StudentLearningItems
+            .Where(li => li.EnrollmentId == enrollment.Id)
+            .ToListAsync();
+
+        var withAssessments = await Db.Assessments
+            .Where(a => existing.Select(li => li.Id).Contains(a.StudentLearningItemId))
+            .Select(a => a.StudentLearningItemId)
+            .Distinct()
+            .ToListAsync();
+
+        var removable = existing.Where(li => !withAssessments.Contains(li.Id)).ToList();
+        Db.StudentLearningItems.RemoveRange(removable);
+        await Db.SaveChangesAsync();
+
+        var seeded = await SeedLearningItemsAsync(enrollment);
+        Snackbar.Add($"Reseeded: {seeded} learning item(s) added.", Severity.Success);
+        StateHasChanged();
+    }
+
+    private async Task<int> SeedLearningItemsAsync(Enrollment enrollment)
+    {
+        var yearCurriculum = await Db.YearCurriculums
+            .FirstOrDefaultAsync(yc => yc.SchoolYearId ==
+                Db.TermInstances
+                    .Where(t => t.Id == enrollment.TermInstanceId)
+                    .Select(t => t.SchoolYearId)
+                    .FirstOrDefault());
+
+        if (yearCurriculum == null) return 0;
+
+        var classGroupInstance = await Db.ClassGroupInstances
+            .FirstOrDefaultAsync(c => c.Id == enrollment.ClassGroupInstanceId);
+
+        var classOfferings = await Db.YearClassOfferings
+            .Include(o => o.CurriculumClassTemplate)
+            .Include(o => o.SubjectOfferings)
+                .ThenInclude(so => so.CurriculumSubjectTemplate)
+            .Where(o => o.YearCurriculumId == yearCurriculum.Id
+                     && o.GradeId          == enrollment.GradeId
+                     && o.IsEnabled)
+            .ToListAsync();
+
+        var gradingRules = await Db.TermGradeGradingRules
+            .Where(r => r.TermInstanceId   == enrollment.TermInstanceId
+                     && r.GradeId          == enrollment.GradeId
+                     && r.ClassGroupTypeId == classGroupInstance!.ClassGroupTypeId)
+            .ToListAsync();
+        var fallbackScaleId = gradingRules.FirstOrDefault()?.GradingScaleId;
+
+        var existingClassOfferingIds = await Db.StudentLearningItems
+            .Where(li => li.EnrollmentId == enrollment.Id && li.YearClassOfferingId != null)
+            .Select(li => li.YearClassOfferingId!.Value).ToListAsync();
+        var existingSubjectOfferingIds = await Db.StudentLearningItems
+            .Where(li => li.EnrollmentId == enrollment.Id && li.YearSubjectOfferingId != null)
+            .Select(li => li.YearSubjectOfferingId!.Value).ToListAsync();
+
+        int count = 0;
+        foreach (var classOffering in classOfferings)
+        {
+            var template = classOffering.CurriculumClassTemplate;
+            if (template == null) continue;
+
+            if (!template.GradedAtStrandLevel)
+            {
+                if (!existingClassOfferingIds.Contains(classOffering.Id))
+                {
+                    Db.StudentLearningItems.Add(new StudentLearningItem
+                    {
+                        EnrollmentId        = enrollment.Id,
+                        DisplayName         = template.Name,
+                        ItemType            = LearningItemType.Class,
+                        YearClassOfferingId = classOffering.Id,
+                        GradingScaleId      = classOffering.GradingScaleId ?? fallbackScaleId
+                            ?? await GetDefaultScaleIdAsync()
+                    });
+                    count++;
+                }
+            }
+            else
+            {
+                foreach (var subjectOffering in classOffering.SubjectOfferings.Where(so => so.IsEnabled))
+                {
+                    if (existingSubjectOfferingIds.Contains(subjectOffering.Id)) continue;
+                    var strandTemplate = subjectOffering.CurriculumSubjectTemplate;
+                    if (strandTemplate == null) continue;
+
+                    Db.StudentLearningItems.Add(new StudentLearningItem
+                    {
+                        EnrollmentId          = enrollment.Id,
+                        DisplayName           = strandTemplate.Name,
+                        ItemType              = LearningItemType.Subject,
+                        YearClassOfferingId   = classOffering.Id,
+                        YearSubjectOfferingId = subjectOffering.Id,
+                        GradingScaleId        = subjectOffering.GradingScaleId
+                            ?? classOffering.GradingScaleId
+                            ?? fallbackScaleId
+                            ?? await GetDefaultScaleIdAsync()
+                    });
+                    count++;
+                }
+            }
+        }
+
+        await Db.SaveChangesAsync();
+        return count;
+    }
+
+    private async Task<int> GetDefaultScaleIdAsync() =>
+        await Db.GradingScales.Select(g => g.Id).FirstOrDefaultAsync();
+
+    // ── Class group actions ───────────────────────────────
     private async Task AddClassGroupInstanceAsync()
     {
         if (!CanAddGroup) return;
 
         Db.ClassGroupInstances.Add(new ClassGroupInstance
         {
-            TermInstanceId = _selectedTermId!.Value,
+            TermInstanceId   = _selectedTermId!.Value,
             ClassGroupTypeId = _newClassGroupTypeId!.Value,
-            DisplayName = _newDisplayName.Trim()
+            DisplayName      = _newDisplayName.Trim()
         });
 
         await Db.SaveChangesAsync();
@@ -361,33 +693,11 @@ else
         await LoadClassGroupsAsync();
     }
 
-    private async Task AddAssignmentAsync(ClassGroupInstance cgi)
+    // ── Helpers ───────────────────────────────────────────
+    private static string GetInitials(string? first, string? last)
     {
-        if (!CanAddAssignment(cgi.Id)) return;
-
-        Db.TeacherAssignments.Add(new TeacherAssignment
-        {
-            ClassGroupInstanceId = cgi.Id,
-            TeacherId = _newTeacherIds[cgi.Id]!.Value,
-            GradeId = _newAssignmentGradeIds.GetValueOrDefault(cgi.Id),
-            Role = string.IsNullOrWhiteSpace(_newAssignmentRoles.GetValueOrDefault(cgi.Id))
-                   ? null
-                   : _newAssignmentRoles[cgi.Id].Trim()
-        });
-
-        await Db.SaveChangesAsync();
-        _newTeacherIds[cgi.Id] = null;
-        _newAssignmentGradeIds[cgi.Id] = null;
-        _newAssignmentRoles[cgi.Id] = "";
-        Snackbar.Add("Teacher assigned.", Severity.Success);
-        await LoadClassGroupsAsync();
-    }
-
-    private async Task DeleteAssignmentAsync(TeacherAssignment assignment)
-    {
-        Db.TeacherAssignments.Remove(assignment);
-        await Db.SaveChangesAsync();
-        Snackbar.Add("Assignment removed.", Severity.Info);
-        await LoadClassGroupsAsync();
+        var f = string.IsNullOrWhiteSpace(first) ? "?" : first[0].ToString().ToUpper();
+        var l = string.IsNullOrWhiteSpace(last)  ? ""  : last[0].ToString().ToUpper();
+        return f + l;
     }
 }
