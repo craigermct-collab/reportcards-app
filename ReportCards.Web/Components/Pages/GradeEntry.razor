@@ -85,7 +85,18 @@ else if (!_enrollments.Any())
 }
 else
 {
-    @foreach (var enrollment in _enrollments)
+    @{ var _gradeGroups = _enrollments.GroupBy(e => new { e.GradeId, e.Grade?.Name, SortOrder = e.Grade?.SortOrder ?? 999 }).OrderBy(g => g.Key.SortOrder).ToList(); }
+    @foreach (var gradeGroup in _gradeGroups)
+    {
+        <div class="d-flex align-center gap-2 mb-2 mt-3" style="@(gradeGroup == _gradeGroups.First() ? "margin-top:0!important;" : "")">
+            <div style="height:1px; flex:1; background:var(--mud-palette-divider);"></div>
+            <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); padding:0 8px; font-size:11px; letter-spacing:0.08em;">
+                @gradeGroup.Key.Name
+            </MudText>
+            <div style="height:1px; flex:1; background:var(--mud-palette-divider);"></div>
+        </div>
+
+    @foreach (var enrollment in gradeGroup)
     {
         var state = _studentStates.GetValueOrDefault(enrollment.StudentId);
         var isExpanded = _expandedStudentId == enrollment.StudentId;
@@ -329,6 +340,7 @@ else
                 }
             </MudCollapse>
         </MudCard>
+    }
     }
 }
 
