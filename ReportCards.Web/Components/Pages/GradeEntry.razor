@@ -403,6 +403,15 @@ else if (_groups.Any())
             .ThenBy(t => t.SortOrder)
             .ToListAsync();
 
+        // Auto-select the term whose date range contains today
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var currentTerm = _terms.FirstOrDefault(t => t.StartDate <= today && t.EndDate >= today);
+        if (currentTerm != null)
+        {
+            _selectedTermId = currentTerm.Id;
+            await OnTermChangedAsync();
+        }
+
         _isLoadingTerms = false;
     }
 
