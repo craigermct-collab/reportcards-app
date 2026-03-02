@@ -304,7 +304,8 @@ else
                                                           Lines="2"
                                                           MaxLength="500"
                                                           Placeholder="Comment… (optional)"
-                                                          Style="font-size:13px;" />
+                                                          Style="font-size:13px;"
+                                                          UserAttributes="@(new Dictionary<string, object> { ["spellcheck"] = "true" })" />
                                         </div>
                                         <div style="width:32px; flex-shrink:0; text-align:center;">
                                             @if (row.SubStrands.Any())
@@ -570,23 +571,30 @@ else
             });
 
         // Load peer review status for all enrollments in this term
-        var enrollmentIds = _enrollments.Select(e => e.Id).ToList();
-        var peerReviews = await Db.EnrollmentPeerReviews
-            .Include(r => r.ReviewerTeacher)
-            .Where(r => r.TermInstanceId == _selectedTermId && enrollmentIds.Contains(r.EnrollmentId))
-            .ToListAsync();
-        var reviewMap = peerReviews.ToDictionary(r => r.EnrollmentId);
-        foreach (var enrollment in _enrollments)
+        try
         {
-            if (_studentStates.TryGetValue(enrollment.StudentId, out var st) &&
-                reviewMap.TryGetValue(enrollment.Id, out var review))
+            var enrollmentIds = _enrollments.Select(e => e.Id).ToList();
+            var peerReviews = await Db.EnrollmentPeerReviews
+                .Include(r => r.ReviewerTeacher)
+                .Where(r => r.TermInstanceId == _selectedTermId && enrollmentIds.Contains(r.EnrollmentId))
+                .ToListAsync();
+            var reviewMap = peerReviews.ToDictionary(r => r.EnrollmentId);
+            foreach (var enrollment in _enrollments)
             {
-                st.IsPeerReviewed   = true;
-                st.ReviewerName     = review.ReviewerTeacher?.DisplayName;
-                st.ReviewerInitials = GetInitials(
-                    review.ReviewerTeacher?.DisplayName?.Split(' ').FirstOrDefault(),
-                    review.ReviewerTeacher?.DisplayName?.Split(' ').Skip(1).FirstOrDefault());
+                if (_studentStates.TryGetValue(enrollment.StudentId, out var st) &&
+                    reviewMap.TryGetValue(enrollment.Id, out var review))
+                {
+                    st.IsPeerReviewed   = true;
+                    st.ReviewerName     = review.ReviewerTeacher?.DisplayName;
+                    st.ReviewerInitials = GetInitials(
+                        review.ReviewerTeacher?.DisplayName?.Split(' ').FirstOrDefault(),
+                        review.ReviewerTeacher?.DisplayName?.Split(' ').Skip(1).FirstOrDefault());
+                }
             }
+        }
+        catch
+        {
+            // EnrollmentPeerReviews table may not exist yet — migration pending
         }
 
         _isLoadingStudents = false;
