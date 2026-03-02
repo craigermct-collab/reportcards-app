@@ -101,13 +101,45 @@ else
         var state = _studentStates.GetValueOrDefault(enrollment.StudentId);
         var isExpanded = _expandedStudentId == enrollment.StudentId;
         var initials = GetInitials(enrollment.Student?.FirstName, enrollment.Student?.LastName);
-        var hasGrades = state?.HasAnyGrades ?? false;
         var isLoading = state?.IsLoading ?? false;
         var isSaving  = state?.IsSaving  ?? false;
+        var isFullyGraded  = state?.IsFullyGraded ?? false;
+        var hasAnyGrades   = state?.HasAnyGrades  ?? false;
+        var isPeerReviewed = state?.IsPeerReviewed ?? false;
 
         <MudCard Elevation="@(isExpanded ? 3 : 1)"
                  Class="mb-3"
                  Style="@(isExpanded ? "border:2px solid var(--mud-palette-primary); border-radius:10px;" : "border-radius:10px; cursor:pointer;")">
+
+            <!-- ── Peer review bar (above the clickable tile) ── -->
+            <div class="d-flex align-center gap-2 px-3 pt-2"
+                 style="border-bottom:1px solid var(--mud-palette-divider); padding-bottom:8px; margin-bottom:0;">
+                @if (state?.IsSavingPeerReview == true)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Secondary" />
+                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">Saving…</MudText>
+                }
+                else
+                {
+                    <MudCheckBox T="bool"
+                                 Checked="@isPeerReviewed"
+                                 CheckedChanged="@(async (bool v) => await TogglePeerReviewAsync(enrollment.StudentId))"
+                                 Size="Size.Small"
+                                 Color="Color.Secondary"
+                                 @onclick:stopPropagation="true" />
+                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary); font-weight:500;">
+                        Peer reviewed
+                    </MudText>
+                    @if (isPeerReviewed && state?.ReviewerInitials != null)
+                    {
+                        <MudTooltip Text="@($"Reviewed by {state.ReviewerName}")">
+                            <MudAvatar Style="background:#7B4FBF; color:white; font-size:10px; font-weight:700; width:22px; height:22px; margin-left:4px;">
+                                @state.ReviewerInitials
+                            </MudAvatar>
+                        </MudTooltip>
+                    }
+                }
+            </div>
 
             <!-- ── Student header tile ── -->
             <div @onclick="@(() => ToggleStudentAsync(enrollment.StudentId))"
@@ -126,18 +158,33 @@ else
                         @enrollment.Grade?.Name
                         @if (state?.Groups.Any() == true)
                         {
-                            var total  = state.Groups.Sum(g => g.Rows.Count);
-                            var graded = state.Groups.Sum(g => g.Rows.Count(r => r.ValueText != null || r.ValueNumber != null));
-                            <span> · @graded / @total graded</span>
+                            <span> · @state.GradedItems / @state.TotalItems graded</span>
                         }
                     </MudText>
                 </div>
 
                 <div class="d-flex align-center gap-2">
-                    @if (hasGrades)
+                    @if (isFullyGraded)
                     {
-                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
-                                 Size="Size.Small" Style="color:var(--mud-palette-success);" />
+                        <MudTooltip Text="All fields graded">
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                                     Size="Size.Small" Style="color:#2E7D32;" />
+                        </MudTooltip>
+                    }
+                    else if (hasAnyGrades)
+                    {
+                        <MudTooltip Text="@($"{state!.GradedItems} of {state.TotalItems} graded")">
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                                     Size="Size.Small" Style="color:#F9A825;" />
+                        </MudTooltip>
+                    }
+                    @if (isPeerReviewed && state?.ReviewerInitials != null)
+                    {
+                        <MudTooltip Text="@($"Reviewed by {state.ReviewerName}")">
+                            <MudAvatar Style="background:#7B4FBF; color:white; font-size:10px; font-weight:700; width:24px; height:24px;">
+                                @state.ReviewerInitials
+                            </MudAvatar>
+                        </MudTooltip>
                     }
                     @if (isLoading)
                     {
@@ -390,8 +437,16 @@ else
         public string StudentName { get; set; } = "";
         public bool IsLoading { get; set; }
         public bool IsSaving  { get; set; }
-        public bool HasAnyGrades => Groups.Any(g => g.Rows.Any(r => r.ValueText != null || r.ValueNumber != null));
+        public bool IsPeerReviewed { get; set; }
+        public bool IsSavingPeerReview { get; set; }
+        public string? ReviewerInitials { get; set; }
+        public string? ReviewerName { get; set; }
         public List<SubjectGroup> Groups { get; set; } = new();
+
+        public int TotalItems  => Groups.Sum(g => g.Rows.Count);
+        public int GradedItems => Groups.Sum(g => g.Rows.Count(r => r.ValueText != null || r.ValueNumber != null));
+        public bool HasAnyGrades  => GradedItems > 0;
+        public bool IsFullyGraded => TotalItems > 0 && GradedItems == TotalItems;
     }
 
     // ── STATE ─────────────────────────────────────────────────────
@@ -513,6 +568,26 @@ else
                 StudentId   = e.StudentId,
                 StudentName = $"{e.Student?.FirstName} {e.Student?.LastName}"
             });
+
+        // Load peer review status for all enrollments in this term
+        var enrollmentIds = _enrollments.Select(e => e.Id).ToList();
+        var peerReviews = await Db.EnrollmentPeerReviews
+            .Include(r => r.ReviewerTeacher)
+            .Where(r => r.TermInstanceId == _selectedTermId && enrollmentIds.Contains(r.EnrollmentId))
+            .ToListAsync();
+        var reviewMap = peerReviews.ToDictionary(r => r.EnrollmentId);
+        foreach (var enrollment in _enrollments)
+        {
+            if (_studentStates.TryGetValue(enrollment.StudentId, out var st) &&
+                reviewMap.TryGetValue(enrollment.Id, out var review))
+            {
+                st.IsPeerReviewed   = true;
+                st.ReviewerName     = review.ReviewerTeacher?.DisplayName;
+                st.ReviewerInitials = GetInitials(
+                    review.ReviewerTeacher?.DisplayName?.Split(' ').FirstOrDefault(),
+                    review.ReviewerTeacher?.DisplayName?.Split(' ').Skip(1).FirstOrDefault());
+            }
+        }
 
         _isLoadingStudents = false;
     }
@@ -684,6 +759,59 @@ else
         finally
         {
             state.IsSaving = false;
+        }
+    }
+
+    // ── PEER REVIEW ───────────────────────────────────────────
+
+    private async Task TogglePeerReviewAsync(int studentId)
+    {
+        if (_teacherId == null) return; // must be logged in as a teacher
+        var state = _studentStates.GetValueOrDefault(studentId);
+        if (state == null || _selectedTermId == null) return;
+
+        var enrollment = _enrollments.FirstOrDefault(e => e.StudentId == studentId);
+        if (enrollment == null) return;
+
+        state.IsSavingPeerReview = true;
+        StateHasChanged();
+
+        try
+        {
+            var existing = await Db.EnrollmentPeerReviews
+                .FirstOrDefaultAsync(r => r.EnrollmentId == enrollment.Id && r.TermInstanceId == _selectedTermId);
+
+            if (existing != null)
+            {
+                Db.EnrollmentPeerReviews.Remove(existing);
+                state.IsPeerReviewed   = false;
+                state.ReviewerInitials = null;
+                state.ReviewerName     = null;
+            }
+            else
+            {
+                Db.EnrollmentPeerReviews.Add(new EnrollmentPeerReview
+                {
+                    EnrollmentId      = enrollment.Id,
+                    TermInstanceId    = _selectedTermId.Value,
+                    ReviewerTeacherId = _teacherId.Value
+                });
+                state.IsPeerReviewed   = true;
+                state.ReviewerName     = _teacherName;
+                state.ReviewerInitials = GetInitials(
+                    _teacherName?.Split(' ').FirstOrDefault(),
+                    _teacherName?.Split(' ').Skip(1).FirstOrDefault());
+            }
+
+            await Db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Peer review update failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            state.IsSavingPeerReview = false;
         }
     }
 

@@ -60,6 +60,9 @@ public class SchoolDbContext : DbContext
     public DbSet<SchoolAiConfig> SchoolAiConfigs => Set<SchoolAiConfig>();
     public DbSet<TeacherAiConfig> TeacherAiConfigs => Set<TeacherAiConfig>();
 
+    // Peer review
+    public DbSet<EnrollmentPeerReview> EnrollmentPeerReviews => Set<EnrollmentPeerReview>();
+
     protected override void OnModelCreating(ModelBuilder m)
     {
         base.OnModelCreating(m);
@@ -356,5 +359,27 @@ public class SchoolDbContext : DbContext
             .WithMany(s => s.AttendanceEvents)
             .HasForeignKey(a => a.StudentId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // EnrollmentPeerReview — unique per enrollment + term
+        m.Entity<EnrollmentPeerReview>()
+            .HasIndex(r => new { r.EnrollmentId, r.TermInstanceId }).IsUnique();
+
+        m.Entity<EnrollmentPeerReview>()
+            .HasOne(r => r.Enrollment)
+            .WithMany()
+            .HasForeignKey(r => r.EnrollmentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        m.Entity<EnrollmentPeerReview>()
+            .HasOne(r => r.TermInstance)
+            .WithMany()
+            .HasForeignKey(r => r.TermInstanceId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        m.Entity<EnrollmentPeerReview>()
+            .HasOne(r => r.ReviewerTeacher)
+            .WithMany()
+            .HasForeignKey(r => r.ReviewerTeacherId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }
