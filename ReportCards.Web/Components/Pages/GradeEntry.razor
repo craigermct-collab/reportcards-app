@@ -3,9 +3,12 @@
 @attribute [Authorize]
 @using Microsoft.EntityFrameworkCore
 @using ReportCards.Web.Data
+@using ReportCards.Web.Services
 @inject SchoolDbContext Db
 @inject ISnackbar Snackbar
 @inject AuthenticationStateProvider AuthStateProvider
+@inject CommentTemplateService CommentSvc
+@inject IDialogService DialogService
 
 <PageTitle>Grade Entry</PageTitle>
 
@@ -296,16 +299,23 @@ else
                                             }
                                         </div>
                                         <div style="flex:1.4; min-width:0;">
-                                            <MudTextField T="string?"
-                                                          Value="@row.Comment"
-                                                          ValueChanged="@(v => row.Comment = v)"
-                                                          Variant="Variant.Outlined"
-                                                          Margin="Margin.Dense"
-                                                          Lines="2"
-                                                          MaxLength="500"
-                                                          Placeholder="Comment… (optional)"
-                                                          Style="font-size:13px;"
-                                                          UserAttributes="@(new Dictionary<string, object> { ["spellcheck"] = "true" })" />
+                                            <div class="d-flex align-center gap-1">
+                                                <MudTextField T="string?"
+                                                              @bind-Value="row.Comment"
+                                                              Variant="Variant.Outlined"
+                                                              Margin="Margin.Dense"
+                                                              Lines="2"
+                                                              MaxLength="2000"
+                                                              Placeholder="Comment… (optional)"
+                                                              Style="font-size:13px; flex:1;"
+                                                              UserAttributes="@(new Dictionary<string, object> { ["spellcheck"] = "true" })" />
+                                                <MudTooltip Text="Insert comment template">
+                                                    <MudIconButton Icon="@Icons.Material.Outlined.LibraryBooks"
+                                                                   Size="Size.Small"
+                                                                   Color="Color.Primary"
+                                                                   OnClick="@(() => OpenTemplatePickerAsync(enrollment, row, subjectGroup.SubjectName))" />
+                                                </MudTooltip>
+                                            </div>
                                         </div>
                                         <div style="width:32px; flex-shrink:0; text-align:center;">
                                             @if (row.SubStrands.Any())
@@ -391,6 +401,112 @@ else
     }
     }
 }
+
+<!-- ── COMMENT TEMPLATE PICKER DIALOG ──────────────────────────────────── -->
+<MudDialog @bind-IsVisible="_templateDialogVisible"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true })">
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Outlined.LibraryBooks" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">Comment Templates</MudText>
+            @if (_templateTargetEnrollment?.Student != null)
+            {
+                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined">
+                    @_templateTargetEnrollment.Student.FirstName @_templateTargetEnrollment.Student.LastName
+                </MudChip>
+            }
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <!-- Filters -->
+        <MudGrid Spacing="2" Class="mb-3">
+            <MudItem xs="12" sm="7">
+                <MudTextField @bind-Value="_templateSearch"
+                              Placeholder="Search templates…"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Clearable="true" />
+            </MudItem>
+            <MudItem xs="12" sm="5">
+                <MudSelect T="string?" @bind-Value="_templateFilterCategory"
+                           Label="Category"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Clearable="true"
+                           AnchorOrigin="Origin.BottomLeft">
+                    @foreach (var cat in _templateList.Select(t => t.Category).Where(c => c != null).Distinct().OrderBy(c => c))
+                    {
+                        <MudSelectItem T="string?" Value="@cat">@cat</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+
+        @if (!_templateList.Any())
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                No templates available. Import templates via the Admin page.
+            </MudAlert>
+        }
+        else
+        {
+            var filtered = FilteredTemplates.ToList();
+            @if (!filtered.Any())
+            {
+                <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary); padding:16px 0;">
+                    No templates match your search.
+                </MudText>
+            }
+            else
+            {
+                <div style="max-height:420px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
+                    @foreach (var t in filtered)
+                    {
+                        var preview = t.TemplateText.Length > 200
+                            ? t.TemplateText[..200] + "…"
+                            : t.TemplateText;
+
+                        <MudPaper Outlined="true"
+                                  Class="pa-3"
+                                  Style="cursor:pointer; border-radius:8px; transition:box-shadow 0.15s;"
+                                  @onclick="@(() => ApplyTemplate(t))">
+                            <div class="d-flex align-center justify-space-between mb-1">
+                                <div class="d-flex align-center gap-2">
+                                    @if (t.Category != null)
+                                    {
+                                        var chipColor = t.Category switch
+                                        {
+                                            "Strength"   => Color.Success,
+                                            "Next Steps" => Color.Info,
+                                            "Weaknesses" => Color.Warning,
+                                            _            => Color.Default,
+                                        };
+                                        <MudChip T="string" Size="Size.Small" Color="@chipColor" Variant="Variant.Filled"
+                                                 Style="font-size:10px; height:20px;">@t.Category</MudChip>
+                                    }
+                                    @if (t.GradeLabel != null)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined"
+                                                 Style="font-size:10px; height:20px;">Grade @t.GradeLabel</MudChip>
+                                    }
+                                </div>
+                                <MudIconButton Icon="@Icons.Material.Filled.AddCircle"
+                                               Size="Size.Small" Color="Color.Primary"
+                                               OnClick="@(() => ApplyTemplate(t))" />
+                            </div>
+                            <MudText Typo="Typo.body2" Style="color:#455A64; line-height:1.5; white-space:pre-wrap;">@preview</MudText>
+                        </MudPaper>
+                    }
+                </div>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _templateDialogVisible = false)">Cancel</MudButton>
+    </DialogActions>
+</MudDialog>
 
 <style>
     .grade-row {
@@ -707,6 +823,56 @@ else
             })
             .ToList();
     }
+
+    // ── COMMENT TEMPLATE PICKER ──────────────────────────────────────
+
+    private List<CommentTemplate> _templateList = new();
+    private bool _templateDialogVisible;
+    private string _templateSearch = "";
+    private string? _templateFilterCategory;
+    private GradeRow? _templateTargetRow;
+    private Enrollment? _templateTargetEnrollment;
+
+    private async Task OpenTemplatePickerAsync(Enrollment enrollment, GradeRow row, string subjectName)
+    {
+        _templateTargetRow        = row;
+        _templateTargetEnrollment = enrollment;
+        _templateSearch           = "";
+        _templateFilterCategory   = null;
+
+        var gradeName = enrollment.Grade?.Name;
+        _templateList = await CommentSvc.GetTemplatesAsync(subjectName, gradeName);
+
+        _templateDialogVisible = true;
+        StateHasChanged();
+    }
+
+    private void ApplyTemplate(CommentTemplate template)
+    {
+        if (_templateTargetRow == null || _templateTargetEnrollment?.Student == null) return;
+
+        var student = _templateTargetEnrollment.Student;
+        var substituted = CommentTemplateService.Substitute(
+            template.TemplateText,
+            student.FirstName,
+            student.Pronouns);
+
+        // Append to existing comment or replace if empty
+        _templateTargetRow.Comment = string.IsNullOrWhiteSpace(_templateTargetRow.Comment)
+            ? substituted
+            : _templateTargetRow.Comment.TrimEnd() + " " + substituted;
+
+        _templateDialogVisible = false;
+        StateHasChanged();
+    }
+
+    private IEnumerable<CommentTemplate> FilteredTemplates =>
+        _templateList.Where(t =>
+            (string.IsNullOrWhiteSpace(_templateSearch) ||
+             t.TemplateText.Contains(_templateSearch, StringComparison.OrdinalIgnoreCase) ||
+             (t.Category?.Contains(_templateSearch, StringComparison.OrdinalIgnoreCase) ?? false)) &&
+            (_templateFilterCategory == null || t.Category == _templateFilterCategory)
+        );
 
     // ── SAVE ──────────────────────────────────────────────────────
 

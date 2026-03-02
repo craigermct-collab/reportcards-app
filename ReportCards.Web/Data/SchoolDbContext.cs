@@ -63,6 +63,9 @@ public class SchoolDbContext : DbContext
     // Peer review
     public DbSet<EnrollmentPeerReview> EnrollmentPeerReviews => Set<EnrollmentPeerReview>();
 
+    // Comment templates
+    public DbSet<CommentTemplate> CommentTemplates => Set<CommentTemplate>();
+
     protected override void OnModelCreating(ModelBuilder m)
     {
         base.OnModelCreating(m);
@@ -326,6 +329,12 @@ public class SchoolDbContext : DbContext
         // SchoolConfig — unique key
         m.Entity<SchoolConfig>()
             .HasIndex(c => c.Key).IsUnique();
+
+        // CommentTemplate — source code unique when not null
+        m.Entity<CommentTemplate>()
+            .HasIndex(c => c.SourceCode)
+            .IsUnique()
+            .HasFilter("[SourceCode] IS NOT NULL");
 
         // CurriculumSubStrand — cascades from Strand (simple chain, no ambiguity)
         // EF default CASCADE is fine here.

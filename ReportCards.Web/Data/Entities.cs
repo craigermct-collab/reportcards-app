@@ -219,6 +219,52 @@ public class ClassGroupReportFormat
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// K) COMMENT TEMPLATES
+// ═══════════════════════════════════════════════════════════════════
+
+/// <summary>
+/// Pronoun set controlling placeholder substitution in comment templates.
+/// </summary>
+ public enum PronounSet
+{
+    HeHim,     // he / him / his / his
+    SheHer,    // she / her / her / hers
+    TheyThem,  // they / them / their / theirs
+}
+
+/// <summary>
+/// A reusable comment template, optionally scoped to a subject and/or grade.
+/// Placeholders are substituted at use-time from the student's profile.
+///
+/// Supported placeholders:
+///   ~name / ~Name      → student first name (lower / Title)
+///   ~h/s/e / ~H/s/e    → he | she | they (lower / Title)
+///   ~h/s/r / ~H/s/r    → his | her | their (lower / Title)
+///   ~him/her           → him | her | them
+/// </summary>
+public class CommentTemplate
+{
+    public int Id { get; set; }
+    public required string TemplateText { get; set; }
+
+    /// <summary>Subject area the template belongs to, e.g. "English". Null = all subjects.</summary>
+    public string? Subject { get; set; }
+
+    /// <summary>Grade label, e.g. "4" or "JK". Null = all grades.</summary>
+    public string? GradeLabel { get; set; }
+
+    /// <summary>Category tag, e.g. "Strength", "Next Steps", "Weaknesses".</summary>
+    public string? Category { get; set; }
+
+    /// <summary>Original code or name from the source system (for deduplication on re-import).</summary>
+    public string? SourceCode { get; set; }
+
+    public int SortOrder { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // D) PEOPLE
 // ═══════════════════════════════════════════════════════════════════
 
@@ -246,6 +292,7 @@ public class Student
     public int Id { get; set; }
     public required string FirstName { get; set; }
     public required string LastName { get; set; }
+    public PronounSet Pronouns { get; set; } = PronounSet.TheyThem;
     public DateOnly? DateOfBirth { get; set; }
     public DateOnly? EnrollmentDate { get; set; }
     public DateOnly? CompletionDate { get; set; }

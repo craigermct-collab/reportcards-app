@@ -5,6 +5,9 @@
 @using ReportCards.Web.Data
 @inject SchoolDbContext Db
 @inject ISnackbar Snackbar
+@inject CommentTemplateService CommentSvc
+@using ReportCards.Web.Services
+@using Microsoft.AspNetCore.Components.Forms
 
 <div class="d-flex align-center gap-3 mb-1">
     <MudText Typo="Typo.h4" Style="font-family:'DM Serif Display',serif;">App Settings</MudText>
@@ -103,6 +106,62 @@ else
         </MudCard>
     }
 
+    <!-- Comment Template Library -->
+    <MudCard Elevation="1" Class="mb-6">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <div class="d-flex align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Outlined.LibraryBooks" Color="Color.Primary" />
+                    <MudText Typo="Typo.h6" Style="font-family:'DM Serif Display',serif;">Comment Template Library</MudText>
+                </div>
+                <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+                    Import comment templates from an ETeach XML export file.
+                    Templates are used in Grade Entry to quickly fill in student comments.
+                </MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.body2" Style="font-weight:600;" Class="mb-1">Total Templates</MudText>
+                    <MudText Typo="Typo.h4" Style="font-weight:700; color:#1B4F72;">@_templateCount</MudText>
+                    @if (_templateCount > 0)
+                    {
+                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                            Across @_templateSubjectCount subject(s) and @_templateGradeCount grade(s)
+                        </MudText>
+                    }
+                </MudItem>
+                <MudItem xs="12" sm="6" Class="d-flex flex-column gap-2">
+                    <MudFileUpload T="IBrowserFile" FilesChanged="ImportXmlAsync"
+                                   Accept=".xml"
+                                   MaximumFileCount="1">
+                        <ActivatorContent>
+                            <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.Upload"
+                                       Disabled="@_isImporting">
+                                @if (_isImporting)
+                                {
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                    <span>Importing…</span>
+                                }
+                                else
+                                {
+                                    <span>Import XML Library</span>
+                                }
+                            </MudButton>
+                        </ActivatorContent>
+                    </MudFileUpload>
+                    @if (!string.IsNullOrWhiteSpace(_importResult))
+                    {
+                        <MudAlert Severity="@_importSeverity" Variant="Variant.Outlined" Dense="true">@_importResult</MudAlert>
+                    }
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
     <!-- Custom / advanced settings -->
     <MudCard Elevation="1">
         <MudCardHeader>
@@ -184,6 +243,14 @@ else
     private List<SettingGroup> _groups = new();
     private List<SchoolConfig> _allSettings = new();
 
+    // Comment template stats
+    private int _templateCount        = 0;
+    private int _templateSubjectCount = 0;
+    private int _templateGradeCount   = 0;
+    private bool        _isImporting  = false;
+    private string?     _importResult;
+    private Severity    _importSeverity = Severity.Success;
+
     private bool   _addCustomOpen;
     private string _customKey         = "";
     private string _customValue       = "";
@@ -191,8 +258,41 @@ else
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
+    private async Task ImportXmlAsync(IBrowserFile file)
+    {
+        _isImporting  = true;
+        _importResult = null;
+        StateHasChanged();
+
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            var (ins, upd, skip) = await CommentSvc.ImportXmlAsync(stream);
+            _importResult   = $"Import complete: {ins} inserted, {upd} updated, {skip} skipped.";
+            _importSeverity = Severity.Success;
+            await LoadTemplateStatsAsync();
+        }
+        catch (Exception ex)
+        {
+            _importResult   = $"Import failed: {ex.Message}";
+            _importSeverity = Severity.Error;
+        }
+        finally
+        {
+            _isImporting = false;
+        }
+    }
+
+    private async Task LoadTemplateStatsAsync()
+    {
+        _templateCount        = await Db.CommentTemplates.CountAsync();
+        _templateSubjectCount = await Db.CommentTemplates.Where(t => t.Subject != null).Select(t => t.Subject!).Distinct().CountAsync();
+        _templateGradeCount   = await Db.CommentTemplates.Where(t => t.GradeLabel != null).Select(t => t.GradeLabel!).Distinct().CountAsync();
+    }
+
     private async Task LoadAsync()
     {
+        await LoadTemplateStatsAsync();
         _allSettings = await Db.SchoolConfigs.OrderBy(c => c.Key).ToListAsync();
         var dict = _allSettings.ToDictionary(c => c.Key, c => c.Value ?? "");
 

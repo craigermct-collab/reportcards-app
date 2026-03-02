@@ -195,6 +195,14 @@
             <MudTextField @bind-Value="_editOenNumber" Label="OEN Number" Placeholder="9-digit number"
                           Variant="Variant.Outlined" InputType="InputType.Number" Class="mb-3"
                           MaxLength="9" />
+            <MudSelect T="PronounSet" @bind-Value="_editPronouns" Label="Pronouns"
+                       Variant="Variant.Outlined" Class="mb-3"
+                       AnchorOrigin="Origin.BottomLeft"
+                       HelperText="Used to personalise comment templates">
+                <MudSelectItem T="PronounSet" Value="PronounSet.TheyThem">🧑 They / Them / Their</MudSelectItem>
+                <MudSelectItem T="PronounSet" Value="PronounSet.HeHim">👦 He / Him / His</MudSelectItem>
+                <MudSelectItem T="PronounSet" Value="PronounSet.SheHer">👧 She / Her / Her</MudSelectItem>
+            </MudSelect>
             <MudTextField @bind-Value="_editNotes" Label="Notes / Flags"
                           Placeholder="e.g. IEP, nut allergy, ELL"
                           Variant="Variant.Outlined" Lines="2" Class="mb-4" />
@@ -322,8 +330,9 @@
     private DateTime? _editEnrollmentDate;
     private DateTime? _editCompletionDate;
     private string    _editOenNumber      = "";
-    private string    _editNotes          = "";
-    private string?   _editAvatarJson;
+    private string     _editNotes          = "";
+    private PronounSet  _editPronouns       = PronounSet.TheyThem;
+    private string?    _editAvatarJson;
 
     private List<Student> FilteredStudents => _students
         .Where(s => (_showInactive || s.IsActive))
@@ -475,6 +484,7 @@
         _editCompletionDate  = null;
         _editOenNumber       = "";
         _editNotes           = "";
+        _editPronouns        = PronounSet.TheyThem;
         _editAvatarJson      = null;
         _drawerOpen          = true;
     }
@@ -491,6 +501,7 @@
         _editCompletionDate  = s.CompletionDate.HasValue ? s.CompletionDate.Value.ToDateTime(TimeOnly.MinValue) : null;
         _editOenNumber       = s.OenNumber ?? "";
         _editNotes           = s.Notes ?? "";
+        _editPronouns        = s.Pronouns;
         _editAvatarJson      = s.AvatarConfigJson;
         _drawerOpen          = true;
     }
@@ -513,6 +524,7 @@
                 OenNumber             = string.IsNullOrWhiteSpace(_editOenNumber) ? null : _editOenNumber.Trim(),
                 Notes                 = string.IsNullOrWhiteSpace(_editNotes) ? null : _editNotes.Trim(),
                 AvatarConfigJson      = _editAvatarJson,
+                Pronouns              = _editPronouns,
                 IsActive              = true
             });
             await Db.SaveChangesAsync();
@@ -530,6 +542,7 @@
             _editing.CompletionDate        = _editCompletionDate.HasValue ? DateOnly.FromDateTime(_editCompletionDate.Value) : null;
             _editing.OenNumber             = string.IsNullOrWhiteSpace(_editOenNumber) ? null : _editOenNumber.Trim();
             _editing.Notes                 = string.IsNullOrWhiteSpace(_editNotes) ? null : _editNotes.Trim();
+            _editing.Pronouns              = _editPronouns;
             _editing.AvatarConfigJson      = _editAvatarJson;
             await Db.SaveChangesAsync();
             _drawerOpen = false;
