@@ -1,10 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using PdfSharp.Fonts;
 using Microsoft.AspNetCore.Authentication.Google;
 using MudBlazor.Services;
 using ReportCards.Web.Data;
 using ReportCards.Web.Components;
 using ReportCards.Web.Services;
+
+// Register PdfSharp font resolver for Linux/Azure (no system fonts available)
+GlobalFontSettings.FontResolver = new NullFontResolver();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -135,6 +139,20 @@ app.MapRazorPages();
 
 app.UseAntiforgery();
 
+// Diagnostic: dump all PDF field names
+app.MapGet("/debug/pdf-fields/{filename}", (string filename, IWebHostEnvironment env) =>
+{
+    var path = Path.Combine(env.ContentRootPath, "ReportCardTemplates", filename);
+    if (!File.Exists(path)) return Results.NotFound($"File not found: {path}");
+    using var doc = PdfSharp.Pdf.IO.PdfReader.Open(path, PdfSharp.Pdf.IO.PdfDocumentOpenMode.ReadOnly);
+    var form = doc.AcroForm;
+    if (form == null) return Results.Ok(new { fields = Array.Empty<string>() });
+    var fields = Enumerable.Range(0, form.Fields.Count)
+        .Select(i => { try { return form.Fields[i]?.Name ?? "(null)"; } catch { return "(error)"; } })
+        .ToList();
+    return Results.Ok(new { count = fields.Count, fields });
+});
+
 app.MapGet("/health/db", async (IConfiguration config) =>
 {
     var cs = config.GetConnectionString("DefaultConnection");
@@ -151,3 +169,16 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+/// <summary>
+/// Minimal font resolver for PdfSharp on Linux/Azure.
+/// We only fill existing AcroForm fields so no new font rendering is needed.
+/// </summary>
+public class NullFontResolver : IFontResolver
+{
+    public byte[] GetFont(string faceName)
+        => Array.Empty<byte>();
+
+    public FontResolverInfo? ResolveTypeface(string familyName, bool isBold, bool isItalic)
+        => new FontResolverInfo(familyName);
+}
