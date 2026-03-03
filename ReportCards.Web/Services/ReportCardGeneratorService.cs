@@ -1,7 +1,8 @@
-using System.Diagnostics;
 using System.IO.Compression;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using PdfSharp.Pdf;
+using PdfSharp.Pdf.IO;
+using PdfSharp.Pdf.AcroForms;
 using ReportCards.Web.Data;
 
 namespace ReportCards.Web.Services
@@ -10,7 +11,7 @@ namespace ReportCards.Web.Services
     /// Generates filled PDF report cards by:
     /// 1. Loading student assessment data for a term
     /// 2. Mapping DB fields to PDF field IDs via ReportTemplateFieldMap
-    /// 3. Calling fill_report_card.py to produce a filled PDF
+    /// 3. Filling PDF AcroForm fields using PdfSharp (pure .NET, no Python)
     /// </summary>
     public class ReportCardGeneratorService
     {
@@ -19,7 +20,6 @@ namespace ReportCards.Web.Services
         private readonly ILogger<ReportCardGeneratorService> _logger;
 
         private const string TemplatesFolder = "ReportCardTemplates";
-        private const string FillScriptName  = "fill_report_card.py";
 
         public ReportCardGeneratorService(
             SchoolDbContext db,
@@ -220,60 +220,53 @@ namespace ReportCards.Web.Services
         }
 
         // ─────────────────────────────────────────────────────────────
-        // PRIVATE: FILL PDF
+        // PRIVATE: FILL PDF (pure .NET via PdfSharp)
         // ─────────────────────────────────────────────────────────────
 
-        private async Task<byte[]> FillPdfAsync(ReportCardTemplate template, PdfFieldData data)
+        private Task<byte[]> FillPdfAsync(ReportCardTemplate template, PdfFieldData data)
         {
             var templatePath = Path.Combine(_env.ContentRootPath, TemplatesFolder, template.FileName);
             if (!File.Exists(templatePath))
                 throw new FileNotFoundException($"Template file not found: {templatePath}");
 
-            var scriptPath = Path.Combine(_env.ContentRootPath, FillScriptName);
-            if (!File.Exists(scriptPath))
-                throw new FileNotFoundException($"Fill script not found: {scriptPath}");
+            using var doc = PdfReader.Open(templatePath, PdfDocumentOpenMode.Modify);
 
-            var tmpDir     = Path.GetTempPath();
-            var valuesPath = Path.Combine(tmpDir, $"rc_values_{Guid.NewGuid():N}.json");
-            var outputPath = Path.Combine(tmpDir, $"rc_output_{Guid.NewGuid():N}.pdf");
+            var form = doc.AcroForm;
+            if (form == null)
+                throw new InvalidOperationException("PDF has no AcroForm fields.");
 
-            try
+            // Ensure appearances are generated when opened in a viewer
+            if (form.Elements.ContainsKey("/NeedAppearances"))
+                form.Elements["/NeedAppearances"] = new PdfSharp.Pdf.PdfBoolean(true);
+            else
+                form.Elements.Add("/NeedAppearances", new PdfSharp.Pdf.PdfBoolean(true));
+
+            for (int i = 0; i < form.Fields.Count; i++)
             {
-                var json = JsonSerializer.Serialize(data, new JsonSerializerOptions
+                var field = form.Fields[i];
+                var name  = field.Name;
+                if (string.IsNullOrEmpty(name)) continue;
+
+                if (data.Fields.TryGetValue(name, out var textVal))
                 {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                    WriteIndented        = false,
-                });
-                await File.WriteAllTextAsync(valuesPath, json);
-
-                var pythonExe = OperatingSystem.IsWindows() ? "python" : "python3";
-                var psi = new ProcessStartInfo
+                    field.Value = new PdfSharp.Pdf.PdfString(textVal ?? "");
+                }
+                else if (data.Checkboxes.TryGetValue(name, out var cbVal))
                 {
-                    FileName               = pythonExe,
-                    Arguments              = $"\"{scriptPath}\" \"{templatePath}\" \"{valuesPath}\" \"{outputPath}\"",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError  = true,
-                    UseShellExecute        = false,
-                    CreateNoWindow         = true,
-                };
-
-                using var proc = Process.Start(psi)
-                    ?? throw new InvalidOperationException("Failed to start python3 process.");
-
-                var stderr = await proc.StandardError.ReadToEndAsync();
-                await proc.WaitForExitAsync();
-
-                if (proc.ExitCode != 0)
-                    throw new InvalidOperationException(
-                        $"fill_report_card.py failed (exit {proc.ExitCode}): {stderr}");
-
-                return await File.ReadAllBytesAsync(outputPath);
+                    if (field is PdfCheckBoxField cb)
+                        cb.Checked = cbVal;
+                }
+                else if (data.Radios.TryGetValue(name, out var radioVal))
+                {
+                    // Radio values come in as "/Yes", "/G" etc — strip leading slash for PdfSharp
+                    var val = radioVal.TrimStart('/');
+                    field.Value = new PdfSharp.Pdf.PdfName("/" + val);
+                }
             }
-            finally
-            {
-                if (File.Exists(valuesPath)) File.Delete(valuesPath);
-                if (File.Exists(outputPath)) File.Delete(outputPath);
-            }
+
+            using var ms = new MemoryStream();
+            doc.Save(ms);
+            return Task.FromResult(ms.ToArray());
         }
 
         // ─────────────────────────────────────────────────────────────

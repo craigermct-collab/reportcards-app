@@ -14,7 +14,8 @@
           "Microsoft.Data.SqlClient": "6.1.4",
           "Microsoft.EntityFrameworkCore.Design": "8.0.24",
           "Microsoft.EntityFrameworkCore.SqlServer": "8.0.24",
-          "MudBlazor": "7.15.0"
+          "MudBlazor": "7.15.0",
+          "PDFsharp": "6.2.0"
         },
         "runtime": {
           "ReportCards.Web.dll": {}
@@ -932,6 +933,50 @@
           }
         }
       },
+      "PDFsharp/6.2.0": {
+        "dependencies": {
+          "Microsoft.Extensions.Logging": "8.0.1",
+          "System.Security.Cryptography.Pkcs": "8.0.1"
+        },
+        "runtime": {
+          "lib/net8.0/PdfSharp.BarCodes.dll": {
+            "assemblyVersion": "6.2.0.0",
+            "fileVersion": "6.2.0.7443"
+          },
+          "lib/net8.0/PdfSharp.Charting.dll": {
+            "assemblyVersion": "6.2.0.0",
+            "fileVersion": "6.2.0.7443"
+          },
+          "lib/net8.0/PdfSharp.Cryptography.dll": {
+            "assemblyVersion": "6.2.0.0",
+            "fileVersion": "6.2.0.7443"
+          },
+          "lib/net8.0/PdfSharp.Quality.dll": {
+            "assemblyVersion": "6.2.0.0",
+            "fileVersion": "6.2.0.7443"
+          },
+          "lib/net8.0/PdfSharp.Shared.dll": {
+            "assemblyVersion": "6.2.0.0",
+            "fileVersion": "6.2.0.7443"
+          },
+          "lib/net8.0/PdfSharp.Snippets.dll": {
+            "assemblyVersion": "6.2.0.0",
+            "fileVersion": "6.2.0.7443"
+          },
+          "lib/net8.0/PdfSharp.System.dll": {
+            "assemblyVersion": "6.2.0.0",
+            "fileVersion": "6.2.0.7443"
+          },
+          "lib/net8.0/PdfSharp.WPFonts.dll": {
+            "assemblyVersion": "6.2.0.0",
+            "fileVersion": "6.2.0.7443"
+          },
+          "lib/net8.0/PdfSharp.dll": {
+            "assemblyVersion": "6.2.0.0",
+            "fileVersion": "6.2.0.7443"
+          }
+        }
+      },
       "System.Buffers/4.6.0": {},
       "System.ClientModel/1.8.0": {
         "dependencies": {
@@ -1636,6 +1681,13 @@
       "sha512": "sha512-zl72nyP4O94ZyEoCLoE8qoc5vp8kSJmRuqR+UdK+jNIjFJGWJYjsb4rAGpMWWRTbPYuk82E8myMJdVQurMLDnQ==",
       "path": "openai/2.1.0",
       "hashPath": "openai.2.1.0.nupkg.sha512"
+    },
+    "PDFsharp/6.2.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-5Q6gn8qFiaFpJz1QcvXO6q5QTvLPlqlOxI7XVtyRB3PIAIZIarc5qH3TDKcGUifxrhcYxMNBzz008qdKWlQhVw==",
+      "path": "pdfsharp/6.2.0",
+      "hashPath": "pdfsharp.6.2.0.nupkg.sha512"
     },
     "System.Buffers/4.6.0": {
       "type": "package",

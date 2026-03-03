@@ -167,3 +167,15 @@ C:\Users\CraigM\reportcards-app\ReportCards.Web\obj\Debug\net8.0\refint\ReportCa
 C:\Users\CraigM\reportcards-app\ReportCards.Web\obj\Debug\net8.0\ReportCards.Web.pdb
 C:\Users\CraigM\reportcards-app\ReportCards.Web\obj\Debug\net8.0\ReportCards.Web.genruntimeconfig.cache
 C:\Users\CraigM\reportcards-app\ReportCards.Web\obj\Debug\net8.0\ref\ReportCards.Web.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\fill_report_card.py
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\ReportCardTemplates\elementary-report-card.pdf
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\ReportCardTemplates\progress-report.pdf
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\PdfSharp.BarCodes.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\PdfSharp.Charting.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\PdfSharp.Cryptography.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\PdfSharp.Quality.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\PdfSharp.Shared.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\PdfSharp.Snippets.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\PdfSharp.System.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\PdfSharp.WPFonts.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\PdfSharp.dll
