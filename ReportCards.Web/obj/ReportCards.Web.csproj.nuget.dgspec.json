@@ -80,6 +80,10 @@
             "MudBlazor": {
               "target": "Package",
               "version": "[7.15.0, )"
+            },
+            "PdfSharp": {
+              "target": "Package",
+              "version": "[6.2.0, )"
             }
           },
           "imports": [
