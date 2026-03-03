@@ -105,7 +105,7 @@ public class CommentTemplateService(SchoolDbContext db)
     /// </summary>
     public async Task<(int Inserted, int Updated, int Skipped)> ImportXmlAsync(Stream xmlStream)
     {
-        var doc = XDocument.Load(xmlStream);
+        var doc = await XDocument.LoadAsync(xmlStream, LoadOptions.None, CancellationToken.None);
         var root = doc.Root ?? throw new InvalidDataException("Empty XML document.");
 
         // Build filter ID → name maps (Level = grade, Category = category)
