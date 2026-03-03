@@ -177,6 +177,10 @@ public class ClassGroupInstance
     public int ClassGroupTypeId { get; set; }
     public ClassGroupType? ClassGroupType { get; set; }
 
+    /// <summary>Which PDF template is used to generate report cards for this class group in this term.</summary>
+    public int? ReportCardTemplateId { get; set; }
+    public ReportCardTemplate? ReportCardTemplate { get; set; }
+
     public List<Enrollment> Enrollments { get; set; } = new();
     public List<TeacherAssignment> TeacherAssignments { get; set; } = new();
 }
@@ -702,7 +706,38 @@ public class EnrollmentPeerReview
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// G) REPORT TEMPLATE FIELD MAPPING
+// G) REPORT CARD TEMPLATES + FIELD MAPPING
+// ═══════════════════════════════════════════════════════════════════
+
+/// <summary>
+/// The two Ontario PDF report card types.
+/// </summary>
+public enum ReportCardTemplateType
+{
+    ElementaryProgressReport,   // Fall term  — RC2
+    ElementaryReportCard,       // Winter/Spring — RC1
+}
+
+/// <summary>
+/// A fillable PDF template stored as a file in ReportCardTemplates/.
+/// Linked to TermInstances to determine which PDF is used for which term.
+/// </summary>
+public class ReportCardTemplate
+{
+    public int Id { get; set; }
+    public required string Name { get; set; }
+    public ReportCardTemplateType TemplateType { get; set; }
+
+    /// <summary>Filename relative to ReportCardTemplates/ folder, e.g. "progress-report.pdf"</summary>
+    public required string FileName { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public List<ClassGroupInstance> ClassGroupInstances { get; set; } = new();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// G2) REPORT TEMPLATE FIELD MAPPING
 // ═══════════════════════════════════════════════════════════════════
 
 /// <summary>

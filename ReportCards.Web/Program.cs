@@ -56,6 +56,7 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddScoped<HomeworkAnalysisService>();
 builder.Services.AddScoped<CommentTemplateService>();
+builder.Services.AddScoped<ReportCardGeneratorService>();
 builder.Services.AddScoped<AttendanceService>();
 builder.Services.AddScoped<SchoolConfigService>();
 builder.Services.AddScoped<CurriculumStampService>();
@@ -75,7 +76,29 @@ using (var scope = app.Services.CreateScope())
     // Seed immutable reference data (ClassGroupTypes, Grades, GradingScales)
     await DbSeeder.SeedReferenceDataAsync(db);
 
-    if (!await db.Teachers.AnyAsync())
+    // Seed built-in report card PDF templates
+    if (!await db.ReportCardTemplates.AnyAsync())
+    {
+        db.ReportCardTemplates.AddRange(
+            new ReportCards.Web.Data.ReportCardTemplate
+            {
+                Name         = "Elementary Progress Report",
+                FileName     = "progress-report.pdf",
+                TemplateType = ReportCards.Web.Data.ReportCardTemplateType.ElementaryProgressReport,
+                CreatedAt    = DateTimeOffset.UtcNow,
+            },
+            new ReportCards.Web.Data.ReportCardTemplate
+            {
+                Name         = "Elementary Report Card",
+                FileName     = "elementary-report-card.pdf",
+                TemplateType = ReportCards.Web.Data.ReportCardTemplateType.ElementaryReportCard,
+                CreatedAt    = DateTimeOffset.UtcNow,
+            }
+        );
+        await db.SaveChangesAsync();
+    }
+
+        if (!await db.Teachers.AnyAsync())
     {
         db.Teachers.Add(new Teacher { DisplayName = "Craig (Teacher)", Email = "teacher1@example.com" });
         await db.SaveChangesAsync();

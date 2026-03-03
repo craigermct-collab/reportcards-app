@@ -1,0 +1,260 @@
+@page "/report-cards"
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@using ReportCards.Web.Services
+@inject SchoolDbContext Db
+@inject ReportCardGeneratorService Generator
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<PageTitle>Report Cards</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Report Cards</MudText>
+
+@* ── Term + Class selector ──────────────────────────────────────── *@
+<MudPaper Class="pa-4 mb-4" Elevation="1">
+    <MudGrid Spacing="3" AlignItems="AlignItems.End">
+        <MudItem xs="12" sm="4">
+            <MudSelect T="int?" Label="School Year" Value="_selectedYearId"
+                       ValueChanged="OnYearChanged" Variant="Variant.Outlined">
+                <MudSelectItem T="int?" Value="@((int?)null)">— select year —</MudSelectItem>
+                @foreach (var y in _years)
+                {
+                    <MudSelectItem T="int?" Value="@((int?)y.Id)">@y.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudSelect T="int?" Label="Term" Value="_selectedTermId"
+                       ValueChanged="OnTermChanged" Variant="Variant.Outlined"
+                       Disabled="_terms.Count == 0">
+                <MudSelectItem T="int?" Value="@((int?)null)">— select term —</MudSelectItem>
+                @foreach (var t in _terms)
+                {
+                    <MudSelectItem T="int?" Value="@((int?)t.Id)">@t.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudSelect T="int?" Label="Class Group" Value="_selectedClassGroupId"
+                       ValueChanged="OnClassGroupChanged" Variant="Variant.Outlined"
+                       Disabled="_classGroups.Count == 0">
+                <MudSelectItem T="int?" Value="@((int?)null)">— select class —</MudSelectItem>
+                @foreach (var cg in _classGroups)
+                {
+                    <MudSelectItem T="int?" Value="@((int?)cg.Id)">@cg.DisplayName</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@* ── Warning if no template assigned ───────────────────────────── *@
+@if (_selectedClassGroup != null && _selectedClassGroup.ReportCardTemplate == null)
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-4">
+        No report card template is assigned to <strong>@_selectedClassGroup.DisplayName</strong> for this term.
+        Assign one in <strong><a href="/report-card-templates" style="color:inherit;">RC Templates</a></strong> before generating.
+    </MudAlert>
+}
+
+@* ── Student table ─────────────────────────────────────────────── *@
+@if (_enrollments.Count > 0)
+{
+    <MudPaper Elevation="1">
+        <MudToolBar Dense="true" Class="px-3">
+            <MudText Typo="Typo.subtitle1">
+                <strong>@_enrollments.Count</strong> students
+            </MudText>
+            <MudSpacer />
+            <MudButton StartIcon="@Icons.Material.Filled.Download"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Size="Size.Small"
+                       OnClick="DownloadAllAsync"
+                       Disabled="_selectedClassGroup?.ReportCardTemplate == null || _generatingAll">
+                @if (_generatingAll)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Generating...</span>
+                }
+                else
+                {
+                    <span>Download All (ZIP)</span>
+                }
+            </MudButton>
+        </MudToolBar>
+
+        <MudDivider />
+
+        <MudTable Items="_enrollments" Hover="true" Dense="true" Striped="true"
+                  Class="pa-0" Elevation="0">
+            <HeaderContent>
+                <MudTh>Student</MudTh>
+                <MudTh>Grade</MudTh>
+                <MudTh>OEN</MudTh>
+                <MudTh Style="text-align:right">Download</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.Student?.LastName, @context.Student?.FirstName</MudTd>
+                <MudTd>@context.Grade?.Name</MudTd>
+                <MudTd>@(context.Student?.OenNumber ?? "—")</MudTd>
+                <MudTd Style="text-align:right">
+                    <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   Disabled="@(_selectedClassGroup?.ReportCardTemplate == null
+                                               || _generatingId == context.Id)"
+                                   OnClick="@(() => DownloadOneAsync(context))"
+                                   Title="Download report card" />
+                    @if (_generatingId == context.Id)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                    }
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+}
+else if (_selectedClassGroupId.HasValue)
+{
+    <MudAlert Severity="Severity.Info">No students enrolled in this class for this term.</MudAlert>
+}
+
+@code {
+    private List<SchoolYear>         _years        = new();
+    private List<TermInstance>       _terms        = new();
+    private List<ClassGroupInstance> _classGroups  = new();
+    private List<Enrollment>         _enrollments  = new();
+
+    private int? _selectedYearId       = null;
+    private int? _selectedTermId       = null;
+    private int? _selectedClassGroupId = null;
+
+    private TermInstance?       _selectedTerm       = null;
+    private ClassGroupInstance? _selectedClassGroup = null;
+
+    private bool _generatingAll = false;
+    private int? _generatingId  = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _years = await Db.SchoolYears
+            .OrderByDescending(y => y.IsActive)
+            .ThenByDescending(y => y.Name)
+            .ToListAsync();
+
+        // Auto-select active year
+        var active = _years.FirstOrDefault(y => y.IsActive);
+        if (active != null)
+            await OnYearChanged(active.Id);
+    }
+
+    private async Task OnYearChanged(int? yearId)
+    {
+        _selectedYearId       = yearId;
+        _selectedTermId       = null;
+        _selectedClassGroupId = null;
+        _selectedTerm         = null;
+        _classGroups.Clear();
+        _enrollments.Clear();
+
+        if (yearId == null) { _terms.Clear(); return; }
+
+        _terms = await Db.TermInstances
+            .Where(t => t.SchoolYearId == yearId)
+            .OrderBy(t => t.SortOrder)
+            .ToListAsync();
+    }
+
+    private async Task OnTermChanged(int? termId)
+    {
+        _selectedTermId       = termId;
+        _selectedClassGroupId = null;
+        _selectedClassGroup   = null;
+        _enrollments.Clear();
+
+        if (termId == null) { _classGroups.Clear(); _selectedTerm = null; return; }
+
+        _selectedTerm = _terms.FirstOrDefault(t => t.Id == termId);
+
+        _classGroups = await Db.ClassGroupInstances
+            .Include(cg => cg.ReportCardTemplate)
+            .Where(cg => cg.TermInstanceId == termId)
+            .OrderBy(cg => cg.DisplayName)
+            .ToListAsync();
+    }
+
+    private async Task OnClassGroupChanged(int? cgId)
+    {
+        _selectedClassGroupId = cgId;
+        _selectedClassGroup   = _classGroups.FirstOrDefault(cg => cg.Id == cgId);
+        _enrollments.Clear();
+
+        if (cgId == null) return;
+
+        _enrollments = await Db.Enrollments
+            .Include(e => e.Student)
+            .Include(e => e.Grade)
+            .Where(e => e.ClassGroupInstanceId == cgId
+                     && e.TermInstanceId == _selectedTermId)
+            .OrderBy(e => e.Student!.LastName)
+            .ThenBy(e => e.Student!.FirstName)
+            .ToListAsync();
+    }
+
+    private async Task DownloadOneAsync(Enrollment enrollment)
+    {
+        if (_selectedTermId == null) return;
+
+        _generatingId = enrollment.Id;
+        StateHasChanged();
+
+        try
+        {
+            var bytes    = await Generator.GenerateForStudentAsync(enrollment.Id, _selectedTermId.Value);
+            var fileName = $"{enrollment.Student?.LastName}_{enrollment.Student?.FirstName}_ReportCard.pdf";
+            await DownloadFileAsync(bytes, fileName, "application/pdf");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error generating report card: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _generatingId = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DownloadAllAsync()
+    {
+        if (_selectedClassGroupId == null || _selectedTermId == null) return;
+
+        _generatingAll = true;
+        StateHasChanged();
+
+        try
+        {
+            var bytes    = await Generator.GenerateZipForClassAsync(
+                               _selectedClassGroupId.Value, _selectedTermId.Value);
+            var fileName = $"ReportCards_{_selectedTerm?.Name ?? "Term"}.zip";
+            await DownloadFileAsync(bytes, fileName, "application/zip");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error generating report cards: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _generatingAll = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DownloadFileAsync(byte[] bytes, string fileName, string mimeType)
+    {
+        var base64  = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("downloadFileFromBase64", base64, fileName, mimeType);
+    }
+}

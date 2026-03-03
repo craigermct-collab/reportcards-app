@@ -63,6 +63,10 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xFcnJvci5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = 
 
+[C:/Users/CraigM/reportcards-app/ReportCards.Web/Components/Pages/GenerateReportCards.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xHZW5lcmF0ZVJlcG9ydENhcmRzLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
 [C:/Users/CraigM/reportcards-app/ReportCards.Web/Components/Pages/GradeEntry.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xHcmFkZUVudHJ5LnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
@@ -77,6 +81,10 @@ build_metadata.AdditionalFiles.CssScope =
 
 [C:/Users/CraigM/reportcards-app/ReportCards.Web/Components/Pages/HomeworkChecker.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xIb21ld29ya0NoZWNrZXIucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/CraigM/reportcards-app/ReportCards.Web/Components/Pages/ReportCardTemplates.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xSZXBvcnRDYXJkVGVtcGxhdGVzLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
 
 [C:/Users/CraigM/reportcards-app/ReportCards.Web/Components/Pages/SavedAnalyses.razor]
