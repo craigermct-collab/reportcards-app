@@ -43,6 +43,10 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDbGFzc1NldHVwLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
 
+[C:/Users/CraigM/reportcards-app/ReportCards.Web/Components/Pages/CommentTemplates.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDb21tZW50VGVtcGxhdGVzLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
 [C:/Users/CraigM/reportcards-app/ReportCards.Web/Components/Pages/Counter.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDb3VudGVyLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 

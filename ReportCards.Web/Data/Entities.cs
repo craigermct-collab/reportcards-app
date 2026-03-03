@@ -256,6 +256,9 @@ public class CommentTemplate
     /// <summary>Category tag, e.g. "Strength", "Next Steps", "Weaknesses".</summary>
     public string? Category { get; set; }
 
+    /// <summary>Human-readable title/name for the template (e.g. the <n> field from ETeach).</summary>
+    public string? Title { get; set; }
+
     /// <summary>Original code or name from the source system (for deduplication on re-import).</summary>
     public string? SourceCode { get; set; }
 

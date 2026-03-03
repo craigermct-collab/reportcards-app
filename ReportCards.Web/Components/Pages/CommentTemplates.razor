@@ -130,23 +130,20 @@ else
               FixedHeader="true"
               Height="600px">
         <HeaderContent>
+            <MudTh Style="min-width:160px">Title</MudTh>
             <MudTh>Subject</MudTh>
             <MudTh>Grade</MudTh>
             <MudTh>Category</MudTh>
-            <MudTh>Code</MudTh>
             <MudTh>Comment Text</MudTh>
             <MudTh Style="width:60px"></MudTh>
         </HeaderContent>
         <RowTemplate>
+            <MudTd>
+                <MudText Typo="Typo.body2" Style="font-weight:500;">@(context.Title ?? context.SourceCode ?? "—")</MudText>
+            </MudTd>
             <MudTd>@(context.Subject ?? "—")</MudTd>
             <MudTd>@(context.GradeLabel ?? "—")</MudTd>
             <MudTd>@(context.Category ?? "—")</MudTd>
-            <MudTd>
-                @if (context.SourceCode != null)
-                {
-                    <MudChip T="string" Size="Size.Small" Color="Color.Default">@context.SourceCode</MudChip>
-                }
-            </MudTd>
             <MudTd>
                 <MudText Typo="Typo.body2" Style="white-space:pre-wrap; max-width:600px;">@context.TemplateText</MudText>
             </MudTd>
@@ -212,6 +209,7 @@ else
         if (_filterCategory != null && t.Category   != _filterCategory) return false;
         if (!string.IsNullOrWhiteSpace(_searchText) &&
             !t.TemplateText.Contains(_searchText, StringComparison.OrdinalIgnoreCase) &&
+            !(t.Title?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false) &&
             !(t.SourceCode?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false))
             return false;
         return true;
