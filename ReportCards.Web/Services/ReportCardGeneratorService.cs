@@ -246,9 +246,10 @@ namespace ReportCards.Web.Services
                 });
                 await File.WriteAllTextAsync(valuesPath, json);
 
+                var pythonExe = OperatingSystem.IsWindows() ? "python" : "python3";
                 var psi = new ProcessStartInfo
                 {
-                    FileName               = "python3",
+                    FileName               = pythonExe,
                     Arguments              = $"\"{scriptPath}\" \"{templatePath}\" \"{valuesPath}\" \"{outputPath}\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError  = true,
