@@ -44,6 +44,9 @@ public class SchoolDbContext : DbContext
     // Report card formats
     public DbSet<ClassGroupReportFormat> ClassGroupReportFormats => Set<ClassGroupReportFormat>();
 
+    // Report card templates
+    public DbSet<ReportCardTemplate> ReportCardTemplates => Set<ReportCardTemplate>();
+
     // Report mapping
     public DbSet<ReportTemplateFieldMap> ReportTemplateFieldMaps => Set<ReportTemplateFieldMap>();
     public DbSet<HomeworkAnalysis> HomeworkAnalyses => Set<HomeworkAnalysis>();
@@ -155,6 +158,14 @@ public class SchoolDbContext : DbContext
             .HasOne(t => t.Grade)
             .WithMany(g => g.CurriculumGradeTemplates)
             .HasForeignKey(t => t.GradeId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        // ClassGroupInstance → ReportCardTemplate (NoAction — template can exist without class groups)
+        m.Entity<ClassGroupInstance>()
+            .HasOne(c => c.ReportCardTemplate)
+            .WithMany(r => r.ClassGroupInstances)
+            .HasForeignKey(c => c.ReportCardTemplateId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.NoAction);
 
         // TermInstance → ReportTemplateFieldMap

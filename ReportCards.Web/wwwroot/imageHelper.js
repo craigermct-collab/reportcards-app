@@ -1,3 +1,17 @@
+// File download helper
+window.downloadFileFromBase64 = function(base64, fileName, mimeType) {
+    const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    const blob  = new Blob([bytes], { type: mimeType });
+    const url   = URL.createObjectURL(blob);
+    const a     = document.createElement('a');
+    a.href      = url;
+    a.download  = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
 window.imageHelper = {
     compressImage: async function (dataUrl, maxDimension, quality) {
         return new Promise((resolve) => {

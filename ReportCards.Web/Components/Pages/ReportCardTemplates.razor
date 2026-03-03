@@ -1,0 +1,440 @@
+@page "/report-card-templates"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@inject SchoolDbContext Db
+@inject ISnackbar Snackbar
+@inject IWebHostEnvironment Env
+
+<div class="d-flex align-center gap-3 mb-1">
+    <MudIcon Icon="@Icons.Material.Filled.Description"
+             Style="background:#1B4F72; color:white; padding:8px; border-radius:10px; font-size:24px;" />
+    <div>
+        <MudText Typo="Typo.h5" Style="font-family:'DM Serif Display',serif; line-height:1.1;">Report Card Templates</MudText>
+        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+            Register PDF templates and assign them per term and class group.
+        </MudText>
+    </div>
+</div>
+
+<MudDivider Class="my-4" />
+
+@if (_loading)
+{
+    <div class="d-flex justify-center pa-8">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+    </div>
+}
+else
+{
+    <MudCard Elevation="1" Class="mb-6">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">Registered PDF Templates</MudText>
+                <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+                    Fillable PDF files available for generation. Files live in the
+                    <code>ReportCardTemplates/</code> folder on the server.
+                </MudText>
+            </CardHeaderContent>
+            <CardHeaderActions>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="@(() => _addTemplateOpen = true)">
+                    Register Template
+                </MudButton>
+            </CardHeaderActions>
+        </MudCardHeader>
+        <MudCardContent Class="pa-0">
+            @if (!_templates.Any())
+            {
+                <div class="pa-5">
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                        No templates registered yet.
+                    </MudAlert>
+                </div>
+            }
+            else
+            {
+                <MudTable Items="_templates" Dense="true" Hover="true" Elevation="0">
+                    <HeaderContent>
+                        <MudTh>Name</MudTh>
+                        <MudTh>Type</MudTh>
+                        <MudTh>File</MudTh>
+                        <MudTh>File Found?</MudTh>
+                        <MudTh>Registered</MudTh>
+                        <MudTh></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd><MudText Typo="Typo.body2" Style="font-weight:600;">@context.Name</MudText></MudTd>
+                        <MudTd>
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Filled"
+                                     Color="@(context.TemplateType == ReportCardTemplateType.ElementaryProgressReport ? Color.Info : Color.Secondary)">
+                                @(context.TemplateType == ReportCardTemplateType.ElementaryProgressReport ? "Progress Report" : "Report Card")
+                            </MudChip>
+                        </MudTd>
+                        <MudTd><MudText Typo="Typo.body2" Style="font-family:monospace;font-size:12px;">@context.FileName</MudText></MudTd>
+                        <MudTd>
+                            @{ var exists = File.Exists(Path.Combine(Env.ContentRootPath, "ReportCardTemplates", context.FileName)); }
+                            @if (exists)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Style="color:#1E8449;font-size:18px;" />
+                            }
+                            else
+                            {
+                                <MudTooltip Text="File not found on server">
+                                    <MudIcon Icon="@Icons.Material.Filled.Warning" Style="color:#D4AC0D;font-size:18px;" />
+                                </MudTooltip>
+                            }
+                        </MudTd>
+                        <MudTd>
+                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                @context.CreatedAt.LocalDateTime.ToString("MMM d, yyyy")
+                            </MudText>
+                        </MudTd>
+                        <MudTd Style="text-align:right;">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           Color="Color.Error" OnClick="@(() => DeleteTemplateAsync(context))" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudCardContent>
+    </MudCard>
+
+    <MudCard Elevation="1">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">Class Group Assignments</MudText>
+                <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+                    Grouped by class group, then term. Field maps are seeded per term.
+                </MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent Class="pa-0">
+            @if (!_years.Any())
+            {
+                <div class="pa-5">
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">No school years found.</MudAlert>
+                </div>
+            }
+            else
+            {
+                @foreach (var year in _years)
+                {
+                    <!-- Year header -->
+                    <div class="px-4 pt-3 pb-2 d-flex align-center gap-2"
+                         style="background:var(--mud-palette-background-grey);">
+                        <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Size="Size.Small" Color="Color.Primary" />
+                        <MudText Typo="Typo.subtitle1" Style="font-weight:700; color:#1A2B3C;">@year.Name</MudText>
+                        @if (year.IsActive)
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">Active</MudChip>
+                        }
+                    </div>
+
+                    @if (!GetCgGroups(year).Any())
+                    {
+                        <div class="px-4 py-3" style="border-top:1px solid var(--mud-palette-divider);">
+                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">No class groups defined for this year.</MudText>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var cgGroup in GetCgGroups(year))
+                        {
+                            <!-- Class group header -->
+                            <div class="px-4 py-2 d-flex align-center gap-2"
+                                 style="border-top:1px solid var(--mud-palette-divider); background:#F0F4F8;">
+                                <MudIcon Icon="@Icons.Material.Filled.Group" Size="Size.Small" Style="color:#1B4F72;" />
+                                <MudText Typo="Typo.body1" Style="font-weight:700; color:#1B4F72;">@cgGroup.Key</MudText>
+                            </div>
+
+                            @foreach (var item in cgGroup.OrderBy(x => x.Term.SortOrder))
+                            {
+                                var cgi  = item.Cgi;
+                                var term = item.Term;
+                                var mapCount = _fieldMapCounts.GetValueOrDefault(term.Id);
+                                _cgiEdits.TryGetValue(cgi.Id, out var selectedTemplateId);
+                                var saving  = _savingCgiId == cgi.Id;
+
+                                <!-- Term row -->
+                                <div class="px-6 py-2 d-flex align-center gap-3 flex-wrap"
+                                     style="border-top:1px solid var(--mud-palette-divider);">
+
+                                    <!-- Term label -->
+                                    <div style="min-width:200px;">
+                                        <div class="d-flex align-center gap-2">
+                                            <MudIcon Icon="@Icons.Material.Filled.Event" Size="Size.Small"
+                                                     Style="color:var(--mud-palette-text-secondary);" />
+                                            <MudText Typo="Typo.body2" Style="font-weight:600;">@term.Name</MudText>
+                                        </div>
+                                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary); padding-left:22px;">
+                                            @term.StartDate.ToString("MMM d") – @term.EndDate.ToString("MMM d, yyyy")
+                                        </MudText>
+                                        @if (cgi.ReportCardTemplate != null)
+                                        {
+                                            <MudText Typo="Typo.caption" Style="color:#1E8449; padding-left:22px;">✓ @cgi.ReportCardTemplate.Name</MudText>
+                                        }
+                                        else
+                                        {
+                                            <MudText Typo="Typo.caption" Style="color:#D4AC0D; padding-left:22px;">⚠ No template</MudText>
+                                        }
+                                    </div>
+
+                                    <!-- Template dropdown -->
+                                    <MudSelect T="int?"
+                                               Value="@selectedTemplateId"
+                                               ValueChanged="@((int? v) => _cgiEdits[cgi.Id] = v)"
+                                               Variant="Variant.Outlined"
+                                               Margin="Margin.Dense"
+                                               Placeholder="— none —"
+                                               Clearable="true"
+                                               Style="min-width:260px; max-width:320px;"
+                                               AnchorOrigin="Origin.BottomLeft">
+                                        @foreach (var t in _templates)
+                                        {
+                                            <MudSelectItem T="int?" Value="@((int?)t.Id)">@t.Name</MudSelectItem>
+                                        }
+                                    </MudSelect>
+
+                                    <!-- Assign button -->
+                                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                               Disabled="@(saving || selectedTemplateId == null)"
+                                               OnClick="@(() => SaveCgiAssignmentAsync(cgi))">
+                                        @if (saving)
+                                        {
+                                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-1" />
+                                            <span>Saving…</span>
+                                        }
+                                        else { <span>Assign</span> }
+                                    </MudButton>
+
+                                    @if (cgi.ReportCardTemplate != null)
+                                    {
+                                        <MudTooltip Text="Clear assignment">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                                           Color="Color.Default"
+                                                           OnClick="@(() => ClearCgiAssignmentAsync(cgi))" />
+                                        </MudTooltip>
+                                    }
+
+                                    <!-- Field maps badge for this term -->
+                                    <MudSpacer />
+                                    @if (mapCount > 0)
+                                    {
+                                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled"
+                                                 Icon="@Icons.Material.Filled.CheckCircle">
+                                            @mapCount maps
+                                        </MudChip>
+                                        <MudTooltip Text="Re-seed field maps for this term">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small"
+                                                           Color="Color.Warning" OnClick="@(() => SeedMapsForTermAsync(term))" />
+                                        </MudTooltip>
+                                    }
+                                    else
+                                    {
+                                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                                                   StartIcon="@Icons.Material.Filled.PlayArrow"
+                                                   OnClick="@(() => SeedMapsForTermAsync(term))">
+                                            Seed Maps
+                                        </MudButton>
+                                    }
+                                </div>
+                            }
+                        }
+                    }
+
+                    <MudDivider />
+                }
+            }
+        </MudCardContent>
+    </MudCard>
+}
+
+<MudDialog @bind-Visible="_addTemplateOpen"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true })">
+    <TitleContent><MudText Typo="Typo.h6">Register PDF Template</MudText></TitleContent>
+    <DialogContent>
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
+            Place your PDF in <code>ReportCardTemplates/</code> on the server first.
+        </MudAlert>
+        <MudTextField @bind-Value="_newName" Label="Display Name"
+                      Placeholder="e.g. Elementary Progress Report 2025"
+                      Variant="Variant.Outlined" Class="mb-3" FullWidth="true" />
+        <MudTextField @bind-Value="_newFileName" Label="File Name"
+                      Placeholder="e.g. progress-report.pdf"
+                      Variant="Variant.Outlined" Class="mb-3" FullWidth="true"
+                      HelperText="Filename only — must exist in ReportCardTemplates/ folder" />
+        <MudSelect T="ReportCardTemplateType" @bind-Value="_newTemplateType"
+                   Label="Template Type" Variant="Variant.Outlined" FullWidth="true">
+            <MudSelectItem T="ReportCardTemplateType" Value="ReportCardTemplateType.ElementaryProgressReport">
+                Elementary Progress Report (single-term, fall)
+            </MudSelectItem>
+            <MudSelectItem T="ReportCardTemplateType" Value="ReportCardTemplateType.ElementaryReportCard">
+                Elementary Report Card (two-term, winter/spring)
+            </MudSelectItem>
+        </MudSelect>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _addTemplateOpen = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newFileName))"
+                   OnClick="AddTemplateAsync">Register</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private bool _loading = true;
+    private List<ReportCardTemplate> _templates = new();
+    private List<SchoolYear>         _years     = new();
+    private Dictionary<int, int?>    _cgiEdits       = new();
+    private Dictionary<int, int>     _fieldMapCounts = new();
+    private int? _savingCgiId;
+    private bool                   _addTemplateOpen;
+    private string                 _newName         = "";
+    private string                 _newFileName     = "";
+    private ReportCardTemplateType _newTemplateType = ReportCardTemplateType.ElementaryProgressReport;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        _templates = await Db.ReportCardTemplates.OrderBy(t => t.Name).ToListAsync();
+
+        _years = await Db.SchoolYears
+            .Include(y => y.TermInstances.OrderBy(t => t.SortOrder))
+                .ThenInclude(t => t.ClassGroupInstances.OrderBy(c => c.DisplayName))
+                    .ThenInclude(c => c.ReportCardTemplate)
+            .Include(y => y.TermInstances)
+                .ThenInclude(t => t.ClassGroupInstances)
+                    .ThenInclude(c => c.ClassGroupType)
+            .OrderByDescending(y => y.IsActive)
+            .ThenByDescending(y => y.Name)
+            .ToListAsync();
+
+        _cgiEdits.Clear();
+        foreach (var y in _years)
+            foreach (var t in y.TermInstances)
+                foreach (var cgi in t.ClassGroupInstances)
+                    _cgiEdits[cgi.Id] = cgi.ReportCardTemplateId;
+
+        var counts = await Db.ReportTemplateFieldMaps
+            .GroupBy(m => m.TermInstanceId)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToListAsync();
+        _fieldMapCounts = counts.ToDictionary(x => x.Key, x => x.Count);
+    }
+
+    private async Task SaveCgiAssignmentAsync(ClassGroupInstance cgi)
+    {
+        if (!_cgiEdits.TryGetValue(cgi.Id, out var templateId) || templateId == null) return;
+        _savingCgiId = cgi.Id;
+        StateHasChanged();
+        try
+        {
+            var dbCgi = await Db.ClassGroupInstances.FindAsync(cgi.Id);
+            if (dbCgi == null) return;
+            dbCgi.ReportCardTemplateId = templateId;
+            await Db.SaveChangesAsync();
+            Snackbar.Add($"Template assigned to {cgi.DisplayName}.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Failed: {ex.Message}", Severity.Error); }
+        finally { _savingCgiId = null; }
+    }
+
+    private async Task ClearCgiAssignmentAsync(ClassGroupInstance cgi)
+    {
+        var dbCgi = await Db.ClassGroupInstances.FindAsync(cgi.Id);
+        if (dbCgi == null) return;
+        dbCgi.ReportCardTemplateId = null;
+        await Db.SaveChangesAsync();
+        _cgiEdits[cgi.Id] = null;
+        Snackbar.Add($"Template removed from {cgi.DisplayName}.", Severity.Info);
+        await LoadAsync();
+    }
+
+    private async Task SeedMapsForTermAsync(TermInstance term)
+    {
+        var termData = _years.SelectMany(y => y.TermInstances).FirstOrDefault(t => t.Id == term.Id);
+        var templateId = termData?.ClassGroupInstances
+            .Select(c => c.ReportCardTemplateId).FirstOrDefault(id => id != null);
+
+        if (templateId == null)
+        {
+            Snackbar.Add("Assign a template to at least one class group in this term first.", Severity.Warning);
+            return;
+        }
+
+        var template = _templates.FirstOrDefault(t => t.Id == templateId);
+        if (template == null) return;
+
+        try
+        {
+            var existing = await Db.ReportTemplateFieldMaps
+                .Where(m => m.TermInstanceId == term.Id).ToListAsync();
+            Db.ReportTemplateFieldMaps.RemoveRange(existing);
+            await Db.SaveChangesAsync();
+
+            var maps = template.TemplateType == ReportCardTemplateType.ElementaryProgressReport
+                ? ReportCardFieldMapSeeder.ProgressReportMaps()
+                : ReportCardFieldMapSeeder.ElementaryReportCardMaps();
+
+            foreach (var (destKey, pdfField) in maps)
+                Db.ReportTemplateFieldMaps.Add(new ReportTemplateFieldMap
+                {
+                    TermInstanceId       = term.Id,
+                    ReportDestinationKey = destKey,
+                    PdfFieldName         = pdfField,
+                });
+
+            await Db.SaveChangesAsync();
+            Snackbar.Add($"{maps.Count()} field maps seeded for {term.Name}.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Seed failed: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task AddTemplateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newFileName)) return;
+        Db.ReportCardTemplates.Add(new ReportCardTemplate
+        {
+            Name = _newName.Trim(), FileName = _newFileName.Trim(),
+            TemplateType = _newTemplateType, CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await Db.SaveChangesAsync();
+        _addTemplateOpen = false;
+        _newName = _newFileName = "";
+        Snackbar.Add("Template registered.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private record CgGroupItem(TermInstance Term, ClassGroupInstance Cgi);
+
+    private List<IGrouping<string, CgGroupItem>> GetCgGroups(SchoolYear year) =>
+        year.TermInstances
+            .SelectMany(t => t.ClassGroupInstances.Select(cgi => new CgGroupItem(t, cgi)))
+            .GroupBy(x => x.Cgi.ClassGroupType?.Name ?? x.Cgi.DisplayName.Split(' ')[0])
+            .OrderBy(g => g.Key)
+            .ToList();
+
+    private async Task DeleteTemplateAsync(ReportCardTemplate template)
+    {
+        var inUse = await Db.ClassGroupInstances.CountAsync(c => c.ReportCardTemplateId == template.Id);
+        if (inUse > 0)
+        {
+            Snackbar.Add($"Cannot delete — {inUse} class group(s) are using this template.", Severity.Warning);
+            return;
+        }
+        Db.ReportCardTemplates.Remove(template);
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"'{template.Name}' deleted.", Severity.Info);
+        await LoadAsync();
+    }
+}

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ReportCards.Web.Data;
 
@@ -11,9 +12,11 @@ using ReportCards.Web.Data;
 namespace ReportCards.Web.Migrations
 {
     [DbContext(typeof(SchoolDbContext))]
-    partial class SchoolDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260303013721_AddReportCardTemplates")]
+    partial class AddReportCardTemplates
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -131,17 +134,12 @@ namespace ReportCards.Web.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("ReportCardTemplateId")
-                        .HasColumnType("int");
-
                     b.Property<int>("TermInstanceId")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
 
                     b.HasIndex("ClassGroupTypeId");
-
-                    b.HasIndex("ReportCardTemplateId");
 
                     b.HasIndex("TermInstanceId");
 
@@ -1085,6 +1083,9 @@ namespace ReportCards.Web.Migrations
                     b.Property<string>("ReportCardFormatCode")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("ReportCardTemplateId")
+                        .HasColumnType("int");
+
                     b.Property<int>("SchoolYearId")
                         .HasColumnType("int");
 
@@ -1095,6 +1096,8 @@ namespace ReportCards.Web.Migrations
                         .HasColumnType("date");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ReportCardTemplateId");
 
                     b.HasIndex("SchoolYearId");
 
@@ -1248,11 +1251,6 @@ namespace ReportCards.Web.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ReportCards.Web.Data.ReportCardTemplate", "ReportCardTemplate")
-                        .WithMany("ClassGroupInstances")
-                        .HasForeignKey("ReportCardTemplateId")
-                        .OnDelete(DeleteBehavior.NoAction);
-
                     b.HasOne("ReportCards.Web.Data.TermInstance", "TermInstance")
                         .WithMany("ClassGroupInstances")
                         .HasForeignKey("TermInstanceId")
@@ -1260,8 +1258,6 @@ namespace ReportCards.Web.Migrations
                         .IsRequired();
 
                     b.Navigation("ClassGroupType");
-
-                    b.Navigation("ReportCardTemplate");
 
                     b.Navigation("TermInstance");
                 });
@@ -1575,11 +1571,18 @@ namespace ReportCards.Web.Migrations
 
             modelBuilder.Entity("ReportCards.Web.Data.TermInstance", b =>
                 {
+                    b.HasOne("ReportCards.Web.Data.ReportCardTemplate", "ReportCardTemplate")
+                        .WithMany("TermInstances")
+                        .HasForeignKey("ReportCardTemplateId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("ReportCards.Web.Data.SchoolYear", "SchoolYear")
                         .WithMany("TermInstances")
                         .HasForeignKey("SchoolYearId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("ReportCardTemplate");
 
                     b.Navigation("SchoolYear");
                 });
@@ -1741,7 +1744,7 @@ namespace ReportCards.Web.Migrations
 
             modelBuilder.Entity("ReportCards.Web.Data.ReportCardTemplate", b =>
                 {
-                    b.Navigation("ClassGroupInstances");
+                    b.Navigation("TermInstances");
                 });
 
             modelBuilder.Entity("ReportCards.Web.Data.SchoolYear", b =>
