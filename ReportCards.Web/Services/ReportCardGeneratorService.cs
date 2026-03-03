@@ -243,24 +243,31 @@ namespace ReportCards.Web.Services
 
             for (int i = 0; i < form.Fields.Count; i++)
             {
-                var field = form.Fields[i];
-                var name  = field.Name;
-                if (string.IsNullOrEmpty(name)) continue;
+                try
+                {
+                    var field = form.Fields[i];
+                    if (field == null) continue;
+                    var name = field.Name;
+                    if (string.IsNullOrEmpty(name)) continue;
 
-                if (data.Fields.TryGetValue(name, out var textVal))
-                {
-                    field.Value = new PdfSharp.Pdf.PdfString(textVal ?? "");
+                    if (data.Fields.TryGetValue(name, out var textVal))
+                    {
+                        field.Value = new PdfSharp.Pdf.PdfString(textVal ?? "");
+                    }
+                    else if (data.Checkboxes.TryGetValue(name, out var cbVal))
+                    {
+                        if (field is PdfCheckBoxField cb)
+                            cb.Checked = cbVal;
+                    }
+                    else if (data.Radios.TryGetValue(name, out var radioVal))
+                    {
+                        var val = radioVal.TrimStart('/');
+                        field.Value = new PdfSharp.Pdf.PdfName("/" + val);
+                    }
                 }
-                else if (data.Checkboxes.TryGetValue(name, out var cbVal))
+                catch (Exception ex)
                 {
-                    if (field is PdfCheckBoxField cb)
-                        cb.Checked = cbVal;
-                }
-                else if (data.Radios.TryGetValue(name, out var radioVal))
-                {
-                    // Radio values come in as "/Yes", "/G" etc — strip leading slash for PdfSharp
-                    var val = radioVal.TrimStart('/');
-                    field.Value = new PdfSharp.Pdf.PdfName("/" + val);
+                    _logger.LogWarning(ex, "Skipping PDF field at index {I}", i);
                 }
             }
 
