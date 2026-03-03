@@ -113,6 +113,7 @@ public class CommentTemplateService(SchoolDbContext db)
         var categoryMap = BuildFilterMap(root, "Category");
 
         int inserted = 0, updated = 0, skipped = 0;
+        var seenKeys = new HashSet<string>();
 
         // Walk every folder hierarchy: top-level folder = subject, sub-folder = grade
         foreach (var subjectFolder in root.Elements("folder"))
@@ -122,7 +123,7 @@ public class CommentTemplateService(SchoolDbContext db)
             // Comments directly in the subject folder (no grade scoping)
             foreach (var comment in subjectFolder.Elements("comment"))
             {
-                var (ins, upd, skip) = await UpsertCommentAsync(comment, subject, null, levelMap, categoryMap);
+                var (ins, upd, skip) = await UpsertCommentAsync(comment, subject, null, levelMap, categoryMap, seenKeys);
                 inserted += ins; updated += upd; skipped += skip;
             }
 
@@ -133,7 +134,7 @@ public class CommentTemplateService(SchoolDbContext db)
 
                 foreach (var comment in gradeFolder.Elements("comment"))
                 {
-                    var (ins, upd, skip) = await UpsertCommentAsync(comment, subject, grade, levelMap, categoryMap);
+                    var (ins, upd, skip) = await UpsertCommentAsync(comment, subject, grade, levelMap, categoryMap, seenKeys);
                     inserted += ins; updated += upd; skipped += skip;
                 }
             }
@@ -148,7 +149,8 @@ public class CommentTemplateService(SchoolDbContext db)
         string subject,
         string? grade,
         Dictionary<string, string> levelMap,
-        Dictionary<string, string> categoryMap)
+        Dictionary<string, string> categoryMap,
+        HashSet<string> seenKeys)
     {
         var name = (string?)commentEl.Element("name") ?? "";
         var code = (string?)commentEl.Element("code") ?? "";
@@ -158,7 +160,10 @@ public class CommentTemplateService(SchoolDbContext db)
         if (string.IsNullOrWhiteSpace(text)) return (0, 0, 1);
 
         var title = string.IsNullOrWhiteSpace(name) ? null : name;
-        var sourceCode = title; // same value — title is used as the dedup key
+        var sourceCode = string.IsNullOrWhiteSpace(name) ? null : $"{name}|{subject}|{grade}";
+
+        // Skip in-file duplicates
+        if (sourceCode != null && !seenKeys.Add(sourceCode)) return (0, 0, 1);
 
         // Derive category from commentFilterItem IDs
         var filterIds = commentEl.Elements("commentFilterItem").Select(f => (string?)f ?? "").ToList();
@@ -167,7 +172,7 @@ public class CommentTemplateService(SchoolDbContext db)
 
         var sortOrder = int.TryParse((string?)commentEl.Element("sortOrder"), out var so) ? so : 0;
 
-        // Upsert by SourceCode
+        // Upsert by SourceCode (name|subject|grade composite)
         if (sourceCode != null)
         {
             var existing = await db.CommentTemplates.FirstOrDefaultAsync(t => t.SourceCode == sourceCode);

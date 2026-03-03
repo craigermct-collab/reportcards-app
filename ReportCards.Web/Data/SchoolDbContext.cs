@@ -330,11 +330,9 @@ public class SchoolDbContext : DbContext
         m.Entity<SchoolConfig>()
             .HasIndex(c => c.Key).IsUnique();
 
-        // CommentTemplate — source code unique when not null
+        // CommentTemplate — source code is non-unique (same name can appear in different subject/grade combos)
         m.Entity<CommentTemplate>()
-            .HasIndex(c => c.SourceCode)
-            .IsUnique()
-            .HasFilter("[SourceCode] IS NOT NULL");
+            .HasIndex(c => c.SourceCode);
 
         // CurriculumSubStrand — cascades from Strand (simple chain, no ambiguity)
         // EF default CASCADE is fine here.
