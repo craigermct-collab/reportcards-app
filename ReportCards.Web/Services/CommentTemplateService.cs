@@ -157,7 +157,8 @@ public class CommentTemplateService(SchoolDbContext db)
         // Skip blank templates
         if (string.IsNullOrWhiteSpace(text)) return (0, 0, 1);
 
-        var sourceCode = string.IsNullOrWhiteSpace(name) ? null : name;
+        var title = string.IsNullOrWhiteSpace(name) ? null : name;
+        var sourceCode = title; // same value — title is used as the dedup key
 
         // Derive category from commentFilterItem IDs
         var filterIds = commentEl.Elements("commentFilterItem").Select(f => (string?)f ?? "").ToList();
@@ -172,6 +173,7 @@ public class CommentTemplateService(SchoolDbContext db)
             var existing = await db.CommentTemplates.FirstOrDefaultAsync(t => t.SourceCode == sourceCode);
             if (existing != null)
             {
+                existing.Title        = title;
                 existing.TemplateText = text;
                 existing.Subject      = subject;
                 existing.GradeLabel   = grade;
@@ -184,6 +186,7 @@ public class CommentTemplateService(SchoolDbContext db)
 
         db.CommentTemplates.Add(new CommentTemplate
         {
+            Title        = title,
             TemplateText = text,
             Subject      = subject,
             GradeLabel   = grade,
