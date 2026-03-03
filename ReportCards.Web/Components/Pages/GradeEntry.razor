@@ -309,12 +309,14 @@ else
                                                               Placeholder="Comment… (optional)"
                                                               Style="font-size:13px; flex:1;"
                                                               UserAttributes="@(new Dictionary<string, object> { ["spellcheck"] = "true" })" />
-                                                <MudTooltip Text="Insert comment template">
-                                                    <MudIconButton Icon="@Icons.Material.Outlined.LibraryBooks"
-                                                                   Size="Size.Small"
-                                                                   Color="Color.Primary"
-                                                                   OnClick="@(() => OpenTemplatePickerAsync(enrollment, row, subjectGroup.SubjectName))" />
-                                                </MudTooltip>
+                                                <div @onclick:stopPropagation="true">
+                                                    <MudTooltip Text="Insert comment template">
+                                                        <MudIconButton Icon="@Icons.Material.Outlined.LibraryBooks"
+                                                                       Size="Size.Small"
+                                                                       Color="Color.Primary"
+                                                                       OnClick="@(() => OpenTemplatePickerAsync(enrollment, row, subjectGroup.SubjectName))" />
+                                                    </MudTooltip>
+                                                </div>
                                             </div>
                                         </div>
                                         <div style="width:32px; flex-shrink:0; text-align:center;">
@@ -403,7 +405,8 @@ else
 }
 
 <!-- ── COMMENT TEMPLATE PICKER DIALOG ──────────────────────────────────── -->
-<MudDialog @bind-IsVisible="_templateDialogVisible"
+<MudDialog Visible="_templateDialogVisible"
+           VisibleChanged="@((bool v) => _templateDialogVisible = v)"
            Options="@(new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true })">
     <TitleContent>
         <div class="d-flex align-center gap-2">
@@ -420,17 +423,46 @@ else
     <DialogContent>
         <!-- Filters -->
         <MudGrid Spacing="2" Class="mb-3">
-            <MudItem xs="12" sm="7">
+            <MudItem xs="12" sm="4">
                 <MudTextField @bind-Value="_templateSearch"
-                              Placeholder="Search templates…"
+                              Placeholder="Search by title or keyword…"
                               Adornment="Adornment.Start"
                               AdornmentIcon="@Icons.Material.Filled.Search"
                               Variant="Variant.Outlined"
                               Margin="Margin.Dense"
                               Clearable="true" />
             </MudItem>
-            <MudItem xs="12" sm="5">
-                <MudSelect T="string?" @bind-Value="_templateFilterCategory"
+            <MudItem xs="12" sm="3">
+                <MudSelect T="string?" Value="_templateFilterSubject"
+                           ValueChanged="@((string? v) => { _templateFilterSubject = v; _templatePageSize = 50; })"
+                           Label="Subject"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Clearable="true"
+                           AnchorOrigin="Origin.BottomLeft">
+                    @foreach (var s in _templateSubjects)
+                    {
+                        <MudSelectItem T="string?" Value="@s">@s</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6" sm="2">
+                <MudSelect T="string?" Value="_templateFilterGrade"
+                           ValueChanged="@((string? v) => { _templateFilterGrade = v; _templatePageSize = 50; })"
+                           Label="Grade"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Clearable="true"
+                           AnchorOrigin="Origin.BottomLeft">
+                    @foreach (var g in _templateGrades)
+                    {
+                        <MudSelectItem T="string?" Value="@g">@g</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudSelect T="string?" Value="_templateFilterCategory"
+                           ValueChanged="@((string? v) => { _templateFilterCategory = v; _templatePageSize = 50; })"
                            Label="Category"
                            Variant="Variant.Outlined"
                            Margin="Margin.Dense"
@@ -453,6 +485,7 @@ else
         else
         {
             var filtered = FilteredTemplates.ToList();
+            var paged    = filtered.Take(_templatePageSize).ToList();
             @if (!filtered.Any())
             {
                 <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary); padding:16px 0;">
@@ -461,8 +494,11 @@ else
             }
             else
             {
+                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary); margin-bottom:8px; display:block;">
+                    Showing @paged.Count of @filtered.Count
+                </MudText>
                 <div style="max-height:420px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
-                    @foreach (var t in filtered)
+                    @foreach (var t in paged)
                     {
                         var preview = t.TemplateText.Length > 200
                             ? t.TemplateText[..200] + "…"
@@ -473,7 +509,11 @@ else
                                   Style="cursor:pointer; border-radius:8px; transition:box-shadow 0.15s;"
                                   @onclick="@(() => ApplyTemplate(t))">
                             <div class="d-flex align-center justify-space-between mb-1">
-                                <div class="d-flex align-center gap-2">
+                                <div class="d-flex align-center gap-2" style="flex-wrap:wrap;">
+                                    @if (t.Title != null)
+                                    {
+                                        <MudText Typo="Typo.body2" Style="font-weight:600; color:#1A2B3C;">@t.Title</MudText>
+                                    }
                                     @if (t.Category != null)
                                     {
                                         var chipColor = t.Category switch
@@ -500,6 +540,16 @@ else
                         </MudPaper>
                     }
                 </div>
+                @if (filtered.Count > _templatePageSize)
+                {
+                    <div class="d-flex justify-center mt-3">
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Primary"
+                                   OnClick="@(() => _templatePageSize += 50)">
+                            Load more (@(filtered.Count - paged.Count) remaining)
+                        </MudButton>
+                    </div>
+                }
             }
         }
     </DialogContent>
@@ -827,24 +877,41 @@ else
     // ── COMMENT TEMPLATE PICKER ──────────────────────────────────────
 
     private List<CommentTemplate> _templateList = new();
+    private List<string> _templateSubjects = new();
+    private List<string> _templateGrades   = new();
     private bool _templateDialogVisible;
     private string _templateSearch = "";
     private string? _templateFilterCategory;
+    private string? _templateFilterSubject;
+    private string? _templateFilterGrade;
+    private int _templatePageSize = 50;
     private GradeRow? _templateTargetRow;
     private Enrollment? _templateTargetEnrollment;
 
     private async Task OpenTemplatePickerAsync(Enrollment enrollment, GradeRow row, string subjectName)
     {
-        _templateTargetRow        = row;
-        _templateTargetEnrollment = enrollment;
-        _templateSearch           = "";
-        _templateFilterCategory   = null;
+        try
+        {
+            _templateTargetRow        = row;
+            _templateTargetEnrollment = enrollment;
+            _templateSearch           = "";
+            _templateFilterCategory   = null;
+            _templateFilterSubject    = null;
+            _templateFilterGrade      = null;
+            _templatePageSize         = 50;
 
-        var gradeName = enrollment.Grade?.Name;
-        _templateList = await CommentSvc.GetTemplatesAsync(subjectName, gradeName);
+            // Load all templates — user filters manually until subject/grade names are normalized
+            _templateList = await CommentSvc.GetTemplatesAsync();
+            _templateSubjects = _templateList.Select(t => t.Subject).Where(s => s != null).Distinct().OrderBy(s => s).ToList()!;
+            _templateGrades   = _templateList.Select(t => t.GradeLabel).Where(g => g != null).Distinct().OrderBy(g => g).ToList()!;
 
-        _templateDialogVisible = true;
-        StateHasChanged();
+            _templateDialogVisible = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to open template picker: {ex.Message} | {ex.InnerException?.Message}", Severity.Error);
+        }
     }
 
     private void ApplyTemplate(CommentTemplate template)
@@ -868,10 +935,13 @@ else
 
     private IEnumerable<CommentTemplate> FilteredTemplates =>
         _templateList.Where(t =>
-            (string.IsNullOrWhiteSpace(_templateSearch) ||
-             t.TemplateText.Contains(_templateSearch, StringComparison.OrdinalIgnoreCase) ||
-             (t.Category?.Contains(_templateSearch, StringComparison.OrdinalIgnoreCase) ?? false)) &&
-            (_templateFilterCategory == null || t.Category == _templateFilterCategory)
+            (_templateFilterSubject  == null || t.Subject    == _templateFilterSubject) &&
+            (_templateFilterGrade    == null || t.GradeLabel == _templateFilterGrade) &&
+            (_templateFilterCategory == null || t.Category   == _templateFilterCategory) &&
+            (string.IsNullOrWhiteSpace(_templateSearch)
+             || t.TemplateText.Contains(_templateSearch, StringComparison.OrdinalIgnoreCase)
+             || (t.Title?.Contains(_templateSearch, StringComparison.OrdinalIgnoreCase) ?? false)
+             || (t.Category?.Contains(_templateSearch, StringComparison.OrdinalIgnoreCase) ?? false))
         );
 
     // ── SAVE ──────────────────────────────────────────────────────
