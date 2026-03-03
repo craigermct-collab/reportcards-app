@@ -147,7 +147,10 @@ else if (_selectedClassGroupId.HasValue)
         // Auto-select active year
         var active = _years.FirstOrDefault(y => y.IsActive);
         if (active != null)
+        {
+            _selectedYearId = active.Id;
             await OnYearChanged(active.Id);
+        }
     }
 
     private async Task OnYearChanged(int? yearId)
