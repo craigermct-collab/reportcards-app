@@ -117,7 +117,7 @@ public class CommentTemplateService(SchoolDbContext db)
         // Walk every folder hierarchy: top-level folder = subject, sub-folder = grade
         foreach (var subjectFolder in root.Elements("folder"))
         {
-            var subject = (string?)subjectFolder.Element("name") ?? "General";
+            var subject = (string?)subjectFolder.Element("n") ?? "General";
 
             // Comments directly in the subject folder (no grade scoping)
             foreach (var comment in subjectFolder.Elements("comment"))
@@ -129,7 +129,7 @@ public class CommentTemplateService(SchoolDbContext db)
             // Grade sub-folders
             foreach (var gradeFolder in subjectFolder.Elements("folder"))
             {
-                var grade = (string?)gradeFolder.Element("name");
+                var grade = (string?)gradeFolder.Element("n");
 
                 foreach (var comment in gradeFolder.Elements("comment"))
                 {
@@ -150,7 +150,7 @@ public class CommentTemplateService(SchoolDbContext db)
         Dictionary<string, string> levelMap,
         Dictionary<string, string> categoryMap)
     {
-        var name = (string?)commentEl.Element("name") ?? "";
+        var name = (string?)commentEl.Element("n") ?? "";
         var code = (string?)commentEl.Element("code") ?? "";
         var text = (string?)commentEl.Element("commentLevel")?.Element("comment") ?? "";
 
@@ -198,11 +198,11 @@ public class CommentTemplateService(SchoolDbContext db)
     private static Dictionary<string, string> BuildFilterMap(XElement root, string filterName)
     {
         return root.Elements("filter")
-            .FirstOrDefault(f => (string?)f.Element("name") == filterName)
+            .FirstOrDefault(f => (string?)f.Element("n") == filterName)
             ?.Elements("filterItem")
             .ToDictionary(
                 fi => (string?)fi.Element("ID") ?? "",
-                fi => (string?)fi.Element("name") ?? "")
+                fi => (string?)fi.Element("n") ?? "")
             ?? new Dictionary<string, string>();
     }
 }
