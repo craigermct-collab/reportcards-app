@@ -34,14 +34,17 @@ public class AssistantService
     private readonly IConfiguration      _config;
     private readonly IDbContextFactory<SchoolDbContext> _dbFactory;
     private readonly IHttpClientFactory  _http;
+    private readonly AssistantContextService _context;
 
     public AssistantService(IConfiguration config,
                             IDbContextFactory<SchoolDbContext> dbFactory,
-                            IHttpClientFactory http)
+                            IHttpClientFactory http,
+                            AssistantContextService context)
     {
         _config   = config;
         _dbFactory = dbFactory;
         _http     = http;
+        _context  = context;
     }
 
     // ── Public entry point ────────────────────────────────────────────────────
@@ -153,7 +156,9 @@ public class AssistantService
         string? ActiveYearName,
         string? CurrentTermName,
         List<StudentInfo> TodayStudents,
-        List<AttendanceInfo> TodayAttendance
+        List<AttendanceInfo> TodayAttendance,
+        SchoolAiConfig? AiConfig,
+        TeacherAiConfig? TeacherConfig
     );
 
     private record StudentInfo(int Id, string FullName, string? ClassName, string? Grade);
@@ -206,58 +211,70 @@ public class AssistantService
             a.Type == AttendanceType.Absent ? "absent" : "late"
         )).ToList();
 
+        var aiConfig      = await db.SchoolAiConfigs.FirstOrDefaultAsync(ct);
+        var teacherConfig  = (TeacherAiConfig?)null; // future: resolve from logged-in teacher
+
         return new SchoolContext(
             schoolName,
             todayStr,
             activeYear?.Name,
             currentTerm?.Name,
             todayStudents,
-            todayAttendance
+            todayAttendance,
+            aiConfig,
+            teacherConfig
         );
     }
 
-    private static string BuildSystemPrompt(SchoolContext ctx)
+    // ── Route to the right prompt based on mode ───────────────────────────────
+
+    private string BuildSystemPrompt(SchoolContext ctx)
+        => _context.Current.Mode == AssistantMode.CommentWriter
+            ? BuildCommentWriterPrompt(ctx)
+            : BuildGeneralPrompt(ctx);
+
+    // ── MODE 1: General casual bot ────────────────────────────────────────────
+
+    private string BuildGeneralPrompt(SchoolContext ctx)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"""
-            You are a friendly, helpful school assistant for {ctx.SchoolName}.
-            Today is {ctx.TodayStr}.
-            Active school year: {ctx.ActiveYearName ?? "none"}.
-            Current term: {ctx.CurrentTermName ?? "none"}.
+        var ai = ctx.AiConfig;
+        var tc = ctx.TeacherConfig;
 
-            You help teachers with tasks like marking attendance, checking records, and
-            answering questions about students. Keep responses concise and warm.
+        // Personality: teacher override > school override > built-in default
+        var personality = !string.IsNullOrWhiteSpace(tc?.GeneralAssistantPrompt)
+            ? tc!.GeneralAssistantPrompt
+            : !string.IsNullOrWhiteSpace(ai?.GeneralAssistantPrompt)
+                ? ai!.GeneralAssistantPrompt
+                : $"You are a friendly, warm, and occasionally funny school assistant for {ctx.SchoolName}. " +
+                  "You enjoy casual banter with teachers — you can joke around, be playful, and keep things light. " +
+                  "You're also genuinely helpful when they need real answers. Keep replies concise.";
 
-            == STUDENTS ENROLLED TODAY ==
-            """);
+        sb.AppendLine(personality);
+        sb.AppendLine($"Today is {ctx.TodayStr}. School year: {ctx.ActiveYearName ?? "none"}. Term: {ctx.CurrentTermName ?? "none"}.");
+        sb.AppendLine();
+        AppendSharedGuidance(sb, ai, tc);
 
+        sb.AppendLine("== STUDENTS ENROLLED TODAY ==");
         if (ctx.TodayStudents.Count == 0)
-        {
-            sb.AppendLine("(No students enrolled in the current term, or no active term today)");
-        }
+            sb.AppendLine("  (No students enrolled in the current term)");
         else
-        {
             foreach (var s in ctx.TodayStudents)
                 sb.AppendLine($"  ID:{s.Id}  {s.FullName}  [{s.ClassName} / {s.Grade}]");
-        }
 
         sb.AppendLine();
         sb.AppendLine("== TODAY'S ATTENDANCE SO FAR ==");
         if (ctx.TodayAttendance.Count == 0)
-        {
             sb.AppendLine("  (none recorded yet — everyone is assumed present)");
-        }
         else
-        {
             foreach (var a in ctx.TodayAttendance)
                 sb.AppendLine($"  {a.FullName}: {a.Status}");
-        }
 
         sb.AppendLine();
         sb.AppendLine("""
             == RESPONDING WITH ACTIONS ==
-            When the teacher wants to UPDATE attendance records, you MUST end your response
-            with a JSON block wrapped in <action>...</action> tags, like this:
+            When the teacher wants to UPDATE attendance records, end your response
+            with a JSON block wrapped in <action>...</action> tags:
 
             <action>
             {
@@ -271,15 +288,87 @@ public class AssistantService
             </action>
 
             Rules:
-            - Match student names from the enrolled list above. Use the exact ID.
-            - If a name is ambiguous, ask for clarification instead.
-            - If marking everyone present except some, list only the exceptions.
+            - Match student names from the enrolled list. Use the exact ID.
+            - If a name is ambiguous, ask for clarification.
             - Use today's date unless the teacher specifies otherwise.
-            - For non-update queries, just reply in prose — no <action> block needed.
-            - Always confirm what you're about to do in your prose BEFORE the action block.
+            - For non-update queries, reply in prose only — no <action> block.
+            - Always confirm what you're about to do BEFORE the action block.
             """);
 
         return sb.ToString();
+    }
+
+    // ── MODE 2: Focused comment-writing assistant ─────────────────────────────
+
+    private string BuildCommentWriterPrompt(SchoolContext ctx)
+    {
+        var sb = new StringBuilder();
+        var ai  = ctx.AiConfig;
+        var tc  = ctx.TeacherConfig;
+        var ctx2 = _context.Current;
+
+        // Personality: teacher override > school override > built-in default
+        var personality = !string.IsNullOrWhiteSpace(tc?.CommentWriterPrompt)
+            ? tc!.CommentWriterPrompt
+            : !string.IsNullOrWhiteSpace(ai?.CommentWriterPrompt)
+                ? ai!.CommentWriterPrompt
+                : $"You are a professional Ontario elementary school report card comment writer for {ctx.SchoolName}. " +
+                  "Your job is to help teachers write or refine student report card comments. " +
+                  "Comments must be clear, specific, professional, and strengths-based. " +
+                  "Avoid vague generalities. Use the student's name and correct pronouns. " +
+                  "Do not use the word 'overall'. Keep comments under 100 words unless asked otherwise. " +
+                  "Respond ONLY with the comment text — no preamble, no explanation.";
+
+        sb.AppendLine(personality);
+        sb.AppendLine();
+
+        // Grade-specific context
+        if (!string.IsNullOrWhiteSpace(ctx2.GradeLabel))
+            sb.AppendLine($"The student is in: {ctx2.GradeLabel}. Calibrate language and expectations to this grade level.");
+        if (!string.IsNullOrWhiteSpace(ctx2.Subject))
+            sb.AppendLine($"Subject area: {ctx2.Subject}.");
+        if (!string.IsNullOrWhiteSpace(ctx2.StudentName))
+            sb.AppendLine($"Student name: {ctx2.StudentName}.");
+        if (!string.IsNullOrWhiteSpace(ctx2.Term))
+            sb.AppendLine($"Term: {ctx2.Term}.");
+        if (!string.IsNullOrWhiteSpace(ctx2.CurrentText))
+        {
+            sb.AppendLine();
+            sb.AppendLine("== EXISTING COMMENT TO REFINE ==");
+            sb.AppendLine(ctx2.CurrentText);
+            sb.AppendLine("(The teacher may ask you to rewrite, shorten, improve tone, or start fresh.)");
+        }
+
+        // Layer in shared guidance (grading philosophy, terminology etc.)
+        sb.AppendLine();
+        AppendSharedGuidance(sb, ai, tc);
+
+        return sb.ToString();
+    }
+
+    // ── Shared guidance appended to both prompts ──────────────────────────────
+
+    private static void AppendSharedGuidance(StringBuilder sb, SchoolAiConfig? ai, TeacherAiConfig? tc)
+    {
+        if (ai == null && tc == null) return;
+
+        sb.AppendLine("== SCHOOL GUIDANCE ==");
+        if (!string.IsNullOrWhiteSpace(ai?.GradingPhilosophy))  sb.AppendLine($"  Grading philosophy: {ai!.GradingPhilosophy}");
+        if (!string.IsNullOrWhiteSpace(ai?.ToneGuidance))       sb.AppendLine($"  Tone: {ai!.ToneGuidance}");
+        if (!string.IsNullOrWhiteSpace(ai?.TerminologyNotes))   sb.AppendLine($"  Terminology: {ai!.TerminologyNotes}");
+        if (!string.IsNullOrWhiteSpace(ai?.SpellingGuidance))   sb.AppendLine($"  Spelling: {ai!.SpellingGuidance}");
+        if (!string.IsNullOrWhiteSpace(ai?.GrammarGuidance))    sb.AppendLine($"  Grammar: {ai!.GrammarGuidance}");
+        if (!string.IsNullOrWhiteSpace(ai?.RubricGuidance))     sb.AppendLine($"  Rubric: {ai!.RubricGuidance}");
+        if (!string.IsNullOrWhiteSpace(ai?.AdditionalInstructions)) sb.AppendLine($"  Additional: {ai!.AdditionalInstructions}");
+
+        if (tc != null)
+        {
+            sb.AppendLine("== TEACHER PREFERENCES ==");
+            if (!string.IsNullOrWhiteSpace(tc.PreferredTone))          sb.AppendLine($"  Tone: {tc.PreferredTone}");
+            if (!string.IsNullOrWhiteSpace(tc.FocusAreas))             sb.AppendLine($"  Focus: {tc.FocusAreas}");
+            if (!string.IsNullOrWhiteSpace(tc.AdditionalInstructions)) sb.AppendLine($"  Additional: {tc.AdditionalInstructions}");
+        }
+        sb.AppendLine();
     }
 
     private static (string prose, AssistantAction? action) ParseResponse(string raw)

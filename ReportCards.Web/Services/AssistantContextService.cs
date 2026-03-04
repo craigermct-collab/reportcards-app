@@ -1,14 +1,25 @@
 namespace ReportCards.Web.Services;
 
+public enum AssistantMode
+{
+    /// <summary>Casual, friendly general-purpose assistant shown in the floating chat bubble.</summary>
+    General,
+    /// <summary>Focused, professional comment-writing assistant summoned from grade entry.</summary>
+    CommentWriter,
+}
+
 /// <summary>
 /// Describes where the user is in the app and what they're working on.
 /// Any page/component can set this to give the assistant relevant context.
 /// </summary>
 public class AssistantContext
 {
+    public AssistantMode Mode { get; set; } = AssistantMode.General;
     public string Page { get; set; } = "dashboard";
     public string? PageLabel { get; set; }
     public string? StudentName { get; set; }
+    public string? StudentFirstName { get; set; }
+    public string? GradeLabel { get; set; }
     public string? Subject { get; set; }
     public string? Term { get; set; }
     public string? CurrentText { get; set; }
