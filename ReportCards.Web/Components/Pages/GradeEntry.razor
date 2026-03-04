@@ -230,6 +230,29 @@ else
                                     </MudChip>
                                 }
                             </div>
+
+                            @if (subjectGroup.ModifierOptions.Count > 0)
+                            {
+                                <div class="d-flex align-center flex-wrap gap-3 mb-2 px-1 py-1"
+                                     style="background:rgba(123,79,191,0.05); border-radius:6px; border:1px solid rgba(123,79,191,0.15);">
+                                    @if (subjectGroup.IsSavingModifiers)
+                                    {
+                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Secondary" Class="ml-1" />
+                                    }
+                                    @foreach (var opt in subjectGroup.ModifierOptions)
+                                    {
+                                        var isChecked = subjectGroup.EnabledModifiers.Contains(opt);
+                                        <MudCheckBox T="bool"
+                                                     Checked="@isChecked"
+                                                     CheckedChanged="@(async (bool v) => await ToggleModifierAsync(enrollment, subjectGroup, opt))"
+                                                     Size="Size.Small"
+                                                     Color="Color.Secondary"
+                                                     Label="@opt"
+                                                     @onclick:stopPropagation="true" />
+                                    }
+                                </div>
+                            }
+
                             <MudDivider Class="mb-3" />
 
                             <div class="d-flex align-center gap-3 mb-2 px-2"
@@ -243,7 +266,10 @@ else
 
                             @foreach (var row in subjectGroup.Rows)
                             {
-                                <div class="grade-row @(row.IsExpanded ? "grade-row--expanded" : "")">
+                                var rowStyle = row.IsStrandActive
+                                    ? ""
+                                    : "opacity:0.35; pointer-events:none;";
+                                <div class="grade-row @(row.IsExpanded ? "grade-row--expanded" : "")" style="@rowStyle">
                                     <div class="d-flex align-center gap-3 px-2 py-2">
                                         <div style="flex:1; min-width:0;">
                                             <MudText Typo="Typo.body2" Style="font-weight:500; color:#1A2B3C;">
@@ -583,7 +609,14 @@ else
         public string SubjectName { get; set; } = "";
         public string? SubjectCode { get; set; }
         public int SortOrder { get; set; }
+        public int? CurriculumClassTemplateId { get; set; }
         public List<GradeRow> Rows { get; set; } = new();
+        // Modifier options from the assigned template (empty = none configured)
+        public List<string> ModifierOptions { get; set; } = new();
+        // Which modifier options are currently checked for this student
+        public HashSet<string> EnabledModifiers { get; set; } = new();
+        public int? ExistingModifierId { get; set; }
+        public bool IsSavingModifiers { get; set; }
     }
 
     private class GradeRow
@@ -596,6 +629,10 @@ else
         public string?  Comment     { get; set; }
         public bool IsExpanded { get; set; }
         public List<CurriculumSubStrand> SubStrands { get; set; } = new();
+        // The strand this row belongs to (null = class-level item, not strand-level)
+        public int? StrandId { get; set; }
+        // Whether this row's strand is active (null = no strand config, show everything)
+        public bool IsStrandActive { get; set; } = true;
     }
 
     private class StudentState
@@ -824,12 +861,32 @@ else
             .ToListAsync();
         var assessmentMap = assessments.ToDictionary(a => a.StudentLearningItemId);
 
+        // Load subject configs for this class group instance
+        var subjectConfigs = await Db.ClassGroupSubjectConfigs
+            .Include(c => c.SubjectModifierTemplate)
+            .Where(c => c.ClassGroupInstanceId == enrollment.ClassGroupInstanceId)
+            .ToListAsync();
+        var configByTemplateId = subjectConfigs.ToDictionary(c => c.CurriculumClassTemplateId);
+
+        // Load existing student modifier records for this enrollment + term
+        var studentModifiers = await Db.StudentSubjectModifiers
+            .Where(m => m.EnrollmentId == enrollment.Id && m.TermInstanceId == _selectedTermId)
+            .ToListAsync();
+        var modifierByTemplateId = studentModifiers.ToDictionary(m => m.CurriculumClassTemplateId);
+
         var rows = items.Select(li =>
         {
             assessmentMap.TryGetValue(li.Id, out var existing);
             var subStrands = li.ItemType == LearningItemType.Subject
                 ? li.YearSubjectOffering?.CurriculumSubjectTemplate?.SubStrands ?? new()
                 : new List<CurriculumSubStrand>();
+
+            // Determine which strand (if any) this row belongs to
+            // A subject-level item's strand is its CurriculumSubjectTemplate's parent strand
+            // For now we use the CurriculumSubjectTemplateId as a proxy for strand grouping
+            var strandId = li.ItemType == LearningItemType.Subject
+                ? li.YearSubjectOffering?.CurriculumSubjectTemplate?.Id
+                : (int?)null;
 
             return new GradeRow
             {
@@ -840,6 +897,7 @@ else
                 ValueNumber          = existing?.ValueNumber,
                 Comment              = existing?.Comment,
                 SubStrands           = subStrands,
+                StrandId             = strandId,
             };
         }).ToList();
 
@@ -848,28 +906,85 @@ else
             {
                 if (r.LearningItem.ItemType == LearningItemType.Class)
                     return (
-                        Name:      r.LearningItem.YearClassOffering?.CurriculumClassTemplate?.Name ?? "General",
-                        Code:      r.LearningItem.YearClassOffering?.CurriculumClassTemplate?.Code,
-                        SortOrder: r.LearningItem.YearClassOffering?.CurriculumClassTemplate?.SortOrder ?? 999
+                        Name:                    r.LearningItem.YearClassOffering?.CurriculumClassTemplate?.Name ?? "General",
+                        Code:                    r.LearningItem.YearClassOffering?.CurriculumClassTemplate?.Code,
+                        SortOrder:               r.LearningItem.YearClassOffering?.CurriculumClassTemplate?.SortOrder ?? 999,
+                        CurriculumClassTemplateId: r.LearningItem.YearClassOffering?.CurriculumClassTemplateId
                     );
                 return (
-                    Name:      r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.Name ?? "General",
-                    Code:      r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.Code,
-                    SortOrder: r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.SortOrder ?? 999
+                    Name:                    r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.Name ?? "General",
+                    Code:                    r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.Code,
+                    SortOrder:               r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.SortOrder ?? 999,
+                    CurriculumClassTemplateId: r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplateId
                 );
             })
             .OrderBy(g => g.Key.SortOrder)
             .ThenBy(g => g.Key.Name)
-            .Select(g => new SubjectGroup
+            .Select(g =>
             {
-                SubjectName = g.Key.Name,
-                SubjectCode = g.Key.Code,
-                SortOrder   = g.Key.SortOrder,
-                Rows        = g
+                var cctId = g.Key.CurriculumClassTemplateId;
+
+                // Get active strand IDs for this subject group
+                HashSet<int> activeStrandIds = new();
+                bool hasStrandConfig = false;
+                if (cctId.HasValue && configByTemplateId.TryGetValue(cctId.Value, out var cfg))
+                {
+                    var ids = System.Text.Json.JsonSerializer
+                        .Deserialize<List<int>>(cfg.ActiveStrandIdsJson) ?? new();
+                    if (ids.Count > 0)
+                    {
+                        hasStrandConfig = true;
+                        activeStrandIds = ids.ToHashSet();
+                    }
+                }
+
+                // Get modifier options + existing student modifiers
+                List<string> modifierOptions = new();
+                HashSet<string> enabledModifiers = new();
+                int? existingModifierId = null;
+                if (cctId.HasValue && configByTemplateId.TryGetValue(cctId.Value, out var sgCfg)
+                    && sgCfg.SubjectModifierTemplate != null)
+                {
+                    modifierOptions = System.Text.Json.JsonSerializer
+                        .Deserialize<List<string>>(sgCfg.SubjectModifierTemplate.OptionsJson) ?? new();
+                }
+                if (cctId.HasValue && modifierByTemplateId.TryGetValue(cctId.Value, out var mod))
+                {
+                    existingModifierId = mod.Id;
+                    enabledModifiers = (System.Text.Json.JsonSerializer
+                        .Deserialize<List<string>>(mod.EnabledOptionsJson) ?? new()).ToHashSet();
+                }
+
+                var groupRows = g
                     .OrderBy(r => r.LearningItem.ItemType)
                     .ThenBy(r => r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.SortOrder ?? 999)
                     .ThenBy(r => r.DisplayName)
-                    .ToList()
+                    .ToList();
+
+                // Apply strand active state to rows
+                // A row is active if any of its SubStrands are in the active set
+                // (or if it has no strands at all — class-level items are always shown)
+                if (hasStrandConfig)
+                {
+                    foreach (var row in groupRows)
+                    {
+                        if (row.SubStrands.Count > 0)
+                            row.IsStrandActive = row.SubStrands.Any(s => activeStrandIds.Contains(s.Id));
+                        // else: class-level item, always active
+                    }
+                }
+
+                return new SubjectGroup
+                {
+                    SubjectName               = g.Key.Name,
+                    SubjectCode               = g.Key.Code,
+                    SortOrder                 = g.Key.SortOrder,
+                    CurriculumClassTemplateId = cctId,
+                    ModifierOptions           = modifierOptions,
+                    EnabledModifiers          = enabledModifiers,
+                    ExistingModifierId        = existingModifierId,
+                    Rows                      = groupRows
+                };
             })
             .ToList();
     }
@@ -1003,6 +1118,63 @@ else
         finally
         {
             state.IsSaving = false;
+        }
+    }
+
+    // ── SUBJECT MODIFIERS ──────────────────────────────────────
+
+    private async Task ToggleModifierAsync(Enrollment enrollment, SubjectGroup sg, string option)
+    {
+        if (sg.EnabledModifiers.Contains(option))
+            sg.EnabledModifiers.Remove(option);
+        else
+            sg.EnabledModifiers.Add(option);
+
+        if (sg.CurriculumClassTemplateId == null || _selectedTermId == null) return;
+
+        sg.IsSavingModifiers = true;
+        StateHasChanged();
+
+        try
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(sg.EnabledModifiers.ToList());
+
+            if (sg.ExistingModifierId.HasValue)
+            {
+                var existing = await Db.StudentSubjectModifiers.FindAsync(sg.ExistingModifierId.Value);
+                if (existing != null)
+                {
+                    existing.EnabledOptionsJson = json;
+                    existing.UpdatedAt = DateTimeOffset.UtcNow;
+                }
+            }
+            else
+            {
+                var newMod = new StudentSubjectModifier
+                {
+                    EnrollmentId              = enrollment.Id,
+                    TermInstanceId            = _selectedTermId.Value,
+                    CurriculumClassTemplateId = sg.CurriculumClassTemplateId.Value,
+                    EnabledOptionsJson        = json,
+                    EnabledStrandIdsJson      = "[]",
+                    UpdatedAt                 = DateTimeOffset.UtcNow
+                };
+                Db.StudentSubjectModifiers.Add(newMod);
+                await Db.SaveChangesAsync();
+                sg.ExistingModifierId = newMod.Id;
+                return;
+            }
+
+            await Db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to save modifier: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            sg.IsSavingModifiers = false;
+            StateHasChanged();
         }
     }
 
