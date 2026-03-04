@@ -405,6 +405,81 @@ else
                         </MudGrid>
                     }
 
+                    @if (_subjectGroups.Count > 0)
+                    {
+                        <MudDivider Class="mt-5 mb-4" />
+
+                        <MudText Typo="Typo.overline" Class="mb-3"
+                                 Style="color:var(--mud-palette-text-secondary);">Subject Configuration</MudText>
+
+                        @foreach (var sg in _subjectGroups)
+                        {
+                            var cfgKey = (cgi.Id, sg.Id);
+                            var cfg = _subjectConfigs.GetValueOrDefault(cfgKey);
+                            var currentTemplateId = cfg?.SubjectModifierTemplateId;
+                            var strands = _strandsByGroup.GetValueOrDefault(sg.Id) ?? new();
+
+                            <MudCard Elevation="0" Class="mb-3"
+                                     Style="border:1px solid var(--mud-palette-divider); border-radius:8px;">
+                                <MudCardContent Class="pa-3">
+                                    <div class="d-flex align-center justify-space-between mb-2">
+                                        <MudText Typo="Typo.subtitle2" Style="font-weight:700;">
+                                            @sg.Name
+                                        </MudText>
+                                    </div>
+
+                                    <MudGrid>
+                                        <MudItem xs="12" sm="5">
+                                            <MudSelect T="int?"
+                                                       Value="@currentTemplateId"
+                                                       ValueChanged="@(async (int? v) => await SetModifierTemplateAsync(cgi.Id, sg.Id, v))"
+                                                       Label="Modifier Template"
+                                                       Variant="Variant.Outlined"
+                                                       Margin="Margin.Dense"
+                                                       Clearable="true"
+                                                       AnchorOrigin="Origin.BottomCenter"
+                                                       HelperText="Checkboxes shown beside this subject's mark">
+                                                @foreach (var tmpl in _modifierTemplates)
+                                                {
+                                                    <MudSelectItem T="int?" Value="@((int?)tmpl.Id)">
+                                                        @tmpl.Name
+                                                    </MudSelectItem>
+                                                }
+                                            </MudSelect>
+                                        </MudItem>
+                                    </MudGrid>
+
+                                    @if (strands.Count > 0)
+                                    {
+                                        <MudText Typo="Typo.caption" Class="mt-3 mb-1 d-block"
+                                                 Style="color:var(--mud-palette-text-secondary);">Active Strands</MudText>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            @foreach (var strand in strands)
+                                            {
+                                                var isActive = _activeStrands.Contains((cgi.Id, sg.Id, strand.Id));
+                                                var strandStyle = isActive
+                                                    ? "cursor:pointer; font-weight:700;"
+                                                    : "cursor:pointer; font-weight:400;";
+                                                <MudChip T="string"
+                                                         Variant="@(isActive ? Variant.Filled : Variant.Outlined)"
+                                                         Color="@(isActive ? Color.Primary : Color.Default)"
+                                                         Size="Size.Small"
+                                                         Style="@strandStyle"
+                                                         OnClick="@(async () => await ToggleStrandAsync(cgi.Id, sg.Id, strand.Id, !isActive))">
+                                                    @strand.Name
+                                                </MudChip>
+                                            }
+                                        </div>
+                                        <MudText Typo="Typo.caption" Class="mt-1"
+                                                 Style="color:var(--mud-palette-text-secondary); font-style:italic;">
+                                            Click a strand to toggle it on/off. Filled = active on report card.
+                                        </MudText>
+                                    }
+                                </MudCardContent>
+                            </MudCard>
+                        }
+                    }
+
                 </MudCardContent>
             </MudCard>
         }
@@ -445,6 +520,17 @@ else
     // Value is the selected GradingScaleId (null = not set)
     private Dictionary<(int ClassGroupTypeId, int GradeId), int?> _gradingRuleScaleIds = new();
     private List<GradingScale> _gradingScales = new();
+
+    // ── Subject modifier / strand config ──────────────────────
+    private List<SubjectModifierTemplate>  _modifierTemplates  = new();
+    // Curriculum class templates available for the selected year (deduplicated by name)
+    private List<CurriculumClassTemplate>  _subjectGroups      = new();
+    // Strands keyed by CurriculumClassTemplateId
+    private Dictionary<int, List<CurriculumSubStrand>> _strandsByGroup = new();
+    // Config keyed by (ClassGroupInstanceId, CurriculumClassTemplateId)
+    private Dictionary<(int CgiId, int ClassTemplateId), ClassGroupSubjectConfig> _subjectConfigs = new();
+    // UI strand toggle state keyed by (ClassGroupInstanceId, CurriculumClassTemplateId, StrandId)
+    private HashSet<(int CgiId, int ClassTemplateId, int StrandId)> _activeStrands = new();
 
     // ── Computed ──────────────────────────────────────────
     private bool CanAddGroup =>
@@ -556,6 +642,66 @@ else
             .ToDictionary(
                 r => (r.ClassGroupTypeId, r.GradeId),
                 r => (int?)r.GradingScaleId);
+
+        await LoadSubjectConfigAsync();
+    }
+
+    private async Task LoadSubjectConfigAsync()
+    {
+        if (_selectedTermId == null) return;
+
+        // Load modifier templates
+        _modifierTemplates = await Db.SubjectModifierTemplates
+            .OrderBy(t => t.IsSystem ? 0 : 1).ThenBy(t => t.Name)
+            .ToListAsync();
+
+        // Find the school year for the selected term
+        var schoolYearId = await Db.TermInstances
+            .Where(t => t.Id == _selectedTermId)
+            .Select(t => t.SchoolYearId)
+            .FirstOrDefaultAsync();
+
+        // Load curriculum class templates (subject groups) for this year
+        // Get distinct IDs first, then load with full includes
+        var subjectGroupIds = await Db.YearClassOfferings
+            .Where(o => o.YearCurriculum!.SchoolYearId == schoolYearId && o.IsEnabled)
+            .Select(o => o.CurriculumClassTemplateId)
+            .Distinct()
+            .ToListAsync();
+
+        _subjectGroups = await Db.CurriculumClassTemplates
+            .Where(ct => subjectGroupIds.Contains(ct.Id))
+            .Include(ct => ct.SubjectTemplates)
+                .ThenInclude(st => st.SubStrands)
+            .OrderBy(ct => ct.SortOrder)
+            .ToListAsync();
+
+        // Build strands lookup (flatten all substrands across subjects within each group)
+        _strandsByGroup = _subjectGroups.ToDictionary(
+            sg => sg.Id,
+            sg => sg.SubjectTemplates
+                     .SelectMany(st => st.SubStrands)
+                     .OrderBy(s => s.SortOrder)
+                     .ToList());
+
+        // Load existing configs for all class group instances in this term
+        var cgiIds = _classGroupInstances.Select(c => c.Id).ToList();
+        var configs = await Db.ClassGroupSubjectConfigs
+            .Where(c => cgiIds.Contains(c.ClassGroupInstanceId))
+            .ToListAsync();
+
+        _subjectConfigs = configs.ToDictionary(
+            c => (c.ClassGroupInstanceId, c.CurriculumClassTemplateId));
+
+        // Build active strand toggles from saved JSON
+        _activeStrands = new HashSet<(int, int, int)>();
+        foreach (var cfg in configs)
+        {
+            var ids = System.Text.Json.JsonSerializer
+                .Deserialize<List<int>>(cfg.ActiveStrandIdsJson) ?? new();
+            foreach (var sid in ids)
+                _activeStrands.Add((cfg.ClassGroupInstanceId, cfg.CurriculumClassTemplateId, sid));
+        }
     }
 
     // ── Teacher actions ───────────────────────────────────
@@ -801,6 +947,62 @@ else
         }
         await Db.SaveChangesAsync();
         Snackbar.Add("Grading scale saved.", Severity.Success);
+    }
+
+    // ── Subject config actions ──────────────────────────────
+    private async Task SetModifierTemplateAsync(int cgiId, int classTemplateId, int? templateId)
+    {
+        var key = (cgiId, classTemplateId);
+        if (!_subjectConfigs.TryGetValue(key, out var cfg))
+        {
+            cfg = new ClassGroupSubjectConfig
+            {
+                ClassGroupInstanceId      = cgiId,
+                CurriculumClassTemplateId = classTemplateId,
+                ActiveStrandIdsJson       = "[]",
+                UpdatedAt                 = DateTimeOffset.UtcNow
+            };
+            Db.ClassGroupSubjectConfigs.Add(cfg);
+            await Db.SaveChangesAsync();
+            _subjectConfigs[key] = cfg;
+        }
+
+        cfg.SubjectModifierTemplateId = templateId;
+        cfg.UpdatedAt = DateTimeOffset.UtcNow;
+        await Db.SaveChangesAsync();
+        Snackbar.Add("Modifier template saved.", Severity.Success);
+    }
+
+    private async Task ToggleStrandAsync(int cgiId, int classTemplateId, int strandId, bool active)
+    {
+        var toggleKey = (cgiId, classTemplateId, strandId);
+        if (active) _activeStrands.Add(toggleKey);
+        else        _activeStrands.Remove(toggleKey);
+
+        var cfgKey = (cgiId, classTemplateId);
+        if (!_subjectConfigs.TryGetValue(cfgKey, out var cfg))
+        {
+            cfg = new ClassGroupSubjectConfig
+            {
+                ClassGroupInstanceId      = cgiId,
+                CurriculumClassTemplateId = classTemplateId,
+                ActiveStrandIdsJson       = "[]",
+                UpdatedAt                 = DateTimeOffset.UtcNow
+            };
+            Db.ClassGroupSubjectConfigs.Add(cfg);
+            await Db.SaveChangesAsync();
+            _subjectConfigs[cfgKey] = cfg;
+        }
+
+        // Rebuild active strand IDs from the HashSet for this cgi+template
+        var activeIds = _activeStrands
+            .Where(k => k.CgiId == cgiId && k.ClassTemplateId == classTemplateId)
+            .Select(k => k.StrandId)
+            .ToList();
+
+        cfg.ActiveStrandIdsJson = System.Text.Json.JsonSerializer.Serialize(activeIds);
+        cfg.UpdatedAt = DateTimeOffset.UtcNow;
+        await Db.SaveChangesAsync();
     }
 
     // ── Helpers ───────────────────────────────────────────
