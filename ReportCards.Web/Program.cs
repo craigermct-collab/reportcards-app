@@ -59,6 +59,8 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddScoped<HomeworkAnalysisService>();
+builder.Services.AddScoped<AssistantContextService>();
+builder.Services.AddScoped<AssistantService>();
 builder.Services.AddScoped<CommentTemplateService>();
 builder.Services.AddScoped<ReportCardGeneratorService>();
 builder.Services.AddScoped<AttendanceService>();

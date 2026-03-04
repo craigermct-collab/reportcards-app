@@ -4,6 +4,8 @@
 @using Microsoft.EntityFrameworkCore
 @using ReportCards.Web.Data
 @inject SchoolDbContext Db
+@inject ReportCards.Web.Services.AttendanceService AttendanceSvc
+@inject IDialogService DialogSvc
 
 <div class="d-flex align-center gap-4 mb-6">
     <img src="https://www.kinderkollege.ca/images/logo_4.png"
@@ -198,14 +200,73 @@
                         : isWeekend ? "var(--mud-palette-text-disabled)" : "var(--mud-palette-text-primary)";
 
                     var dayStyle = $"font-weight:{(isToday ? "700" : "400")}; color:{dayColor}; font-size:0.8rem;";
-                    <div style="min-height:56px; border-radius:6px; border:@borderStyle; background:@cellBg; padding:4px 6px; position:relative;">
+                    _birthdayMap.TryGetValue((_calendarMonth.Month, dayNum), out var birthdays);
+                    var isClickable = inTerm && exc == null && !isWeekend;
+                    var cellCursor  = isClickable ? "cursor:pointer;" : "";
+                    var capturedDate = date;
+                    <div style="min-height:140px; border-radius:6px; border:@borderStyle; background:@cellBg; padding:6px 8px; position:relative; @cellCursor"
+                         @onclick="@(isClickable ? () => OpenAttendanceAsync(capturedDate) : null)">
                         <MudText Typo="Typo.body2" Style="@dayStyle">@dayNum</MudText>
                         @if (exc != null)
                         {
-                            <MudText Typo="Typo.caption"
-                                     Style="font-size:0.6rem; line-height:1.1; color:var(--mud-palette-text-secondary); display:block; margin-top:2px;">
-                                @exc.Label
-                            </MudText>
+                            var (badgeBg, badgeFg) = exc.ExceptionType switch
+                            {
+                                CalendarExceptionType.StatHoliday => ("#E74C3C", "white"),
+                                CalendarExceptionType.PdPaDay     => ("#E67E22", "white"),
+                                CalendarExceptionType.SnowDay     => ("#3498DB", "white"),
+                                _                                  => ("#95A5A6", "white")
+                            };
+                            var badgeStyle = $"font-size:0.6rem; line-height:1.3; color:{badgeFg}; font-weight:600;";
+                            <div style="display:inline-block; margin-top:4px; padding:2px 6px; border-radius:4px; background:@badgeBg;">
+                                <MudText Typo="Typo.caption" Style="@badgeStyle">
+                                    @exc.Label
+                                </MudText>
+                            </div>
+                        }
+                        @if (birthdays != null && birthdays.Count > 0)
+                        {
+                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                @foreach (var bday in birthdays)
+                                {
+                                    var fullName = $"{bday.FirstName} {bday.LastName}";
+                                    var avatarSrc = GetAvatarUrl(bday.AvatarConfigJson, bday.FirstName);
+                                    <MudTooltip Text="@($"🎂 {fullName}")">
+                                        <div style="width:48px; height:48px; border-radius:50%; overflow:hidden; border:2px solid #ddd; flex-shrink:0;">
+                                            <img src="@avatarSrc" style="width:48px; height:48px;" alt="@fullName" />
+                                        </div>
+                                    </MudTooltip>
+                                }
+                            </div>
+                        }
+                        @if (_attendanceMap.TryGetValue(date, out var attendees) && attendees.Count > 0)
+                        {
+                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                @foreach (var (student, attType) in attendees)
+                                {
+                                    var attName = $"{student.FirstName} {student.LastName}";
+                                    var attSrc  = GetAvatarUrl(student.AvatarConfigJson, student.FirstName);
+                                    var attLabel = attType == AttendanceType.Absent ? "❌ Absent" : "⏰ Late";
+                                    var attBorder = attType == AttendanceType.Absent ? "2px solid #E74C3C" : "2px solid #F39C12";
+                                    var attOverlay = attType == AttendanceType.Absent
+                                        ? "position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(231,76,60,0.35); border-radius:50%;"
+                                        : "position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(243,156,18,0.35); border-radius:50%;";
+                                    var attLine = attType == AttendanceType.Absent
+                                        ? "position:absolute; top:50%; left:-4px; right:-4px; height:3px; background:#E74C3C; transform:rotate(-35deg); border-radius:2px;"
+                                        : "";
+                                    <MudTooltip Text="@($"{attLabel}: {attName}")">
+                                        <div style="position:relative; width:40px; height:40px; flex-shrink:0;">
+                                            <div style="width:40px; height:40px; border-radius:50%; overflow:hidden; border:@attBorder;">
+                                                <img src="@attSrc" style="width:40px; height:40px;" alt="@attName" />
+                                            </div>
+                                            <div style="@attOverlay"></div>
+                                            @if (attType == AttendanceType.Absent)
+                                            {
+                                                <div style="@attLine"></div>
+                                            }
+                                        </div>
+                                    </MudTooltip>
+                                }
+                            </div>
                         }
                     </div>
                 }
@@ -234,6 +295,87 @@
     </MudCardContent>
 </MudCard>
 
+<!-- ── Attendance Dialog ──────────────────────────────── -->
+<MudDialog @bind-Visible="_attendanceOpen" Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.HowToReg" Color="Color.Primary" />
+            <MudText Typo="Typo.h6" Style="font-family:'DM Serif Display',serif;">
+                Attendance — @_attendanceDate.ToString("dddd, MMMM d, yyyy")
+            </MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (_attendanceEnrollments.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">No students enrolled for this term.</MudAlert>
+        }
+        else
+        {
+            <MudTable Items="_attendanceEnrollments" Dense="true" Hover="true" Elevation="0"
+                      Style="border:1px solid var(--mud-palette-divider); border-radius:8px;">
+                <HeaderContent>
+                    <MudTh>Student</MudTh>
+                    <MudTh Style="text-align:center; width:140px;">Status</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    @{
+                        var sid  = context.StudentId;
+                        var type = _attendanceEdits.GetValueOrDefault(sid);
+                        var avatarSrc = GetAvatarUrl(context.Student?.AvatarConfigJson, context.Student?.FirstName);
+                    }
+                    <MudTd>
+                        <div class="d-flex align-center gap-2">
+                            <div style="width:36px; height:36px; border-radius:50%; overflow:hidden; flex-shrink:0;">
+                                <img src="@avatarSrc" style="width:36px; height:36px;" />
+                            </div>
+                            <div>
+                                <MudText Typo="Typo.body2" Style="font-weight:600;">@context.Student?.FirstName @context.Student?.LastName</MudText>
+                                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">@context.ClassGroupInstance?.DisplayName — @context.Grade?.Name</MudText>
+                            </div>
+                        </div>
+                    </MudTd>
+                    <MudTd Style="text-align:center;">
+                        <div class="d-flex justify-center gap-1">
+                            <MudTooltip Text="Present">
+                                <MudIconButton Size="Size.Small"
+                                               Icon="@Icons.Material.Filled.CheckCircle"
+                                               Color="@(type == null ? Color.Success : Color.Default)"
+                                               Style="@(type == null ? "background:rgba(46,204,113,0.15);border-radius:50%;" : "")"
+                                               OnClick="@(() => { _attendanceEdits[sid] = null; StateHasChanged(); })" />
+                            </MudTooltip>
+                            <MudTooltip Text="Late">
+                                <MudIconButton Size="Size.Small"
+                                               Icon="@Icons.Material.Filled.Schedule"
+                                               Color="@(type == AttendanceType.Late ? Color.Warning : Color.Default)"
+                                               Style="@(type == AttendanceType.Late ? "background:rgba(230,126,34,0.15);border-radius:50%;" : "")"
+                                               OnClick="@(() => { _attendanceEdits[sid] = AttendanceType.Late; StateHasChanged(); })" />
+                            </MudTooltip>
+                            <MudTooltip Text="Absent">
+                                <MudIconButton Size="Size.Small"
+                                               Icon="@Icons.Material.Filled.Cancel"
+                                               Color="@(type == AttendanceType.Absent ? Color.Error : Color.Default)"
+                                               Style="@(type == AttendanceType.Absent ? "background:rgba(231,76,60,0.15);border-radius:50%;" : "")"
+                                               OnClick="@(() => { _attendanceEdits[sid] = AttendanceType.Absent; StateHasChanged(); })" />
+                            </MudTooltip>
+                        </div>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="@(() => _attendanceOpen = false)" Disabled="_attendanceSaving">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAttendanceAsync"
+                   Disabled="_attendanceSaving">
+            @if (_attendanceSaving) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" /> }
+            Save
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
     private int _activeStudents;
     private int _activeTeachers;
@@ -244,6 +386,9 @@
 
     private DateTime _calendarMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
     private Dictionary<DateOnly, SchoolCalendarException> _calendarExceptions = new();
+    private Dictionary<(int Month, int Day), List<Student>> _birthdayMap = new();
+    // date → list of (student, attendanceType)
+    private Dictionary<DateOnly, List<(Student Student, AttendanceType Type)>> _attendanceMap = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -265,20 +410,152 @@
             _calendarExceptions = _activeYear.CalendarExceptions
                 .ToDictionary(e => e.Date, e => e);
         }
+
+        // Load active students with birthdays
+        var studentsWithDob = await Db.Students
+            .Where(s => s.IsActive && s.DateOfBirth != null)
+            .Select(s => new { s.FirstName, s.LastName, s.DateOfBirth, s.AvatarConfigJson })
+            .ToListAsync();
+
+        _birthdayMap = studentsWithDob
+            .GroupBy(s => (s.DateOfBirth!.Value.Month, s.DateOfBirth.Value.Day))
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(s => new Student { FirstName = s.FirstName, LastName = s.LastName, AvatarConfigJson = s.AvatarConfigJson }).ToList()
+            );
+
+        await LoadAttendanceMapAsync();
     }
 
-    private void PrevMonth()
+    private async Task PrevMonth()
     {
         _calendarMonth = _calendarMonth.AddMonths(-1);
+        await LoadAttendanceMapAsync();
     }
 
-    private void NextMonth()
+    private async Task NextMonth()
     {
         _calendarMonth = _calendarMonth.AddMonths(1);
+        await LoadAttendanceMapAsync();
     }
 
-    private void GoToToday()
+    private async Task GoToToday()
     {
         _calendarMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        await LoadAttendanceMapAsync();
+    }
+
+    private async Task LoadAttendanceMapAsync()
+    {
+        var monthStart = new DateOnly(_calendarMonth.Year, _calendarMonth.Month, 1);
+        var monthEnd   = new DateOnly(_calendarMonth.Year, _calendarMonth.Month,
+                             DateTime.DaysInMonth(_calendarMonth.Year, _calendarMonth.Month));
+
+        // Load all attendance events for this month with student info
+        var events = await Db.AttendanceEvents
+            .Where(a => a.Date >= monthStart && a.Date <= monthEnd)
+            .Include(a => a.Student)
+            .ToListAsync();
+
+        _attendanceMap = events
+            .GroupBy(a => a.Date)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(a => (a.Student!, a.Type)).ToList()
+            );
+    }
+
+    // ── Attendance Dialog ─────────────────────────────────────────
+
+    private bool                             _attendanceOpen   = false;
+    private DateOnly                         _attendanceDate;
+    private bool                             _attendanceSaving = false;
+    private List<Enrollment>                 _attendanceEnrollments = new();
+    private Dictionary<int, AttendanceType?> _attendanceEdits  = new(); // studentId → type (null = present)
+
+    private async Task OpenAttendanceAsync(DateOnly date)
+    {
+        if (_activeYear == null) return;
+        _attendanceDate  = date;
+        _attendanceEdits = new();
+        _attendanceSaving = false;
+
+        // Find the term for this date
+        var term = _activeYear.TermInstances
+            .FirstOrDefault(t => date >= t.StartDate && date <= t.EndDate);
+        if (term == null) return;
+
+        // Load enrolled students for this term
+        _attendanceEnrollments = await Db.Enrollments
+            .Where(e => e.TermInstanceId == term.Id)
+            .Include(e => e.Student)
+            .Include(e => e.Grade)
+            .Include(e => e.ClassGroupInstance)
+            .OrderBy(e => e.Student!.LastName).ThenBy(e => e.Student!.FirstName)
+            .ToListAsync();
+
+        // Load existing attendance events for this date
+        var studentIds = _attendanceEnrollments.Select(e => e.StudentId).ToList();
+        var existing   = await Db.AttendanceEvents
+            .Where(a => studentIds.Contains(a.StudentId) && a.Date == date)
+            .ToListAsync();
+
+        foreach (var e in _attendanceEnrollments)
+            _attendanceEdits[e.StudentId] = existing.FirstOrDefault(a => a.StudentId == e.StudentId)?.Type;
+
+        _attendanceOpen = true;
+    }
+
+    private async Task SaveAttendanceAsync()
+    {
+        _attendanceSaving = true;
+        StateHasChanged();
+
+        var studentIds = _attendanceEnrollments.Select(e => e.StudentId).ToList();
+        var existing   = await Db.AttendanceEvents
+            .Where(a => studentIds.Contains(a.StudentId) && a.Date == _attendanceDate)
+            .ToListAsync();
+        Db.AttendanceEvents.RemoveRange(existing);
+
+        foreach (var (sid, type) in _attendanceEdits)
+        {
+            if (type.HasValue)
+            {
+                Db.AttendanceEvents.Add(new AttendanceEvent
+                {
+                    StudentId = sid,
+                    Date      = _attendanceDate,
+                    Type      = type.Value
+                });
+            }
+        }
+
+        await Db.SaveChangesAsync();
+        _attendanceSaving = false;
+        _attendanceOpen   = false;
+        await LoadAttendanceMapAsync();
+        StateHasChanged();
+    }
+
+    private static string GetAvatarUrl(string? json, string? name)
+    {
+        Dictionary<string, string> props = new();
+        if (!string.IsNullOrWhiteSpace(json))
+        {
+            try { props = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new(); }
+            catch { }
+        }
+        var sb = new System.Text.StringBuilder("https://api.dicebear.com/9.x/avataaars/svg?");
+        sb.Append("seed=").Append(Uri.EscapeDataString(name ?? "student"));
+        if (props.TryGetValue("skinColor",       out var skin))  sb.Append("&skinColor=").Append(skin);
+        if (props.TryGetValue("top",             out var top))   sb.Append("&top=").Append(top);
+        if (props.TryGetValue("hairColor",       out var hc))    sb.Append("&hairColor=").Append(hc);
+        if (props.TryGetValue("eyes",            out var eyes))  sb.Append("&eyes=").Append(eyes);
+        if (props.TryGetValue("mouth",           out var mouth)) sb.Append("&mouth=").Append(mouth);
+        if (props.TryGetValue("clothing",        out var cloth)) sb.Append("&clothing=").Append(cloth);
+        sb.Append("&accessoriesProbability=0&facialHairProbability=0");
+        if (props.TryGetValue("backgroundColor", out var bg))   sb.Append("&backgroundColor=").Append(bg);
+        sb.Append("&backgroundType=solid&radius=50&scale=90");
+        return sb.ToString();
     }
 }
