@@ -1,6 +1,6 @@
 @page "/app-settings"
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize(Roles = "Admin")]
+@attribute [Authorize]
 @using Microsoft.EntityFrameworkCore
 @using ReportCards.Web.Data
 @inject SchoolDbContext Db
@@ -305,11 +305,13 @@ else
                 Icon     = Icons.Material.Filled.School,
                 Items    =
                 [
-                    new(SchoolConfigKeys.SchoolName,   "School Name",    SettingType.Text,  "e.g. KinderKollege Primary School"),
-                    new(SchoolConfigKeys.LogoUrl,      "Logo URL",       SettingType.Url,   "Public URL to your school logo image"),
-                    new(SchoolConfigKeys.ContactEmail, "Contact Email",  SettingType.Text,  null),
-                    new(SchoolConfigKeys.ContactPhone, "Contact Phone",  SettingType.Text,  null),
-                    new(SchoolConfigKeys.Address,      "Address",        SettingType.Text,  null),
+                    new(SchoolConfigKeys.SchoolName,  "School Name",    SettingType.Text, "e.g. KinderKollege Primary School"),
+                    new(SchoolConfigKeys.Board,        "Board",          SettingType.Text, "e.g. Ottawa-Carleton District School Board"),
+                    new(SchoolConfigKeys.Principal,    "Principal",      SettingType.Text, "e.g. Ms. Jane Smith"),
+                    new(SchoolConfigKeys.Address,      "Address",        SettingType.Text, null),
+                    new(SchoolConfigKeys.ContactPhone, "Phone",          SettingType.Text, null),
+                    new(SchoolConfigKeys.ContactEmail, "Contact Email",  SettingType.Text, null),
+                    new(SchoolConfigKeys.LogoUrl,      "Logo URL",       SettingType.Url,  "Public URL to your school logo image"),
                 ]
             },
             new()

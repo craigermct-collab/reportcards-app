@@ -176,6 +176,43 @@ namespace ReportCards.Web.Migrations
                     b.ToTable("ClassGroupReportFormats");
                 });
 
+            modelBuilder.Entity("ReportCards.Web.Data.ClassGroupSubjectConfig", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActiveStrandIdsJson")
+                        .IsRequired()
+                        .HasDefaultValue("[]")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ClassGroupInstanceId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CurriculumClassTemplateId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SubjectModifierTemplateId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CurriculumClassTemplateId");
+
+                    b.HasIndex("SubjectModifierTemplateId");
+
+                    b.HasIndex("ClassGroupInstanceId", "CurriculumClassTemplateId")
+                        .IsUnique();
+
+                    b.ToTable("ClassGroupSubjectConfigs");
+                });
+
             modelBuilder.Entity("ReportCards.Web.Data.ClassGroupType", b =>
                 {
                     b.Property<int>("Id")
@@ -821,6 +858,80 @@ namespace ReportCards.Web.Migrations
                     b.ToTable("SchoolYears");
                 });
 
+            modelBuilder.Entity("ReportCards.Web.Data.StudentSubjectModifier", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CurriculumClassTemplateId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EnabledOptionsJson")
+                        .IsRequired()
+                        .HasDefaultValue("[]")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EnabledStrandIdsJson")
+                        .IsRequired()
+                        .HasDefaultValue("[]")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("EnrollmentId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TermInstanceId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CurriculumClassTemplateId");
+
+                    b.HasIndex("TermInstanceId");
+
+                    b.HasIndex("EnrollmentId", "CurriculumClassTemplateId", "TermInstanceId")
+                        .IsUnique();
+
+                    b.ToTable("StudentSubjectModifiers");
+                });
+
+            modelBuilder.Entity("ReportCards.Web.Data.SubjectModifierTemplate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsSystem")
+                        .HasDefaultValue(false)
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("OptionsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("SubjectModifierTemplates");
+                });
+
             modelBuilder.Entity("ReportCards.Web.Data.Student", b =>
                 {
                     b.Property<int>("Id")
@@ -1262,6 +1373,59 @@ namespace ReportCards.Web.Migrations
                     b.Navigation("ClassGroupType");
 
                     b.Navigation("ReportCardTemplate");
+
+                    b.Navigation("TermInstance");
+                });
+
+            modelBuilder.Entity("ReportCards.Web.Data.ClassGroupSubjectConfig", b =>
+                {
+                    b.HasOne("ReportCards.Web.Data.ClassGroupInstance", "ClassGroupInstance")
+                        .WithMany()
+                        .HasForeignKey("ClassGroupInstanceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ReportCards.Web.Data.CurriculumClassTemplate", "CurriculumClassTemplate")
+                        .WithMany()
+                        .HasForeignKey("CurriculumClassTemplateId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ReportCards.Web.Data.SubjectModifierTemplate", "SubjectModifierTemplate")
+                        .WithMany("ClassGroupSubjectConfigs")
+                        .HasForeignKey("SubjectModifierTemplateId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("ClassGroupInstance");
+
+                    b.Navigation("CurriculumClassTemplate");
+
+                    b.Navigation("SubjectModifierTemplate");
+                });
+
+            modelBuilder.Entity("ReportCards.Web.Data.StudentSubjectModifier", b =>
+                {
+                    b.HasOne("ReportCards.Web.Data.CurriculumClassTemplate", "CurriculumClassTemplate")
+                        .WithMany()
+                        .HasForeignKey("CurriculumClassTemplateId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ReportCards.Web.Data.Enrollment", "Enrollment")
+                        .WithMany()
+                        .HasForeignKey("EnrollmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ReportCards.Web.Data.TermInstance", "TermInstance")
+                        .WithMany()
+                        .HasForeignKey("TermInstanceId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("CurriculumClassTemplate");
+
+                    b.Navigation("Enrollment");
 
                     b.Navigation("TermInstance");
                 });
@@ -1802,6 +1966,11 @@ namespace ReportCards.Web.Migrations
             modelBuilder.Entity("ReportCards.Web.Data.YearSubjectOffering", b =>
                 {
                     b.Navigation("StudentLearningItems");
+                });
+
+            modelBuilder.Entity("ReportCards.Web.Data.SubjectModifierTemplate", b =>
+                {
+                    b.Navigation("ClassGroupSubjectConfigs");
                 });
 #pragma warning restore 612, 618
         }

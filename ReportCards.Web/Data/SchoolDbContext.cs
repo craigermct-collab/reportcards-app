@@ -10,9 +10,12 @@ public class SchoolDbContext : DbContext
     public DbSet<ClassGroupType> ClassGroupTypes => Set<ClassGroupType>();
     public DbSet<Grade> Grades => Set<Grade>();
 
-    // Grading
+    // Grading + modifier templates
     public DbSet<GradingScale> GradingScales => Set<GradingScale>();
     public DbSet<GradingScaleOption> GradingScaleOptions => Set<GradingScaleOption>();
+    public DbSet<SubjectModifierTemplate> SubjectModifierTemplates => Set<SubjectModifierTemplate>();
+    public DbSet<ClassGroupSubjectConfig> ClassGroupSubjectConfigs => Set<ClassGroupSubjectConfig>();
+    public DbSet<StudentSubjectModifier> StudentSubjectModifiers => Set<StudentSubjectModifier>();
 
     // School year / terms
     public DbSet<SchoolYear> SchoolYears => Set<SchoolYear>();
@@ -377,6 +380,53 @@ public class SchoolDbContext : DbContext
             .WithMany(s => s.AttendanceEvents)
             .HasForeignKey(a => a.StudentId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // ── ClassGroupSubjectConfig ─────────────────────────────────
+        // Unique per class group instance + subject group
+        m.Entity<ClassGroupSubjectConfig>()
+            .HasIndex(c => new { c.ClassGroupInstanceId, c.CurriculumClassTemplateId }).IsUnique();
+
+        m.Entity<ClassGroupSubjectConfig>()
+            .HasOne(c => c.ClassGroupInstance)
+            .WithMany()
+            .HasForeignKey(c => c.ClassGroupInstanceId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        m.Entity<ClassGroupSubjectConfig>()
+            .HasOne(c => c.CurriculumClassTemplate)
+            .WithMany()
+            .HasForeignKey(c => c.CurriculumClassTemplateId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        m.Entity<ClassGroupSubjectConfig>()
+            .HasOne(c => c.SubjectModifierTemplate)
+            .WithMany(t => t.ClassGroupSubjectConfigs)
+            .HasForeignKey(c => c.SubjectModifierTemplateId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        // ── StudentSubjectModifier ──────────────────────────────────
+        // Unique per enrollment + subject group + term
+        m.Entity<StudentSubjectModifier>()
+            .HasIndex(s => new { s.EnrollmentId, s.CurriculumClassTemplateId, s.TermInstanceId }).IsUnique();
+
+        m.Entity<StudentSubjectModifier>()
+            .HasOne(s => s.Enrollment)
+            .WithMany()
+            .HasForeignKey(s => s.EnrollmentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        m.Entity<StudentSubjectModifier>()
+            .HasOne(s => s.CurriculumClassTemplate)
+            .WithMany()
+            .HasForeignKey(s => s.CurriculumClassTemplateId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        m.Entity<StudentSubjectModifier>()
+            .HasOne(s => s.TermInstance)
+            .WithMany()
+            .HasForeignKey(s => s.TermInstanceId)
+            .OnDelete(DeleteBehavior.NoAction);
 
         // EnrollmentPeerReview — unique per enrollment + term
         m.Entity<EnrollmentPeerReview>()

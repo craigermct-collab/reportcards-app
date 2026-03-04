@@ -139,6 +139,204 @@ public static class DbSeeder
             }
         }
 
+        // ── Subject Modifier Templates ──────────────────────────────
+        if (!await db.SubjectModifierTemplates.AnyAsync())
+        {
+            db.SubjectModifierTemplates.AddRange(
+                new SubjectModifierTemplate
+                {
+                    Name        = "Standard (3 options)",
+                    OptionsJson = "[\"ESL/ELD\",\"IEP\",\"French\"]",
+                    IsSystem    = true,
+                    CreatedAt   = DateTimeOffset.UtcNow
+                },
+                new SubjectModifierTemplate
+                {
+                    Name        = "Extended (4 options)",
+                    OptionsJson = "[\"ESL/ELD\",\"IEP\",\"French\",\"N/A\"]",
+                    IsSystem    = true,
+                    CreatedAt   = DateTimeOffset.UtcNow
+                }
+            );
+            await db.SaveChangesAsync();
+        }
+
+        // ── Ontario Curriculum Schema (real data from CSV) ──────────
+        var ontarioCurriculumExists = await db.CurriculumSchemas
+            .AnyAsync(s => s.Name == "Ontario Elementary Curriculum (Grades 1-6)");
+
+        if (!ontarioCurriculumExists)
+        {
+            var primaryGrades = await db.Grades
+                .Include(g => g.ClassGroupType)
+                .Where(g => g.ClassGroupType!.Name == "Primary")
+                .OrderBy(g => g.SortOrder)
+                .ToListAsync();
+
+            // Map grade name → Grade entity
+            var gradeMap = primaryGrades.ToDictionary(
+                g => g.SortOrder, // SortOrder 1-5 = Grade 1-5 (we'll extend to 6 if needed)
+                g => g
+            );
+
+            // ── Science and Technology ─────────────────────────────
+            // One subject group, one subject per grade, 5 strands (A-E)
+            var scienceStrands = new[]
+            {
+                (Code: "A", Name: "STEM Skills and Connections"),
+                (Code: "B", Name: "Life Systems"),
+                (Code: "C", Name: "Matter and Energy"),
+                (Code: "D", Name: "Structures and Mechanisms"),
+                (Code: "E", Name: "Earth and Space Systems"),
+            };
+
+            // ── Health and Physical Education ──────────────────────
+            // Two subjects per grade: Healthy Living + Physical Education
+            // Each has 4 strands (A-D)
+            var healthSubjects = new[]
+            {
+                (
+                    Name: "Healthy Education: Healthy Living",
+                    Code: "HE",
+                    Strands: new[]
+                    {
+                        (Code: "A", Name: "Social-Emotional Learning Skills"),
+                        (Code: "B", Name: "Active Living"),
+                        (Code: "C", Name: "Movement Competence: Skills, Concepts, and Strategies"),
+                        (Code: "D", Name: "Healthy Living"),
+                    }
+                ),
+                (
+                    Name: "Physical Education: Active Living, Movement Competence",
+                    Code: "PE",
+                    Strands: new[]
+                    {
+                        (Code: "A", Name: "Social-Emotional Learning Skills"),
+                        (Code: "B", Name: "Active Living"),
+                        (Code: "C", Name: "Movement Competence: Skills, Concepts, and Strategies"),
+                        (Code: "D", Name: "Healthy Living"),
+                    }
+                ),
+            };
+
+            var schema = new CurriculumSchema
+            {
+                Name        = "Ontario Elementary Curriculum (Grades 1-6)",
+                Description = "Official Ontario Ministry of Education curriculum — Science and Technology, Health and Physical Education (Grades 1-6)",
+                Version     = "2022",
+                UploadedAt  = DateTimeOffset.UtcNow,
+            };
+            db.CurriculumSchemas.Add(schema);
+            await db.SaveChangesAsync();
+
+            // Grades 1-5 exist in seed; add Grade 6 if missing
+            var primaryCgt = await db.ClassGroupTypes.FirstAsync(c => c.Name == "Primary");
+            var grade6 = await db.Grades.FirstOrDefaultAsync(g => g.Name == "Grade 6" && g.ClassGroupTypeId == primaryCgt.Id);
+            if (grade6 == null)
+            {
+                grade6 = new Grade { Name = "Grade 6", SortOrder = 6, ClassGroupTypeId = primaryCgt.Id };
+                db.Grades.Add(grade6);
+                await db.SaveChangesAsync();
+            }
+
+            // Build full grade list 1-6
+            var allPrimaryGrades = await db.Grades
+                .Include(g => g.ClassGroupType)
+                .Where(g => g.ClassGroupType!.Name == "Primary")
+                .OrderBy(g => g.SortOrder)
+                .ToListAsync();
+
+            foreach (var grade in allPrimaryGrades)
+            {
+                var gradeTemplate = new CurriculumGradeTemplate
+                {
+                    CurriculumSchemaId = schema.Id,
+                    GradeId            = grade.Id,
+                    SortOrder          = grade.SortOrder,
+                };
+                db.CurriculumGradeTemplates.Add(gradeTemplate);
+                await db.SaveChangesAsync();
+
+                // ── Subject Group 1: Science and Technology ────────
+                var sciClass = new CurriculumClassTemplate
+                {
+                    CurriculumGradeTemplateId = gradeTemplate.Id,
+                    Name                      = "Science and Technology",
+                    Code                      = "SCI-TECH",
+                    GradedAtStrandLevel       = false,
+                    SortOrder                 = 1,
+                };
+                db.CurriculumClassTemplates.Add(sciClass);
+                await db.SaveChangesAsync();
+
+                // One subject under Science and Technology
+                var sciSubject = new CurriculumSubjectTemplate
+                {
+                    CurriculumClassTemplateId = sciClass.Id,
+                    Name                      = "Science And Technology",
+                    Code                      = "SCI",
+                    SortOrder                 = 1,
+                };
+                db.CurriculumSubjectTemplates.Add(sciSubject);
+                await db.SaveChangesAsync();
+
+                int sciStrandSort = 0;
+                foreach (var strand in scienceStrands)
+                {
+                    sciStrandSort++;
+                    db.CurriculumSubStrands.Add(new CurriculumSubStrand
+                    {
+                        CurriculumSubjectTemplateId = sciSubject.Id,
+                        Name                        = strand.Name,
+                        Code                        = strand.Code,
+                        SortOrder                   = sciStrandSort,
+                    });
+                }
+                await db.SaveChangesAsync();
+
+                // ── Subject Group 2: Health and Physical Education ──
+                var hpeClass = new CurriculumClassTemplate
+                {
+                    CurriculumGradeTemplateId = gradeTemplate.Id,
+                    Name                      = "Health and Physical Education",
+                    Code                      = "HPE",
+                    GradedAtStrandLevel       = false,
+                    SortOrder                 = 2,
+                };
+                db.CurriculumClassTemplates.Add(hpeClass);
+                await db.SaveChangesAsync();
+
+                int hpeSubjectSort = 0;
+                foreach (var hpeSub in healthSubjects)
+                {
+                    hpeSubjectSort++;
+                    var hpeSubject = new CurriculumSubjectTemplate
+                    {
+                        CurriculumClassTemplateId = hpeClass.Id,
+                        Name                      = hpeSub.Name,
+                        Code                      = hpeSub.Code,
+                        SortOrder                 = hpeSubjectSort,
+                    };
+                    db.CurriculumSubjectTemplates.Add(hpeSubject);
+                    await db.SaveChangesAsync();
+
+                    int hpeStrandSort = 0;
+                    foreach (var strand in hpeSub.Strands)
+                    {
+                        hpeStrandSort++;
+                        db.CurriculumSubStrands.Add(new CurriculumSubStrand
+                        {
+                            CurriculumSubjectTemplateId = hpeSubject.Id,
+                            Name                        = strand.Name,
+                            Code                        = strand.Code,
+                            SortOrder                   = hpeStrandSort,
+                        });
+                    }
+                    await db.SaveChangesAsync();
+                }
+            }
+        }
+
         // ── Grading Scales ──────────────────────────────────────────
         if (!await db.GradingScales.AnyAsync())
         {
@@ -189,7 +387,21 @@ public static class DbSeeder
                 DisplaySuffix = "%"
             };
 
-            db.GradingScales.AddRange(kinderScale, letterScale, percentScale);
+            // Ontario Provincial (E/G/S/N) — used on Ontario report cards
+            var ontarioScale = new GradingScale
+            {
+                Name = "Ontario E/G/S/N",
+                ValueType = GradingValueType.OptionList,
+                Options = new List<GradingScaleOption>
+                {
+                    new() { Label = "E", Code = "E", SortOrder = 1 },   // Excellent
+                    new() { Label = "G", Code = "G", SortOrder = 2 },   // Good
+                    new() { Label = "S", Code = "S", SortOrder = 3 },   // Satisfactory
+                    new() { Label = "N", Code = "N", SortOrder = 4 },   // Needs Improvement
+                }
+            };
+
+            db.GradingScales.AddRange(kinderScale, letterScale, percentScale, ontarioScale);
             await db.SaveChangesAsync();
         }
     }
