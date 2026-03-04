@@ -868,6 +868,21 @@ else
             .ToListAsync();
         var configByTemplateId = subjectConfigs.ToDictionary(c => c.CurriculumClassTemplateId);
 
+        // Build a canonical ID map: for each subject name, lowest CurriculumClassTemplateId wins.
+        // This ensures grade-specific templates all resolve to the same config row.
+        var canonicalIdByName = items
+            .Select(li => li.ItemType == LearningItemType.Class
+                ? li.YearClassOffering?.CurriculumClassTemplate
+                : li.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate)
+            .Where(ct => ct != null)
+            .GroupBy(ct => ct!.Name)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Min(ct => ct!.Id));
+
+        int CanonicalId(int? id, string? name) =>
+            name != null && canonicalIdByName.TryGetValue(name, out var cid) ? cid : (id ?? 0);
+
         // Load existing student modifier records for this enrollment + term
         var studentModifiers = await Db.StudentSubjectModifiers
             .Where(m => m.EnrollmentId == enrollment.Id && m.TermInstanceId == _selectedTermId)
@@ -905,18 +920,25 @@ else
             .GroupBy(r =>
             {
                 if (r.LearningItem.ItemType == LearningItemType.Class)
+                {
+                    var name = r.LearningItem.YearClassOffering?.CurriculumClassTemplate?.Name ?? "General";
                     return (
-                        Name:                    r.LearningItem.YearClassOffering?.CurriculumClassTemplate?.Name ?? "General",
-                        Code:                    r.LearningItem.YearClassOffering?.CurriculumClassTemplate?.Code,
-                        SortOrder:               r.LearningItem.YearClassOffering?.CurriculumClassTemplate?.SortOrder ?? 999,
-                        CurriculumClassTemplateId: r.LearningItem.YearClassOffering?.CurriculumClassTemplateId
+                        Name:                      name,
+                        Code:                      r.LearningItem.YearClassOffering?.CurriculumClassTemplate?.Code,
+                        SortOrder:                 r.LearningItem.YearClassOffering?.CurriculumClassTemplate?.SortOrder ?? 999,
+                        CurriculumClassTemplateId: (int?)CanonicalId(r.LearningItem.YearClassOffering?.CurriculumClassTemplateId, name)
                     );
-                return (
-                    Name:                    r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.Name ?? "General",
-                    Code:                    r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.Code,
-                    SortOrder:               r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.SortOrder ?? 999,
-                    CurriculumClassTemplateId: r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplateId
-                );
+                }
+                else
+                {
+                    var name = r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.Name ?? "General";
+                    return (
+                        Name:                      name,
+                        Code:                      r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.Code,
+                        SortOrder:                 r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.SortOrder ?? 999,
+                        CurriculumClassTemplateId: (int?)CanonicalId(r.LearningItem.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplateId, name)
+                    );
+                }
             })
             .OrderBy(g => g.Key.SortOrder)
             .ThenBy(g => g.Key.Name)

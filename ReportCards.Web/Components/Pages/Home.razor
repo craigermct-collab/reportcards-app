@@ -95,118 +95,190 @@
     </MudItem>
 </MudGrid>
 
-<!-- ── Active Year Info + School Years ────────────────── -->
-<MudGrid>
-    <MudItem xs="12" md="6">
-        <MudCard Elevation="1" Style="height:100%;">
-            <MudCardHeader>
-                <CardHeaderContent>
-                    <MudText Typo="Typo.h6">Active School Year</MudText>
-                </CardHeaderContent>
-            </MudCardHeader>
-            <MudCardContent>
-                @if (_activeYear == null)
+<!-- ── School Calendar ────────────────────────────────── -->
+<MudCard Elevation="1">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <div class="d-flex align-center gap-3">
+                <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small"
+                               OnClick="PrevMonth" />
+                <MudText Typo="Typo.h6" Style="font-family:'DM Serif Display',serif; min-width:180px; text-align:center;">
+                    @_calendarMonth.ToString("MMMM yyyy")
+                </MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small"
+                               OnClick="NextMonth" />
+                @if (_calendarMonth.Year != DateTime.Today.Year || _calendarMonth.Month != DateTime.Today.Month)
                 {
-                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
-                        No active school year set. Go to
-                        <MudLink Href="/school-years">School Years</MudLink>
-                        to set one.
-                    </MudAlert>
+                    <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="GoToToday">Today</MudButton>
+                }
+                @if (_activeYear != null)
+                {
+                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary); margin-left:8px;">
+                        @_activeYear.Name
+                        @if (_currentTerm != null)
+                        {
+                            <span> &mdash; @_currentTerm.Name</span>
+                        }
+                    </MudText>
+                }
+            </div>
+        </CardHeaderContent>
+        <CardHeaderActions>
+            <!-- Legend -->
+            <div class="d-flex align-center gap-3 pr-2">
+                <div class="d-flex align-center gap-1">
+                    <div style="width:10px;height:10px;border-radius:2px;background:#E8F4FD;"></div>
+                    <MudText Typo="Typo.caption">In Term</MudText>
+                </div>
+                <div class="d-flex align-center gap-1">
+                    <div style="width:10px;height:10px;border-radius:2px;background:#E74C3C;"></div>
+                    <MudText Typo="Typo.caption">Stat Holiday</MudText>
+                </div>
+                <div class="d-flex align-center gap-1">
+                    <div style="width:10px;height:10px;border-radius:2px;background:#E67E22;"></div>
+                    <MudText Typo="Typo.caption">PD / PA Day</MudText>
+                </div>
+                <div class="d-flex align-center gap-1">
+                    <div style="width:10px;height:10px;border-radius:2px;background:#3498DB;"></div>
+                    <MudText Typo="Typo.caption">Snow Day</MudText>
+                </div>
+            </div>
+        </CardHeaderActions>
+    </MudCardHeader>
+    <MudCardContent Style="padding-top:0;">
+        @{
+            var daysInMonth  = DateTime.DaysInMonth(_calendarMonth.Year, _calendarMonth.Month);
+            var firstDayOfMonth = new DateTime(_calendarMonth.Year, _calendarMonth.Month, 1);
+            // Week starts Monday: Mon=0 ... Sun=6
+            var startOffset = ((int)firstDayOfMonth.DayOfWeek + 6) % 7;
+            var totalCells  = startOffset + daysInMonth;
+            var totalRows   = (int)Math.Ceiling(totalCells / 7.0);
+        }
+
+        <!-- Day headers -->
+        <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-bottom:4px;">
+            @foreach (var d in new[] { "Mon","Tue","Wed","Thu","Fri","Sat","Sun" })
+            {
+                <div style="text-align:center; padding:4px 0;">
+                    <MudText Typo="Typo.caption" Style="font-weight:600; color:var(--mud-palette-text-secondary); text-transform:uppercase; font-size:0.65rem; letter-spacing:0.05em;">@d</MudText>
+                </div>
+            }
+        </div>
+
+        <!-- Day cells -->
+        <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:3px;">
+            @for (int cell = 0; cell < totalRows * 7; cell++)
+            {
+                int dayNum = cell - startOffset + 1;
+                if (dayNum < 1 || dayNum > daysInMonth)
+                {
+                    <div style="min-height:56px;"></div>
                 }
                 else
                 {
-                    <MudText Typo="Typo.h5" Class="mb-1"
-                             Style="font-family:'DM Serif Display',serif;">
-                        @_activeYear.Name
-                    </MudText>
-                    @if (_activeYear.IsLocked)
-                    {
-                        <MudChip T="string" Color="Color.Warning" Size="Size.Small"
-                                 Icon="@Icons.Material.Filled.Lock" Class="mb-3">Locked</MudChip>
-                    }
+                    var date     = new DateOnly(_calendarMonth.Year, _calendarMonth.Month, dayNum);
+                    var dateTime = date.ToDateTime(TimeOnly.MinValue);
+                    var isToday  = date == DateOnly.FromDateTime(DateTime.Today);
+                    var isWeekend = dateTime.DayOfWeek == DayOfWeek.Saturday || dateTime.DayOfWeek == DayOfWeek.Sunday;
+                    var inTerm   = _activeYear?.TermInstances.Any(t => date >= t.StartDate && date <= t.EndDate) ?? false;
+                    _calendarExceptions.TryGetValue(date, out var exc);
 
-                    @if (_activeYear.TermInstances.Count == 0)
+                    var cellBg = exc?.ExceptionType switch
                     {
-                        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
-                            No terms defined yet.
-                        </MudText>
-                    }
-                    else
-                    {
-                        <MudList T="string" Dense="true">
-                            @foreach (var term in _activeYear.TermInstances.OrderBy(t => t.SortOrder))
-                            {
-                                <MudListItem T="string" Icon="@Icons.Material.Filled.CalendarMonth">
-                                    <div class="d-flex justify-space-between align-center" style="width:100%;">
-                                        <MudText Typo="Typo.body2" Style="font-weight:600;">@term.Name</MudText>
-                                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                                            @term.StartDate.ToString("MMM d") – @term.EndDate.ToString("MMM d, yyyy")
-                                        </MudText>
-                                    </div>
-                                </MudListItem>
-                            }
-                        </MudList>
-                    }
+                        CalendarExceptionType.StatHoliday => "#FDE8E8",
+                        CalendarExceptionType.PdPaDay     => "#FEF0E6",
+                        CalendarExceptionType.SnowDay     => "#E8F1FD",
+                        _                                  => inTerm ? "#E8F4FD" : "transparent"
+                    };
+                    var borderStyle = isToday
+                        ? "2px solid var(--mud-palette-primary)"
+                        : "1px solid var(--mud-palette-divider)";
+                    var dayColor = isToday
+                        ? "var(--mud-palette-primary)"
+                        : isWeekend ? "var(--mud-palette-text-disabled)" : "var(--mud-palette-text-primary)";
+
+                    var dayStyle = $"font-weight:{(isToday ? "700" : "400")}; color:{dayColor}; font-size:0.8rem;";
+                    <div style="min-height:56px; border-radius:6px; border:@borderStyle; background:@cellBg; padding:4px 6px; position:relative;">
+                        <MudText Typo="Typo.body2" Style="@dayStyle">@dayNum</MudText>
+                        @if (exc != null)
+                        {
+                            <MudText Typo="Typo.caption"
+                                     Style="font-size:0.6rem; line-height:1.1; color:var(--mud-palette-text-secondary); display:block; margin-top:2px;">
+                                @exc.Label
+                            </MudText>
+                        }
+                    </div>
                 }
-            </MudCardContent>
-        </MudCard>
-    </MudItem>
+            }
+        </div>
 
-    <MudItem xs="12" md="6">
-        <MudCard Elevation="1" Style="height:100%;">
-            <MudCardHeader>
-                <CardHeaderContent>
-                    <MudText Typo="Typo.h6">Quick Actions</MudText>
-                </CardHeaderContent>
-            </MudCardHeader>
-            <MudCardContent>
-                <MudList T="string">
-                    <MudListItem T="string" Icon="@Icons.Material.Filled.CalendarMonth"
-                                 Href="/school-years">
-                        Manage School Years &amp; Terms
-                    </MudListItem>
-                    <MudListItem T="string" Icon="@Icons.Material.Filled.Groups"
-                                 Href="/class-setup">
-                        Set Up Class Groups
-                    </MudListItem>
-                    <MudListItem T="string" Icon="@Icons.Material.Filled.Person"
-                                 Href="/teachers">
-                        Manage Teachers
-                    </MudListItem>
-                    <MudListItem T="string" Icon="@Icons.Material.Filled.School"
-                                 Href="/students">
-                        Manage Students
-                    </MudListItem>
-                    <MudListItem T="string" Icon="@Icons.Material.Filled.EditNote"
-                                 Href="/enrollments">
-                        Enroll Students
-                    </MudListItem>
-                    <MudListItem T="string" Icon="@Icons.Material.Filled.Scale"
-                                 Href="/grading-scales">
-                        Grading Scales
-                    </MudListItem>
-                </MudList>
-            </MudCardContent>
-        </MudCard>
-    </MudItem>
-</MudGrid>
+        <!-- Term bar -->
+        @if (_activeYear?.TermInstances.Count > 0)
+        {
+            <div class="d-flex flex-wrap gap-3 mt-4">
+                @foreach (var term in _activeYear.TermInstances.OrderBy(t => t.SortOrder))
+                {
+                    var isCurrent = DateOnly.FromDateTime(DateTime.Today) >= term.StartDate &&
+                                    DateOnly.FromDateTime(DateTime.Today) <= term.EndDate;
+                    <div class="d-flex align-center gap-1">
+                        @if (isCurrent)
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.Circle" Size="Size.Small"
+                                     Style="color:var(--mud-palette-success); font-size:8px;" />
+                        }
+                        <MudText Typo="Typo.caption" Style="@(isCurrent ? "font-weight:600;" : "color:var(--mud-palette-text-secondary);")">@term.Name: @term.StartDate.ToString("MMM d") – @term.EndDate.ToString("MMM d, yyyy")</MudText>
+                    </div>
+                }
+            </div>
+        }
+    </MudCardContent>
+</MudCard>
 
 @code {
     private int _activeStudents;
     private int _activeTeachers;
     private int _totalEnrollments;
     private int _classGroups;
-    private SchoolYear? _activeYear;
+    private SchoolYear?   _activeYear;
+    private TermInstance? _currentTerm;
+
+    private DateTime _calendarMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private Dictionary<DateOnly, SchoolCalendarException> _calendarExceptions = new();
 
     protected override async Task OnInitializedAsync()
     {
-        _activeStudents = await Db.Students.CountAsync(s => s.IsActive);
-        _activeTeachers = await Db.Teachers.CountAsync(t => t.IsActive);
+        _activeStudents   = await Db.Students.CountAsync(s => s.IsActive);
+        _activeTeachers   = await Db.Teachers.CountAsync(t => t.IsActive);
         _totalEnrollments = await Db.Enrollments.CountAsync();
-        _classGroups = await Db.ClassGroupInstances.CountAsync();
+        _classGroups      = await Db.ClassGroupInstances.CountAsync();
 
         _activeYear = await Db.SchoolYears
             .Include(y => y.TermInstances)
+            .Include(y => y.CalendarExceptions)
             .FirstOrDefaultAsync(y => y.IsActive);
+
+        if (_activeYear != null)
+        {
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            _currentTerm = _activeYear.TermInstances
+                .FirstOrDefault(t => today >= t.StartDate && today <= t.EndDate);
+            _calendarExceptions = _activeYear.CalendarExceptions
+                .ToDictionary(e => e.Date, e => e);
+        }
+    }
+
+    private void PrevMonth()
+    {
+        _calendarMonth = _calendarMonth.AddMonths(-1);
+    }
+
+    private void NextMonth()
+    {
+        _calendarMonth = _calendarMonth.AddMonths(1);
+    }
+
+    private void GoToToday()
+    {
+        _calendarMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
     }
 }
