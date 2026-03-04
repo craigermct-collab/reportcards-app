@@ -106,6 +106,119 @@ else
         </MudCard>
     }
 
+    <!-- AI Behaviour (School-Wide) -->
+    <MudCard Elevation="1" Class="mb-6">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <div class="d-flex align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Filled.Psychology" Color="Color.Primary" />
+                    <MudText Typo="Typo.h6" Style="font-family:'DM Serif Display',serif;">AI Assistant Behaviour</MudText>
+                </div>
+                <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+                    School-wide defaults for how the AI assistant responds. Individual teachers can override these in their own profile.
+                </MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            @if (_aiConfig == null)
+            {
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+            }
+            else
+            {
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_aiConfig.GradingPhilosophy"
+                                      Label="Grading Philosophy"
+                                      HelperText="e.g. encouraging, growth-mindset focused"
+                                      Variant="Variant.Outlined"
+                                      Lines="2" AutoGrow="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_aiConfig.ToneGuidance"
+                                      Label="Tone Guidance"
+                                      HelperText="e.g. warm, age-appropriate, avoid negative language"
+                                      Variant="Variant.Outlined"
+                                      Lines="2" AutoGrow="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_aiConfig.TerminologyNotes"
+                                      Label="Terminology Notes"
+                                      HelperText="e.g. use 'learning skills' not 'behaviour'"
+                                      Variant="Variant.Outlined"
+                                      Lines="2" AutoGrow="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_aiConfig.SpellingGuidance"
+                                      Label="Spelling Check Guidance"
+                                      HelperText="e.g. use Canadian spelling, flag American variants"
+                                      Variant="Variant.Outlined"
+                                      Lines="2" AutoGrow="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_aiConfig.GrammarGuidance"
+                                      Label="Grammar Check Guidance"
+                                      HelperText="e.g. flag run-on sentences, passive voice"
+                                      Variant="Variant.Outlined"
+                                      Lines="2" AutoGrow="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_aiConfig.RubricGuidance"
+                                      Label="Rubric Guidance"
+                                      HelperText="e.g. Ontario 4-point scale: 1=Below, 2=Approaching, 3=Meeting, 4=Exceeding"
+                                      Variant="Variant.Outlined"
+                                      Lines="2" AutoGrow="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_aiConfig.AiDetectionGuidance"
+                                      Label="AI Detection Guidance"
+                                      HelperText="e.g. flag unnatural phrasing, overly formal language for grade level"
+                                      Variant="Variant.Outlined"
+                                      Lines="2" AutoGrow="true" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="_aiConfig.AdditionalInstructions"
+                                      Label="Additional Instructions"
+                                      HelperText="Any other school-specific guidance for the assistant"
+                                      Variant="Variant.Outlined"
+                                      Lines="3" AutoGrow="true" />
+                    </MudItem>
+                </MudGrid>
+
+                <MudDivider Class="my-4" />
+                <MudText Typo="Typo.subtitle1" Style="font-weight:700; margin-bottom:4px;">Mode-Specific System Prompts</MudText>
+                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary); display:block; margin-bottom:16px;">
+                    These replace the built-in default prompts entirely. Leave blank to use the defaults.
+                </MudText>
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_aiConfig.GeneralAssistantPrompt"
+                                      Label="General Assistant Prompt"
+                                      HelperText="Personality for the casual floating chat bot. Leave blank for the friendly built-in default."
+                                      Placeholder="e.g. You are a warm, witty school assistant for KinderKollege. Keep replies short and conversational..."
+                                      Variant="Variant.Outlined"
+                                      Lines="5" AutoGrow="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_aiConfig.CommentWriterPrompt"
+                                      Label="Comment Writer Prompt"
+                                      HelperText="Instructions for when teachers summon the bot to write/edit report card comments. Leave blank for the professional built-in default."
+                                      Placeholder="e.g. You are a professional Ontario report card writer. Comments must be strengths-based, under 80 words, and never use the word 'overall'..."
+                                      Variant="Variant.Outlined"
+                                      Lines="5" AutoGrow="true" />
+                    </MudItem>
+                </MudGrid>
+                <div class="d-flex justify-end mt-4">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Save"
+                               OnClick="SaveAiConfigAsync">
+                        Save AI Settings
+                    </MudButton>
+                </div>
+            }
+        </MudCardContent>
+    </MudCard>
+
     <!-- Comment Template Library -->
     <MudCard Elevation="1" Class="mb-6">
         <MudCardHeader>
@@ -242,6 +355,7 @@ else
 @code {
     private List<SettingGroup> _groups = new();
     private List<SchoolConfig> _allSettings = new();
+    private SchoolAiConfig?   _aiConfig = null;
 
     // Comment template stats
     private int _templateCount        = 0;
@@ -256,7 +370,12 @@ else
     private string _customValue       = "";
     private string _customDescription = "";
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _aiConfig = await Db.SchoolAiConfigs.FirstOrDefaultAsync()
+                   ?? new SchoolAiConfig();
+    }
 
     private async Task ImportXmlAsync(IBrowserFile file)
     {
@@ -359,6 +478,33 @@ else
         await Db.SaveChangesAsync();
         Snackbar.Add($"{group.Title} saved.", Severity.Success);
         await LoadAsync();
+    }
+
+    private async Task SaveAiConfigAsync()
+    {
+        if (_aiConfig == null) return;
+        var existing = await Db.SchoolAiConfigs.FirstOrDefaultAsync();
+        if (existing == null)
+        {
+            _aiConfig.UpdatedAt = DateTimeOffset.UtcNow;
+            Db.SchoolAiConfigs.Add(_aiConfig);
+        }
+        else
+        {
+            existing.GradingPhilosophy      = _aiConfig.GradingPhilosophy;
+            existing.ToneGuidance           = _aiConfig.ToneGuidance;
+            existing.TerminologyNotes       = _aiConfig.TerminologyNotes;
+            existing.SpellingGuidance       = _aiConfig.SpellingGuidance;
+            existing.GrammarGuidance        = _aiConfig.GrammarGuidance;
+            existing.RubricGuidance         = _aiConfig.RubricGuidance;
+            existing.AiDetectionGuidance    = _aiConfig.AiDetectionGuidance;
+            existing.AdditionalInstructions = _aiConfig.AdditionalInstructions;
+            existing.GeneralAssistantPrompt = _aiConfig.GeneralAssistantPrompt;
+            existing.CommentWriterPrompt    = _aiConfig.CommentWriterPrompt;
+            existing.UpdatedAt              = DateTimeOffset.UtcNow;
+        }
+        await Db.SaveChangesAsync();
+        Snackbar.Add("AI settings saved.", Severity.Success);
     }
 
     private async Task DeleteSettingAsync(SchoolConfig setting)

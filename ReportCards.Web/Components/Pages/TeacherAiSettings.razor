@@ -1,0 +1,269 @@
+@page "/teacher-ai-settings"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@inject SchoolDbContext Db
+@inject ISnackbar Snackbar
+
+<div class="d-flex align-center gap-3 mb-1">
+    <MudIcon Icon="@Icons.Material.Filled.Psychology"
+             Style="background:#1B4F72; color:white; padding:8px; border-radius:10px; font-size:24px;" />
+    <div>
+        <MudText Typo="Typo.h5" Style="font-family:'DM Serif Display',serif; line-height:1.1;">AI Assistant — Teacher Settings</MudText>
+        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+            Personal AI preferences per teacher. These layer on top of the school-wide AI settings.
+        </MudText>
+    </div>
+</div>
+
+<MudDivider Class="my-4" />
+
+@if (_loading)
+{
+    <div class="d-flex justify-center pa-8">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+    </div>
+}
+else if (_teachers.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">No active teachers found. Add teachers first.</MudAlert>
+}
+else
+{
+    <!-- Teacher selector -->
+    <MudCard Elevation="1" Class="mb-4">
+        <MudCardContent Class="pa-4">
+            <MudSelect T="int?" Label="Select Teacher" Value="_selectedTeacherId"
+                       ValueChanged="OnTeacherChanged"
+                       Variant="Variant.Outlined"
+                       Style="max-width:380px;"
+                       AnchorOrigin="Origin.BottomLeft">
+                <MudSelectItem T="int?" Value="@((int?)null)">— choose a teacher —</MudSelectItem>
+                @foreach (var t in _teachers)
+                {
+                    <MudSelectItem T="int?" Value="@((int?)t.Id)">@t.DisplayName</MudSelectItem>
+                }
+            </MudSelect>
+        </MudCardContent>
+    </MudCard>
+
+    @if (_selectedTeacher != null && _editConfig != null)
+    {
+        <MudCard Elevation="1">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <div class="d-flex align-center gap-3">
+                        <div style="width:44px; height:44px; border-radius:50%; overflow:hidden; flex-shrink:0; background:#e8f0fe;">
+                            <img src="@AvatarUrl(_selectedTeacher.AvatarConfigJson, _selectedTeacher.DisplayName)"
+                                 style="width:44px; height:44px;" alt="avatar" />
+                        </div>
+                        <div>
+                            <MudText Typo="Typo.h6" Style="font-weight:700;">@_selectedTeacher.DisplayName</MudText>
+                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                Personal AI preferences · overrides school-wide defaults where set
+                            </MudText>
+                        </div>
+                    </div>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    @if (_editConfig.Id > 0)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled"
+                                 Icon="@Icons.Material.Filled.CheckCircle">
+                            Configured
+                        </MudChip>
+                    }
+                </CardHeaderActions>
+            </MudCardHeader>
+
+            <MudDivider />
+
+            <MudCardContent Class="pa-5">
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_editConfig.PreferredTone"
+                                      Label="Preferred Tone"
+                                      HelperText="e.g. very encouraging, always lead with positives"
+                                      Variant="Variant.Outlined"
+                                      Lines="2" AutoGrow="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_editConfig.FocusAreas"
+                                      Label="Focus Areas"
+                                      HelperText="e.g. pay special attention to sentence structure and clarity"
+                                      Variant="Variant.Outlined"
+                                      Lines="2" AutoGrow="true" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="_editConfig.AdditionalInstructions"
+                                      Label="Additional Personal Instructions"
+                                      HelperText="Any other instructions specific to this teacher's preferences"
+                                      Variant="Variant.Outlined"
+                                      Lines="3" AutoGrow="true" />
+                    </MudItem>
+                </MudGrid>
+
+                <MudDivider Class="my-4" />
+                <MudText Typo="Typo.subtitle1" Style="font-weight:700; margin-bottom:4px;">Personal System Prompt Overrides</MudText>
+                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary); display:block; margin-bottom:16px;">
+                    Completely replace the school-wide prompt for this teacher only. Leave blank to inherit the school default.
+                </MudText>
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_editConfig.GeneralAssistantPrompt"
+                                      Label="General Assistant Prompt"
+                                      HelperText="Personal personality override for the casual floating bot."
+                                      Placeholder="e.g. You are Ms. Johnson's witty classroom assistant. Be brief and funny..."
+                                      Variant="Variant.Outlined"
+                                      Lines="5" AutoGrow="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_editConfig.CommentWriterPrompt"
+                                      Label="Comment Writer Prompt"
+                                      HelperText="Personal override for the comment-writing mode."
+                                      Placeholder="e.g. Write comments that are encouraging and always mention a specific achievement..."
+                                      Variant="Variant.Outlined"
+                                      Lines="5" AutoGrow="true" />
+                    </MudItem>
+                </MudGrid>
+
+                <!-- School-wide context reminder -->
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-4" Dense="true">
+                    <strong>School-wide settings</strong> (grading philosophy, terminology, etc.) are always applied.
+                    Settings here are layered on top — leave blank to fully inherit the school defaults.
+                </MudAlert>
+
+                <div class="d-flex justify-end gap-2 mt-4">
+                    @if (_editConfig.Id > 0)
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error"
+                                   StartIcon="@Icons.Material.Filled.DeleteOutline"
+                                   OnClick="ClearConfigAsync">
+                            Clear Overrides
+                        </MudButton>
+                    }
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Save"
+                               Disabled="_saving"
+                               OnClick="SaveConfigAsync">
+                        @if (_saving)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            <span>Saving…</span>
+                        }
+                        else
+                        {
+                            <span>Save for @_selectedTeacher.DisplayName</span>
+                        }
+                    </MudButton>
+                </div>
+            </MudCardContent>
+        </MudCard>
+    }
+}
+
+@code {
+    private bool _loading = true;
+    private bool _saving  = false;
+
+    private List<Teacher>   _teachers        = new();
+    private Teacher?        _selectedTeacher = null;
+    private int?            _selectedTeacherId = null;
+    private TeacherAiConfig? _editConfig      = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _teachers = await Db.Teachers
+            .Where(t => t.IsActive)
+            .OrderBy(t => t.DisplayName)
+            .ToListAsync();
+        _loading = false;
+    }
+
+    private async Task OnTeacherChanged(int? teacherId)
+    {
+        _selectedTeacherId = teacherId;
+        _selectedTeacher   = _teachers.FirstOrDefault(t => t.Id == teacherId);
+        _editConfig        = null;
+
+        if (teacherId == null) return;
+
+        var existing = await Db.TeacherAiConfigs
+            .FirstOrDefaultAsync(c => c.TeacherId == teacherId);
+
+        _editConfig = existing ?? new TeacherAiConfig { TeacherId = teacherId.Value };
+    }
+
+    private async Task SaveConfigAsync()
+    {
+        if (_editConfig == null || _selectedTeacherId == null) return;
+        _saving = true;
+        StateHasChanged();
+
+        try
+        {
+            var existing = await Db.TeacherAiConfigs
+                .FirstOrDefaultAsync(c => c.TeacherId == _selectedTeacherId);
+
+            if (existing == null)
+            {
+                _editConfig.TeacherId  = _selectedTeacherId.Value;
+                _editConfig.UpdatedAt  = DateTimeOffset.UtcNow;
+                Db.TeacherAiConfigs.Add(_editConfig);
+            }
+            else
+            {
+                existing.PreferredTone          = _editConfig.PreferredTone;
+                existing.FocusAreas             = _editConfig.FocusAreas;
+                existing.AdditionalInstructions = _editConfig.AdditionalInstructions;
+                existing.GeneralAssistantPrompt = _editConfig.GeneralAssistantPrompt;
+                existing.CommentWriterPrompt    = _editConfig.CommentWriterPrompt;
+                existing.UpdatedAt              = DateTimeOffset.UtcNow;
+                _editConfig = existing;
+            }
+
+            await Db.SaveChangesAsync();
+            Snackbar.Add($"AI settings saved for {_selectedTeacher?.DisplayName}.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Save failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ClearConfigAsync()
+    {
+        if (_editConfig == null || _editConfig.Id == 0) return;
+
+        var existing = await Db.TeacherAiConfigs.FindAsync(_editConfig.Id);
+        if (existing != null)
+        {
+            Db.TeacherAiConfigs.Remove(existing);
+            await Db.SaveChangesAsync();
+        }
+
+        _editConfig = new TeacherAiConfig { TeacherId = _selectedTeacherId!.Value };
+        Snackbar.Add($"AI overrides cleared for {_selectedTeacher?.DisplayName}.", Severity.Info);
+        StateHasChanged();
+    }
+
+    private static string AvatarUrl(string? json, string displayName)
+    {
+        var seed = Uri.EscapeDataString(displayName);
+        if (string.IsNullOrWhiteSpace(json)) return $"https://api.dicebear.com/7.x/thumbs/svg?seed={seed}";
+        try
+        {
+            var opts = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(json);
+            if (opts.TryGetProperty("style", out var s))
+                return $"https://api.dicebear.com/7.x/{s.GetString()}/svg?seed={seed}";
+        }
+        catch { }
+        return $"https://api.dicebear.com/7.x/thumbs/svg?seed={seed}";
+    }
+}

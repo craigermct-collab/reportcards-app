@@ -9,6 +9,7 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject CommentTemplateService CommentSvc
 @inject IDialogService DialogService
+@inject AssistantContextService AssistantCtx
 
 <PageTitle>Grade Entry</PageTitle>
 
@@ -341,6 +342,14 @@ else
                                                                        Size="Size.Small"
                                                                        Color="Color.Primary"
                                                                        OnClick="@(() => OpenTemplatePickerAsync(enrollment, row, subjectGroup.SubjectName))" />
+                                                    </MudTooltip>
+                                                </div>
+                                                <div @onclick:stopPropagation="true">
+                                                    <MudTooltip Text="AI comment assistant">
+                                                        <MudIconButton Icon="@Icons.Material.Filled.AutoAwesome"
+                                                                       Size="Size.Small"
+                                                                       Color="Color.Secondary"
+                                                                       OnClick="@(() => OpenCommentAssistant(enrollment, row, subjectGroup.SubjectName))" />
                                                     </MudTooltip>
                                                 </div>
                                             </div>
@@ -1024,6 +1033,29 @@ else
     private int _templatePageSize = 50;
     private GradeRow? _templateTargetRow;
     private Enrollment? _templateTargetEnrollment;
+
+    private void OpenCommentAssistant(Enrollment enrollment, GradeRow row, string subjectName)
+    {
+        var student    = enrollment.Student;
+        var gradeLabel = enrollment.Grade?.Name;
+        var term       = _terms.FirstOrDefault(t => t.Id == _selectedTermId);
+
+        AssistantCtx.SetContext(new AssistantContext
+        {
+            Mode             = AssistantMode.CommentWriter,
+            Page             = "grade-entry",
+            PageLabel        = $"Comment: {subjectName}",
+            StudentName      = student != null ? $"{student.FirstName} {student.LastName}" : null,
+            StudentFirstName = student?.FirstName,
+            GradeLabel       = gradeLabel,
+            Subject          = subjectName,
+            Term             = term != null ? $"{term.SchoolYear?.Name} – {term.Name}" : null,
+            CurrentText      = string.IsNullOrWhiteSpace(row.Comment) ? null : row.Comment,
+            SuggestedPrompt  = string.IsNullOrWhiteSpace(row.Comment)
+                ? $"Write a report card comment for {student?.FirstName} in {subjectName}"
+                : "Improve this comment",
+        });
+    }
 
     private async Task OpenTemplatePickerAsync(Enrollment enrollment, GradeRow row, string subjectName)
     {

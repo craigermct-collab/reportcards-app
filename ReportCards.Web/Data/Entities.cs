@@ -700,6 +700,10 @@ public class SchoolAiConfig
     // Free-form additional instructions
     public string? AdditionalInstructions { get; set; }
 
+    // Mode-specific system prompts (override the built-in defaults)
+    public string? GeneralAssistantPrompt { get; set; }  // casual floating bot
+    public string? CommentWriterPrompt    { get; set; }  // focused comment-writing mode
+
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
@@ -712,8 +716,12 @@ public class TeacherAiConfig
     public Teacher? Teacher { get; set; }
 
     // Personal tone overrides
-    public string? PreferredTone { get; set; }        // e.g. "very encouraging, focus on positives first"
-    public string? FocusAreas { get; set; }           // e.g. "pay special attention to sentence structure"
+    public string? PreferredTone { get; set; }
+    public string? FocusAreas { get; set; }
+
+    // Mode-specific system prompt overrides
+    public string? GeneralAssistantPrompt { get; set; }  // casual floating bot
+    public string? CommentWriterPrompt    { get; set; }  // focused comment-writing mode
 
     // Free-form personal instructions
     public string? AdditionalInstructions { get; set; }
