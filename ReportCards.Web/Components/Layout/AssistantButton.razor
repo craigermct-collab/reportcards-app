@@ -1,0 +1,56 @@
+@using ReportCards.Web.Services
+@inject AssistantContextService AssistantCtx
+
+@*
+    Drop this anywhere to give the assistant context and open it.
+
+    <AssistantButton
+        Page="comment"
+        PageLabel="Report Card Comment"
+        StudentName="@student.FullName"
+        Subject="Mathematics"
+        CurrentText="@commentDraft"
+        SuggestedPrompt="Help me write a comment for this student"
+        Size="Size.Small" />
+*@
+
+<MudTooltip Text="@TooltipText" Placement="Placement.Left">
+    <MudIconButton Icon="@Icons.Material.Filled.AutoAwesome"
+                   Color="@Color"
+                   Size="@Size"
+                   Variant="@Variant"
+                   Style="@Style"
+                   OnClick="OpenWithContext" />
+</MudTooltip>
+
+@code {
+    [Parameter] public string  Page            { get; set; } = "page";
+    [Parameter] public string? PageLabel       { get; set; }
+    [Parameter] public string? StudentName     { get; set; }
+    [Parameter] public string? Subject         { get; set; }
+    [Parameter] public string? Term            { get; set; }
+    [Parameter] public string? CurrentText     { get; set; }
+    [Parameter] public string? SuggestedPrompt { get; set; }
+    [Parameter] public Dictionary<string, string> Extra { get; set; } = new();
+
+    [Parameter] public Size    Size        { get; set; } = Size.Medium;
+    [Parameter] public Color   Color       { get; set; } = Color.Primary;
+    [Parameter] public Variant Variant     { get; set; } = Variant.Text;
+    [Parameter] public string  Style       { get; set; } = "";
+    [Parameter] public string  TooltipText { get; set; } = "Ask the assistant";
+
+    private void OpenWithContext()
+    {
+        AssistantCtx.SetContext(new AssistantContext
+        {
+            Page            = Page,
+            PageLabel       = PageLabel ?? Page,
+            StudentName     = StudentName,
+            Subject         = Subject,
+            Term            = Term,
+            CurrentText     = CurrentText,
+            SuggestedPrompt = SuggestedPrompt,
+            Extra           = Extra
+        });
+    }
+}
