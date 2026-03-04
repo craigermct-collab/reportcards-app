@@ -409,9 +409,16 @@ else
                     {
                         <MudDivider Class="mt-5 mb-4" />
 
-                        <MudText Typo="Typo.overline" Class="mb-3"
-                                 Style="color:var(--mud-palette-text-secondary);">Subject Configuration</MudText>
+                        <div class="d-flex align-center gap-2 mb-3" style="cursor:pointer;"
+                             @onclick="@(() => ToggleSubjectConfig(cgi.Id))">
+                            <MudText Typo="Typo.overline"
+                                     Style="color:var(--mud-palette-text-secondary);">Subject Configuration</MudText>
+                            <MudIcon Icon="@(_expandedSubjectConfigs.Contains(cgi.Id) ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                                     Size="Size.Small"
+                                     Style="color:var(--mud-palette-text-secondary);" />
+                        </div>
 
+                        <MudCollapse Expanded="@(_expandedSubjectConfigs.Contains(cgi.Id))">
                         @foreach (var sg in _subjectGroups)
                         {
                             var cfgKey = (cgi.Id, sg.Id);
@@ -478,6 +485,7 @@ else
                                 </MudCardContent>
                             </MudCard>
                         }
+                        </MudCollapse>
                     }
 
                 </MudCardContent>
@@ -522,6 +530,13 @@ else
     private List<GradingScale> _gradingScales = new();
 
     // ── Subject modifier / strand config ──────────────────────
+    private HashSet<int> _expandedSubjectConfigs = new();
+    private void ToggleSubjectConfig(int cgiId)
+    {
+        if (!_expandedSubjectConfigs.Add(cgiId))
+            _expandedSubjectConfigs.Remove(cgiId);
+    }
+
     private List<SubjectModifierTemplate>  _modifierTemplates  = new();
     // Curriculum class templates available for the selected year (deduplicated by name)
     private List<CurriculumClassTemplate>  _subjectGroups      = new();
