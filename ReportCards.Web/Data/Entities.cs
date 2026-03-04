@@ -29,6 +29,8 @@ public static class SchoolConfigKeys
     public const string ContactEmail      = "school.contact_email";
     public const string ContactPhone      = "school.contact_phone";
     public const string Address           = "school.address";
+    public const string Board             = "school.board";
+    public const string Principal         = "school.principal";
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -66,8 +68,97 @@ public class Grade
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// B) GRADING SCALES
+// B) GRADING SCALES + SUBJECT MODIFIER TEMPLATES
 // ═══════════════════════════════════════════════════════════════════
+
+/// <summary>
+/// A reusable set of boolean modifier options that can be toggled per subject
+/// during grade entry (e.g. ESL/ELD, IEP, French, N/A).
+/// Configured at the class group level and rendered as boolean chips in grade entry.
+/// </summary>
+public class SubjectModifierTemplate
+{
+    public int Id { get; set; }
+    public required string Name { get; set; }       // e.g. "Standard (3)" or "Extended (4)"
+    public required string OptionsJson { get; set; } // JSON array e.g. ["ESL/ELD","IEP","French"]
+    public bool IsSystem { get; set; } = false;      // true = seeded, protected from delete
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public List<ClassGroupSubjectConfig> ClassGroupSubjectConfigs { get; set; } = new();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// B2) CLASS GROUP SUBJECT CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════
+
+/// <summary>
+/// Per class group instance + subject: which modifier template to use
+/// and which strands are active (teacher-enabled) for that class.
+/// Strands default to NONE enabled — teacher turns on what applies.
+/// </summary>
+public class ClassGroupSubjectConfig
+{
+    public int Id { get; set; }
+
+    public int ClassGroupInstanceId { get; set; }
+    public ClassGroupInstance? ClassGroupInstance { get; set; }
+
+    /// <summary>The subject group (CurriculumClassTemplate) this config applies to.</summary>
+    public int CurriculumClassTemplateId { get; set; }
+    public CurriculumClassTemplate? CurriculumClassTemplate { get; set; }
+
+    /// <summary>Which modifier template (ESL/IEP/French/NA options) applies to this subject in this class.</summary>
+    public int? SubjectModifierTemplateId { get; set; }
+    public SubjectModifierTemplate? SubjectModifierTemplate { get; set; }
+
+    /// <summary>
+    /// JSON array of CurriculumSubStrand IDs that are active for this class group.
+    /// Empty array = no strands enabled (default).
+    /// e.g. [1, 3, 7]
+    /// </summary>
+    public string ActiveStrandIdsJson { get; set; } = "[]";
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// B3) SUBJECT MODIFIER SELECTIONS (per student per subject per term)
+// ═══════════════════════════════════════════════════════════════════
+
+/// <summary>
+/// Records which modifier options (ESL/ELD, IEP, French, N/A) are enabled
+/// for a specific student's subject in a specific term.
+/// One row per student enrollment + subject group + term.
+/// </summary>
+public class StudentSubjectModifier
+{
+    public int Id { get; set; }
+
+    public int EnrollmentId { get; set; }
+    public Enrollment? Enrollment { get; set; }
+
+    public int CurriculumClassTemplateId { get; set; }
+    public CurriculumClassTemplate? CurriculumClassTemplate { get; set; }
+
+    public int TermInstanceId { get; set; }
+    public TermInstance? TermInstance { get; set; }
+
+    /// <summary>
+    /// JSON array of enabled modifier option labels.
+    /// e.g. ["ESL/ELD", "IEP"]
+    /// </summary>
+    public string EnabledOptionsJson { get; set; } = "[]";
+
+    /// <summary>
+    /// JSON array of CurriculumSubStrand IDs enabled for this specific student
+    /// (overrides or mirrors the class-level config).
+    /// e.g. [1, 3]
+    /// </summary>
+    public string EnabledStrandIdsJson { get; set; } = "[]";
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 
 public enum GradingValueType { OptionList, Numeric }
 

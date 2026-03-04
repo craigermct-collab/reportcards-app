@@ -177,6 +177,141 @@ else
     }
 }
 
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SUBJECT MODIFIER TEMPLATES                                   -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+
+<MudDivider Class="my-8" />
+
+<div class="d-flex align-center gap-3 mb-1">
+    <MudText Typo="Typo.h4" Style="font-family:'DM Serif Display',serif;">Subject Modifier Templates</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Small"
+               StartIcon="@(_showAddModifierForm ? Icons.Material.Filled.Close : Icons.Material.Filled.Add)"
+               OnClick="@(() => _showAddModifierForm = !_showAddModifierForm)">
+        @(_showAddModifierForm ? "Cancel" : "New Template")
+    </MudButton>
+</div>
+<MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
+    Define sets of boolean options (e.g. ESL/ELD, IEP, French) that appear beside subject marks during grade entry.
+    Assign a template to a class group during class setup.
+</MudText>
+
+<MudCollapse Expanded="_showAddModifierForm">
+<MudCard Class="mb-6" Elevation="1">
+    <MudCardHeader>
+        <CardHeaderContent><MudText Typo="Typo.h6">New Modifier Template</MudText></CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_newModifierName"
+                              Label="Template Name"
+                              Placeholder='e.g. "Standard (3 options)"'
+                              Variant="Variant.Outlined" />
+            </MudItem>
+        </MudGrid>
+
+        <!-- Option builder -->
+        <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Options</MudText>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            @foreach (var opt in _newModifierOptions)
+            {
+                <MudChip T="string" Variant="Variant.Filled" Color="Color.Secondary"
+                         OnClose="@(() => _newModifierOptions.Remove(opt))">
+                    @opt
+                </MudChip>
+            }
+            @if (_newModifierOptions.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">No options yet — add some below.</MudText>
+            }
+        </div>
+        <MudGrid>
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_newModifierOptionInput"
+                              Label="Option label"
+                              Placeholder='e.g. "ESL/ELD"'
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              OnKeyUp="@HandleModifierOptionKeyUp" />
+            </MudItem>
+            <MudItem xs="12" sm="2" Class="d-flex align-end">
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="AddModifierOption"
+                           Disabled="@(string.IsNullOrWhiteSpace(_newModifierOptionInput))"
+                           FullWidth="true">
+                    Add Option
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+
+        <MudButton Class="mt-4" Variant="Variant.Filled" Color="Color.Secondary"
+                   StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveModifierTemplateAsync"
+                   Disabled="@(string.IsNullOrWhiteSpace(_newModifierName) || _newModifierOptions.Count == 0)">
+            Save Template
+        </MudButton>
+    </MudCardContent>
+</MudCard>
+</MudCollapse>
+
+<!-- Modifier templates list -->
+@if (_modifierTemplates.Count == 0)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">No modifier templates yet.</MudAlert>
+}
+else
+{
+    @foreach (var tmpl in _modifierTemplates)
+    {
+        var options = System.Text.Json.JsonSerializer.Deserialize<List<string>>(tmpl.OptionsJson) ?? new();
+        <MudCard Class="mb-4" Elevation="1">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <div class="d-flex align-center gap-3">
+                        <MudIcon Icon="@Icons.Material.Filled.Tune" Color="Color.Secondary" />
+                        <div>
+                            <MudText Typo="Typo.h6" Style="font-family:'DM Serif Display',serif;">
+                                @tmpl.Name
+                            </MudText>
+                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                @options.Count option(s)
+                                @if (tmpl.IsSystem) { <span> · System template</span> }
+                            </MudText>
+                        </div>
+                        @if (tmpl.IsSystem)
+                        {
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning">System</MudChip>
+                        }
+                    </div>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    @if (!tmpl.IsSystem)
+                    {
+                        <MudTooltip Text="Delete template">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                           Color="Color.Error" Size="Size.Small"
+                                           OnClick="@(() => DeleteModifierTemplateAsync(tmpl))" />
+                        </MudTooltip>
+                    }
+                </CardHeaderActions>
+            </MudCardHeader>
+            <MudCardContent>
+                <div class="d-flex flex-wrap gap-2">
+                    @foreach (var opt in options)
+                    {
+                        <MudChip T="string" Variant="Variant.Outlined" Color="Color.Secondary"
+                                 Size="Size.Small" Style="font-weight:600;">
+                            @opt
+                        </MudChip>
+                    }
+                </div>
+            </MudCardContent>
+        </MudCard>
+    }
+}
+
 @code {
     private List<GradingScale> _scales = new();
     private bool _showAddForm;
@@ -196,7 +331,11 @@ else
     private bool CanAddOption(int scaleId) =>
         _newOptionLabels.TryGetValue(scaleId, out var l) && !string.IsNullOrWhiteSpace(l);
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        await LoadModifierTemplatesAsync();
+    }
 
     private async Task LoadAsync()
     {
@@ -276,5 +415,72 @@ else
         await Db.SaveChangesAsync();
         Snackbar.Add($"Option '{option.Label}' deleted.", Severity.Info);
         await LoadAsync();
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // SUBJECT MODIFIER TEMPLATES
+    // ───────────────────────────────────────────────────────────────────
+
+    private List<SubjectModifierTemplate> _modifierTemplates = new();
+    private bool _showAddModifierForm;
+    private string _newModifierName = "";
+    private string _newModifierOptionInput = "";
+    private List<string> _newModifierOptions = new();
+
+    private async Task LoadModifierTemplatesAsync()
+    {
+        _modifierTemplates = await Db.SubjectModifierTemplates
+            .OrderBy(t => t.IsSystem ? 0 : 1)
+            .ThenBy(t => t.Name)
+            .ToListAsync();
+    }
+
+    private void AddModifierOption()
+    {
+        var opt = _newModifierOptionInput.Trim();
+        if (string.IsNullOrWhiteSpace(opt)) return;
+        if (!_newModifierOptions.Contains(opt))
+            _newModifierOptions.Add(opt);
+        _newModifierOptionInput = "";
+    }
+
+    private void HandleModifierOptionKeyUp(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") AddModifierOption();
+    }
+
+    private async Task SaveModifierTemplateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newModifierName) || _newModifierOptions.Count == 0) return;
+
+        var json = System.Text.Json.JsonSerializer.Serialize(_newModifierOptions);
+        Db.SubjectModifierTemplates.Add(new SubjectModifierTemplate
+        {
+            Name        = _newModifierName.Trim(),
+            OptionsJson = json,
+            IsSystem    = false,
+            CreatedAt   = DateTimeOffset.UtcNow
+        });
+        await Db.SaveChangesAsync();
+
+        _newModifierName = "";
+        _newModifierOptions = new();
+        _newModifierOptionInput = "";
+        _showAddModifierForm = false;
+        Snackbar.Add("Modifier template saved.", Severity.Success);
+        await LoadModifierTemplatesAsync();
+    }
+
+    private async Task DeleteModifierTemplateAsync(SubjectModifierTemplate tmpl)
+    {
+        if (tmpl.IsSystem)
+        {
+            Snackbar.Add("System templates cannot be deleted.", Severity.Warning);
+            return;
+        }
+        Db.SubjectModifierTemplates.Remove(tmpl);
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"'{tmpl.Name}' deleted.", Severity.Info);
+        await LoadModifierTemplatesAsync();
     }
 }

@@ -168,7 +168,7 @@ namespace ReportCards.Web.Services
             SetField(fields, mapByKey, ReportDestinationKeys.StudentGrade,    enrollment.Grade?.Name ?? "");
             SetField(fields, mapByKey, ReportDestinationKeys.TeacherName,     teacher?.DisplayName ?? "");
             SetField(fields, mapByKey, ReportDestinationKeys.SchoolName,      Cfg(SchoolConfigKeys.SchoolName));
-            SetField(fields, mapByKey, ReportDestinationKeys.SchoolBoard,     "KinderKollege");
+            SetField(fields, mapByKey, ReportDestinationKeys.SchoolBoard,     Cfg(SchoolConfigKeys.Board));
             SetField(fields, mapByKey, ReportDestinationKeys.SchoolAddress,   Cfg(SchoolConfigKeys.Address));
             SetField(fields, mapByKey, ReportDestinationKeys.SchoolPhone,     Cfg(SchoolConfigKeys.ContactPhone));
             SetField(fields, mapByKey, ReportDestinationKeys.DaysAbsent,      absences.ToString());
@@ -241,6 +241,22 @@ namespace ReportCards.Web.Services
             else
                 form.Elements.Add("/NeedAppearances", new PdfSharp.Pdf.PdfBoolean(true));
 
+            // Fill text fields by name (handles nested fields that index access can't reach)
+            foreach (var (fieldName, textVal) in data.Fields)
+            {
+                try
+                {
+                    var field = form.Fields[fieldName];
+                    if (field != null)
+                        field.Value = new PdfSharp.Pdf.PdfString(textVal ?? "");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Skipping text field {Name}", fieldName);
+                }
+            }
+
+            // Fill checkboxes and radio buttons by index (these are top-level fields)
             for (int i = 0; i < form.Fields.Count; i++)
             {
                 try
@@ -250,11 +266,7 @@ namespace ReportCards.Web.Services
                     var name = field.Name;
                     if (string.IsNullOrEmpty(name)) continue;
 
-                    if (data.Fields.TryGetValue(name, out var textVal))
-                    {
-                        field.Value = new PdfSharp.Pdf.PdfString(textVal ?? "");
-                    }
-                    else if (data.Checkboxes.TryGetValue(name, out var cbVal))
+                    if (data.Checkboxes.TryGetValue(name, out var cbVal))
                     {
                         if (field is PdfCheckBoxField cb)
                             cb.Checked = cbVal;

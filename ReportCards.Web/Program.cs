@@ -139,18 +139,65 @@ app.MapRazorPages();
 
 app.UseAntiforgery();
 
-// Diagnostic: dump all PDF field names
+// Diagnostic: dump all PDF field names + test name-based access
 app.MapGet("/debug/pdf-fields/{filename}", (string filename, IWebHostEnvironment env) =>
 {
     var path = Path.Combine(env.ContentRootPath, "ReportCardTemplates", filename);
     if (!File.Exists(path)) return Results.NotFound($"File not found: {path}");
     using var doc = PdfSharp.Pdf.IO.PdfReader.Open(path, PdfSharp.Pdf.IO.PdfDocumentOpenMode.ReadOnly);
     var form = doc.AcroForm;
-    if (form == null) return Results.Ok(new { fields = Array.Empty<string>() });
-    var fields = Enumerable.Range(0, form.Fields.Count)
-        .Select(i => { try { return form.Fields[i]?.Name ?? "(null)"; } catch { return "(error)"; } })
-        .ToList();
-    return Results.Ok(new { count = fields.Count, fields });
+    if (form == null) return Results.Ok(new { error = "No AcroForm" });
+
+    // Test name-based access for known text fields
+    var testNames = new[] { "Student", "OEN", "Grade", "Teacher", "School", "Board", "Address", "Telephone", "Days Absent", "Times Late" };
+    var nameTests = testNames.Select(name => {
+        try {
+            var f = form.Fields[name];
+            return new { name, found = f != null, type = f?.GetType().Name ?? "(null)", error = (string?)null };
+        } catch (Exception ex) {
+            return new { name, found = false, type = "(error)", error = ex.Message };
+        }
+    }).ToList();
+
+    // Raw index scan
+    var byIndex = Enumerable.Range(0, form.Fields.Count)
+        .Select(i => {
+            try {
+                var f = form.Fields[i];
+                return new { index = i, name = f?.Name ?? "(null)", type = f?.GetType().Name ?? "(null)", error = (string?)null };
+            } catch (Exception ex) {
+                return new { index = i, name = "(error)", type = "(error)", error = ex.Message };
+            }
+        }).ToList();
+
+    // Walk raw AcroForm /Fields array to find ALL fields including nested ones
+    var rawFields = new List<object>();
+    void WalkFields(PdfSharp.Pdf.PdfArray? arr, string prefix) {
+        if (arr == null) return;
+        for (int i = 0; i < arr.Elements.Count; i++) {
+            try {
+                var item = arr.Elements[i];
+                var dict = (item as PdfSharp.Pdf.PdfDictionary)
+                    ?? (item is PdfSharp.Pdf.PdfObject obj ? obj as PdfSharp.Pdf.PdfDictionary : null);
+                if (dict == null) continue;
+                var nameEl = dict.Elements["/T"];
+                var name = nameEl?.ToString()?.Trim('(', ')') ?? "";
+                var fullName = string.IsNullOrEmpty(prefix) ? name : $"{prefix}.{name}";
+                var ftEl = dict.Elements["/FT"];
+                var ft = ftEl?.ToString() ?? "";
+                rawFields.Add(new { fullName, ft });
+                // Recurse into kids
+                var kids = dict.Elements["/Kids"] as PdfSharp.Pdf.PdfArray;
+                WalkFields(kids, fullName);
+            } catch (Exception ex) {
+                rawFields.Add(new { fullName = $"(error at {i})", ft = ex.Message });
+            }
+        }
+    }
+    var topFields = form.Elements["/Fields"] as PdfSharp.Pdf.PdfArray;
+    WalkFields(topFields, "");
+
+    return Results.Ok(new { nameTests, rawFields });
 });
 
 app.MapGet("/health/db", async (IConfiguration config) =>
