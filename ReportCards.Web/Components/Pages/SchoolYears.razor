@@ -158,6 +158,11 @@ else
                         <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
                             @yc.TotalOfferings offering(s) generated
                         </MudText>
+                        <MudTooltip Text="Change curriculum template">
+                            <MudIconButton Icon="@Icons.Material.Filled.SwapHoriz" Size="Size.Small"
+                                           Color="Color.Primary"
+                                           OnClick="@(() => OpenApplyCurriculum(year))" />
+                        </MudTooltip>
                     }
                     else
                     {

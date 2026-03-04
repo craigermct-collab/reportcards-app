@@ -179,3 +179,12 @@ C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\PdfSharp.Snippe
 C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\PdfSharp.System.dll
 C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\PdfSharp.WPFonts.dll
 C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\PdfSharp.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\EPPlus.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\EPPlus.Interfaces.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\EPPlus.System.Drawing.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\Microsoft.Extensions.Configuration.FileExtensions.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\Microsoft.Extensions.Configuration.Json.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\Microsoft.IO.RecyclableMemoryStream.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\Microsoft.Win32.SystemEvents.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\System.Drawing.Common.dll
+C:\Users\CraigM\reportcards-app\ReportCards.Web\bin\Debug\net8.0\runtimes\win\lib\net8.0\Microsoft.Win32.SystemEvents.dll

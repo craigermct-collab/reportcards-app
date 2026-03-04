@@ -405,7 +405,8 @@ else
                         </MudGrid>
                     }
 
-                    @if (_subjectGroups.Count > 0)
+                    @{ var cgiSubjectGroups = _subjectGroupsByCgi.GetValueOrDefault(cgi.Id) ?? new(); }
+                    @if (cgiSubjectGroups.Count > 0)
                     {
                         <MudDivider Class="mt-5 mb-4" />
 
@@ -419,7 +420,7 @@ else
                         </div>
 
                         <MudCollapse Expanded="@(_expandedSubjectConfigs.Contains(cgi.Id))">
-                        @foreach (var sg in _subjectGroups)
+                        @foreach (var sg in cgiSubjectGroups)
                         {
                             var cfgKey = (cgi.Id, sg.Id);
                             var cfg = _subjectConfigs.GetValueOrDefault(cfgKey);
@@ -538,8 +539,8 @@ else
     }
 
     private List<SubjectModifierTemplate>  _modifierTemplates  = new();
-    // Curriculum class templates available for the selected year (deduplicated by name)
-    private List<CurriculumClassTemplate>  _subjectGroups      = new();
+    // Curriculum class templates per ClassGroupInstance (keyed by cgi.Id)
+    private Dictionary<int, List<CurriculumClassTemplate>> _subjectGroupsByCgi = new();
     // Strands keyed by CurriculumClassTemplateId
     private Dictionary<int, List<CurriculumSubStrand>> _strandsByGroup = new();
     // Config keyed by (ClassGroupInstanceId, CurriculumClassTemplateId)
@@ -676,28 +677,46 @@ else
             .Select(t => t.SchoolYearId)
             .FirstOrDefaultAsync();
 
-        // Load curriculum class templates (subject groups) for this year
-        // Get distinct IDs first, then load with full includes
-        var subjectGroupIds = await Db.YearClassOfferings
+        // Load YearClassOfferings for this year with grade info, scoped per CGI
+        // Each CGI has a ClassGroupType which has Grades — filter offerings to those grades
+        var offerings = await Db.YearClassOfferings
             .Where(o => o.YearCurriculum!.SchoolYearId == schoolYearId && o.IsEnabled)
-            .Select(o => o.CurriculumClassTemplateId)
-            .Distinct()
+            .Include(o => o.CurriculumClassTemplate)
+                .ThenInclude(ct => ct.SubjectTemplates)
+                    .ThenInclude(st => st.SubStrands)
             .ToListAsync();
 
-        _subjectGroups = await Db.CurriculumClassTemplates
-            .Where(ct => subjectGroupIds.Contains(ct.Id))
-            .Include(ct => ct.SubjectTemplates)
-                .ThenInclude(st => st.SubStrands)
-            .OrderBy(ct => ct.SortOrder)
-            .ToListAsync();
+        // Build per-CGI subject group list by matching offering grades to CGI's grade list.
+        // Deduplicate by name — use the lowest CurriculumClassTemplate ID per name as the
+        // canonical ID so all grades in the class group share one config row.
+        _subjectGroupsByCgi = new();
+        foreach (var cgi in _classGroupInstances)
+        {
+            var cgiGradeIds = _classGroupTypes
+                .FirstOrDefault(c => c.Id == cgi.ClassGroupTypeId)?
+                .Grades.Select(g => g.Id).ToHashSet() ?? new();
+
+            var cgiSubjectGroups = offerings
+                .Where(o => cgiGradeIds.Contains(o.GradeId))
+                .Select(o => o.CurriculumClassTemplate)
+                .GroupBy(ct => ct.Name)
+                .Select(g => g.OrderBy(ct => ct.Id).First()) // canonical = lowest ID
+                .OrderBy(ct => ct.SortOrder)
+                .ToList();
+
+            _subjectGroupsByCgi[cgi.Id] = cgiSubjectGroups;
+        }
 
         // Build strands lookup (flatten all substrands across subjects within each group)
-        _strandsByGroup = _subjectGroups.ToDictionary(
-            sg => sg.Id,
-            sg => sg.SubjectTemplates
-                     .SelectMany(st => st.SubStrands)
-                     .OrderBy(s => s.SortOrder)
-                     .ToList());
+        _strandsByGroup = offerings
+            .Select(o => o.CurriculumClassTemplate)
+            .DistinctBy(ct => ct.Id)
+            .ToDictionary(
+                sg => sg.Id,
+                sg => sg.SubjectTemplates
+                         .SelectMany(st => st.SubStrands)
+                         .OrderBy(s => s.SortOrder)
+                         .ToList());
 
         // Load existing configs for all class group instances in this term
         var cgiIds = _classGroupInstances.Select(c => c.Id).ToList();

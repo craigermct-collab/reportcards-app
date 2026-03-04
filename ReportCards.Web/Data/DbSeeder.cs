@@ -404,5 +404,6 @@ public static class DbSeeder
             db.GradingScales.AddRange(kinderScale, letterScale, percentScale, ontarioScale);
             await db.SaveChangesAsync();
         }
+
     }
 }
