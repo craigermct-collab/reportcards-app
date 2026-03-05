@@ -333,9 +333,10 @@ else
                                                               Margin="Margin.Dense"
                                                               Lines="2"
                                                               MaxLength="2000"
-                                                              Placeholder="Comment… (optional)"
+                                                              Placeholder="Comment… (Ctrl+Shift+A for AI)"
                                                               Style="font-size:13px; flex:1;"
-                                                              UserAttributes="@(new Dictionary<string, object> { ["spellcheck"] = "true" })" />
+                                                              UserAttributes="@(new Dictionary<string, object> { ["spellcheck"] = "true" })"
+                                                              OnKeyDown="@((KeyboardEventArgs e) => HandleCommentKeyDown(e, enrollment, row, subjectGroup.SubjectName))" />
                                                 <div @onclick:stopPropagation="true">
                                                     <MudTooltip Text="Insert comment template">
                                                         <MudIconButton Icon="@Icons.Material.Outlined.LibraryBooks"
@@ -1033,6 +1034,12 @@ else
     private int _templatePageSize = 50;
     private GradeRow? _templateTargetRow;
     private Enrollment? _templateTargetEnrollment;
+
+    private void HandleCommentKeyDown(KeyboardEventArgs e, Enrollment enrollment, GradeRow row, string subjectName)
+    {
+        if (e.CtrlKey && e.ShiftKey && e.Key == "A")
+            OpenCommentAssistant(enrollment, row, subjectName);
+    }
 
     private void OpenCommentAssistant(Enrollment enrollment, GradeRow row, string subjectName)
     {
