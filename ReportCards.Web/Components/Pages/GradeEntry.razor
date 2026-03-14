@@ -906,9 +906,20 @@ else
         // Load subject configs for this class group instance
         var subjectConfigs = await Db.ClassGroupSubjectConfigs
             .Include(c => c.SubjectModifierTemplate)
+            .Include(c => c.CurriculumClassTemplate)
             .Where(c => c.ClassGroupInstanceId == enrollment.ClassGroupInstanceId)
             .ToListAsync();
+
+        // Index by direct template ID for exact lookups
         var configByTemplateId = subjectConfigs.ToDictionary(c => c.CurriculumClassTemplateId);
+
+        // Also index by subject NAME so we can match any grade's template to the right config
+        // (e.g. "Science and Technology" config saved against grade 3 template should also
+        // apply when displaying grade 4 items that share the same subject name)
+        var configBySubjectName = subjectConfigs
+            .Where(c => c.CurriculumClassTemplate?.Name != null)
+            .GroupBy(c => c.CurriculumClassTemplate!.Name)
+            .ToDictionary(g => g.Key, g => g.First());
 
         // Build a canonical ID map: for each subject name, lowest CurriculumClassTemplateId wins.
         // This ensures grade-specific templates all resolve to the same config row.
@@ -1002,13 +1013,22 @@ else
             {
                 var cctId = g.Key.CurriculumClassTemplateId;
 
+                // Resolve config: try direct ID match first, fall back to name match
+                // (config may be stored against a different grade's template ID for the same subject)
+                var subjectGroupName = g.Key.Name;
+                ClassGroupSubjectConfig? resolvedCfg = null;
+                if (cctId.HasValue)
+                    configByTemplateId.TryGetValue(cctId.Value, out resolvedCfg);
+                if (resolvedCfg == null)
+                    configBySubjectName.TryGetValue(subjectGroupName, out resolvedCfg);
+
                 // Get active strand IDs for this subject group
                 HashSet<int> activeStrandIds = new();
                 bool hasStrandConfig = false;
-                if (cctId.HasValue && configByTemplateId.TryGetValue(cctId.Value, out var cfg))
+                if (resolvedCfg != null)
                 {
                     var ids = System.Text.Json.JsonSerializer
-                        .Deserialize<List<int>>(cfg.ActiveStrandIdsJson) ?? new();
+                        .Deserialize<List<int>>(resolvedCfg.ActiveStrandIdsJson) ?? new();
                     if (ids.Count > 0)
                     {
                         hasStrandConfig = true;
@@ -1020,14 +1040,18 @@ else
                 List<string> modifierOptions = new();
                 HashSet<string> enabledModifiers = new();
                 int? existingModifierId = null;
-                if (cctId.HasValue && configByTemplateId.TryGetValue(cctId.Value, out var sgCfg)
-                    && sgCfg.SubjectModifierTemplate != null)
+                if (resolvedCfg?.SubjectModifierTemplate != null)
                 {
                     modifierOptions = System.Text.Json.JsonSerializer
-                        .Deserialize<List<string>>(sgCfg.SubjectModifierTemplate.OptionsJson) ?? new();
+                        .Deserialize<List<string>>(resolvedCfg.SubjectModifierTemplate.OptionsJson) ?? new();
                 }
+
+                // For modifier save/load, use the resolved config's actual template ID
+                var effectiveCctId = resolvedCfg != null
+                    ? (int?)resolvedCfg.CurriculumClassTemplateId
+                    : cctId;
                 Dictionary<int, HashSet<string>> strandModifiers = new();
-                if (cctId.HasValue && modifierByTemplateId.TryGetValue(cctId.Value, out var mod))
+                if (effectiveCctId.HasValue && modifierByTemplateId.TryGetValue(effectiveCctId.Value, out var mod))
                 {
                     existingModifierId = mod.Id;
                     enabledModifiers = (System.Text.Json.JsonSerializer
@@ -1074,7 +1098,7 @@ else
                     SubjectName               = g.Key.Name,
                     SubjectCode               = g.Key.Code,
                     SortOrder                 = g.Key.SortOrder,
-                    CurriculumClassTemplateId = cctId,
+                    CurriculumClassTemplateId = effectiveCctId,  // use resolved ID so saves go to correct record
                     ModifierOptions           = modifierOptions,
                     EnabledModifiers          = enabledModifiers,
                     ExistingModifierId        = existingModifierId,
