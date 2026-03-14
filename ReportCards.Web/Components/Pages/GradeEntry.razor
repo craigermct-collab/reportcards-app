@@ -282,6 +282,23 @@ else
                                                     @row.LearningItem.GradingScale.Name
                                                 </MudText>
                                             }
+                                            @if (row.RowModifierOptions.Count > 0)
+                                            {
+                                                <div class="d-flex flex-wrap gap-2 mt-1">
+                                                    @foreach (var opt in row.RowModifierOptions)
+                                                    {
+                                                        var isRowChecked = row.RowEnabledModifiers.Contains(opt);
+                                                        <MudCheckBox T="bool"
+                                                                     Checked="@isRowChecked"
+                                                                     CheckedChanged="@(async (bool v) => await ToggleStrandModifierAsync(enrollment, subjectGroup, row, opt))"
+                                                                     Size="Size.Small"
+                                                                     Color="Color.Secondary"
+                                                                     Label="@opt"
+                                                                     Style="margin:0; font-size:11px;"
+                                                                     @onclick:stopPropagation="true" />
+                                                    }
+                                                </div>
+                                            }
                                         </div>
                                         <div style="width:160px; flex-shrink:0;">
                                             @if (row.LearningItem.GradingScale?.ValueType == GradingValueType.OptionList)
@@ -641,8 +658,14 @@ else
         public List<CurriculumSubStrand> SubStrands { get; set; } = new();
         // The strand this row belongs to (null = class-level item, not strand-level)
         public int? StrandId { get; set; }
+        // CurriculumSubjectTemplateId for strand-level modifier keying
+        public int? CurriculumSubjectTemplateId { get; set; }
         // Whether this row's strand is active (null = no strand config, show everything)
         public bool IsStrandActive { get; set; } = true;
+        // Per-row modifier options (from parent subject group) — empty = no modifiers
+        public List<string> RowModifierOptions { get; set; } = new();
+        // Which modifier options are currently checked for THIS strand row
+        public HashSet<string> RowEnabledModifiers { get; set; } = new();
     }
 
     private class StudentState
@@ -922,14 +945,15 @@ else
 
             return new GradeRow
             {
-                LearningItem         = li,
-                DisplayName          = li.DisplayName,
-                ExistingAssessmentId = existing?.Id,
-                ValueText            = existing?.ValueText,
-                ValueNumber          = existing?.ValueNumber,
-                Comment              = existing?.Comment,
-                SubStrands           = subStrands,
-                StrandId             = strandId,
+                LearningItem                = li,
+                DisplayName                 = li.DisplayName,
+                ExistingAssessmentId        = existing?.Id,
+                ValueText                   = existing?.ValueText,
+                ValueNumber                 = existing?.ValueNumber,
+                Comment                     = existing?.Comment,
+                SubStrands                  = subStrands,
+                StrandId                    = strandId,
+                CurriculumSubjectTemplateId = li.YearSubjectOffering?.CurriculumSubjectTemplateId,
             };
         }).ToList();
 
@@ -987,11 +1011,24 @@ else
                     modifierOptions = System.Text.Json.JsonSerializer
                         .Deserialize<List<string>>(sgCfg.SubjectModifierTemplate.OptionsJson) ?? new();
                 }
+                Dictionary<int, HashSet<string>> strandModifiers = new();
                 if (cctId.HasValue && modifierByTemplateId.TryGetValue(cctId.Value, out var mod))
                 {
                     existingModifierId = mod.Id;
                     enabledModifiers = (System.Text.Json.JsonSerializer
                         .Deserialize<List<string>>(mod.EnabledOptionsJson) ?? new()).ToHashSet();
+
+                    // Parse per-strand modifiers dict
+                    try
+                    {
+                        var rawDict = System.Text.Json.JsonSerializer
+                            .Deserialize<Dictionary<string, List<string>>>(mod.StrandModifiersJson);
+                        if (rawDict != null)
+                            strandModifiers = rawDict.ToDictionary(
+                                kv => int.Parse(kv.Key),
+                                kv => kv.Value.ToHashSet());
+                    }
+                    catch { }
                 }
 
                 var groupRows = g
@@ -1000,16 +1037,20 @@ else
                     .ThenBy(r => r.DisplayName)
                     .ToList();
 
-                // Apply strand active state to rows
-                // A row is active if any of its SubStrands are in the active set
-                // (or if it has no strands at all — class-level items are always shown)
-                if (hasStrandConfig)
+                // Apply strand active state + per-row modifiers
+                foreach (var row in groupRows)
                 {
-                    foreach (var row in groupRows)
+                    // Strand active state
+                    if (hasStrandConfig && row.SubStrands.Count > 0)
+                        row.IsStrandActive = row.SubStrands.Any(s => activeStrandIds.Contains(s.Id));
+
+                    // Per-strand modifier options: only for Subject-type rows
+                    if (row.LearningItem.ItemType == LearningItemType.Subject && modifierOptions.Count > 0)
                     {
-                        if (row.SubStrands.Count > 0)
-                            row.IsStrandActive = row.SubStrands.Any(s => activeStrandIds.Contains(s.Id));
-                        // else: class-level item, always active
+                        row.RowModifierOptions = modifierOptions;
+                        if (row.CurriculumSubjectTemplateId.HasValue &&
+                            strandModifiers.TryGetValue(row.CurriculumSubjectTemplateId.Value, out var sm))
+                            row.RowEnabledModifiers = sm;
                     }
                 }
 
@@ -1197,6 +1238,66 @@ else
     }
 
     // ── SUBJECT MODIFIERS ──────────────────────────────────────
+
+    private async Task ToggleStrandModifierAsync(Enrollment enrollment, SubjectGroup sg, GradeRow row, string option)
+    {
+        if (row.CurriculumSubjectTemplateId == null || sg.CurriculumClassTemplateId == null || _selectedTermId == null) return;
+
+        // Toggle in the row's in-memory set
+        if (row.RowEnabledModifiers.Contains(option))
+            row.RowEnabledModifiers.Remove(option);
+        else
+            row.RowEnabledModifiers.Add(option);
+
+        sg.IsSavingModifiers = true;
+        StateHasChanged();
+
+        try
+        {
+            // Load or create the StudentSubjectModifier for this subject
+            StudentSubjectModifier? mod;
+            if (sg.ExistingModifierId.HasValue)
+            {
+                mod = await Db.StudentSubjectModifiers.FindAsync(sg.ExistingModifierId.Value);
+            }
+            else
+            {
+                mod = new StudentSubjectModifier
+                {
+                    EnrollmentId              = enrollment.Id,
+                    TermInstanceId            = _selectedTermId.Value,
+                    CurriculumClassTemplateId = sg.CurriculumClassTemplateId.Value,
+                    EnabledOptionsJson        = System.Text.Json.JsonSerializer.Serialize(sg.EnabledModifiers.ToList()),
+                    EnabledStrandIdsJson      = "[]",
+                    StrandModifiersJson       = "{}",
+                    UpdatedAt                 = DateTimeOffset.UtcNow
+                };
+                Db.StudentSubjectModifiers.Add(mod);
+                await Db.SaveChangesAsync();
+                sg.ExistingModifierId = mod.Id;
+            }
+
+            if (mod == null) return;
+
+            // Rebuild the strand modifiers dict from ALL rows in this group
+            var dict = new Dictionary<string, List<string>>();
+            foreach (var r in sg.Rows.Where(r => r.CurriculumSubjectTemplateId.HasValue && r.RowEnabledModifiers.Any()))
+                dict[r.CurriculumSubjectTemplateId!.Value.ToString()] = r.RowEnabledModifiers.ToList();
+
+            mod.StrandModifiersJson = System.Text.Json.JsonSerializer.Serialize(dict);
+            mod.UpdatedAt = DateTimeOffset.UtcNow;
+            await Db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to save strand modifier: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            sg.IsSavingModifiers = false;
+            StateHasChanged();
+        }
+    }
 
     private async Task ToggleModifierAsync(Enrollment enrollment, SubjectGroup sg, string option)
     {

@@ -981,6 +981,11 @@ namespace ReportCards.Web.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("StrandModifiersJson")
+                        .IsRequired()
+                        .HasDefaultValue("{}")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("EnrollmentId")
                         .HasColumnType("int");
 

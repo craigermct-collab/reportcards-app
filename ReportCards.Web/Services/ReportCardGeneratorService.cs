@@ -320,23 +320,41 @@ namespace ReportCards.Web.Services
 
                 if (isPerStrand)
                 {
-                    // Get all strand dest keys for this subject from the learning items
-                    var strandDestKeys = enrollment.LearningItems
+                    // Parse per-strand modifier dict: strandTemplateId → [options]
+                    Dictionary<int, List<string>> strandDict = new();
+                    try
+                    {
+                        var raw = System.Text.Json.JsonSerializer
+                            .Deserialize<Dictionary<string, List<string>>>(mod.StrandModifiersJson);
+                        if (raw != null)
+                            strandDict = raw.ToDictionary(kv => int.Parse(kv.Key), kv => kv.Value);
+                    }
+                    catch { }
+
+                    // Apply per-strand options; fall back to subject-level options for strands
+                    // that have no individual override
+                    var strandItems = enrollment.LearningItems
                         .Where(li => li.ItemType == LearningItemType.Subject &&
                                      li.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplateId
                                      == mod.CurriculumClassTemplateId)
-                        .Select(li => DeriveDestinationKey(
-                            li.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.Name,
-                            li.YearSubjectOffering?.CurriculumSubjectTemplate?.Name))
-                        .Where(k => k != null)
-                        .Distinct()
                         .ToList();
 
-                    foreach (var strandKey in strandDestKeys)
+                    foreach (var li in strandItems)
                     {
-                        foreach (var option in enabledOptions)
+                        var strandDestKey = DeriveDestinationKey(
+                            li.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.Name,
+                            li.YearSubjectOffering?.CurriculumSubjectTemplate?.Name);
+                        if (strandDestKey == null) continue;
+
+                        var cstId = li.YearSubjectOffering?.CurriculumSubjectTemplateId ?? 0;
+                        // Use strand-specific options if set, otherwise fall back to subject-level
+                        var options = strandDict.TryGetValue(cstId, out var so) && so.Any()
+                            ? so
+                            : enabledOptions;
+
+                        foreach (var option in options)
                         {
-                            var cbKey = MapModifierToCheckboxKey(strandKey!, option);
+                            var cbKey = MapModifierToCheckboxKey(strandDestKey, option);
                             if (cbKey != null && mapByKey.TryGetValue(cbKey, out var cbField))
                                 checkboxes[cbField] = true;
                         }

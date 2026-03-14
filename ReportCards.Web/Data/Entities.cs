@@ -156,6 +156,14 @@ public class StudentSubjectModifier
     /// </summary>
     public string EnabledStrandIdsJson { get; set; } = "[]";
 
+    /// <summary>
+    /// JSON dict of per-strand modifier selections.
+    /// Key = CurriculumSubjectTemplateId (as string), Value = array of enabled option labels.
+    /// e.g. {"42": ["ESL/ELD"], "43": ["ESL/ELD", "IEP"]}
+    /// Only populated for subjects graded per strand.
+    /// </summary>
+    public string StrandModifiersJson { get; set; } = "{}";
+
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
