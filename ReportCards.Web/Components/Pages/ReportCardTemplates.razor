@@ -382,9 +382,7 @@ else
             Db.ReportTemplateFieldMaps.RemoveRange(existing);
             await Db.SaveChangesAsync();
 
-            var maps = template.TemplateType == ReportCardTemplateType.ElementaryProgressReport
-                ? ReportCardFieldMapSeeder.ProgressReportMaps()
-                : ReportCardFieldMapSeeder.ElementaryReportCardMaps();
+            var maps = ReportCardFieldMapSeeder.ElementaryReportCardMaps();
 
             foreach (var (destKey, pdfField) in maps)
                 Db.ReportTemplateFieldMaps.Add(new ReportTemplateFieldMap
