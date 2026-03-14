@@ -899,6 +899,13 @@ else
             .ToListAsync();
         var modifierByTemplateId = studentModifiers.ToDictionary(m => m.CurriculumClassTemplateId);
 
+        // Filter out items with broken offering references (stale after curriculum re-import)
+        items = items.Where(li =>
+            li.ItemType == LearningItemType.Class
+                ? li.YearClassOffering?.CurriculumClassTemplate != null
+                : li.YearSubjectOffering?.CurriculumSubjectTemplate != null
+        ).ToList();
+
         var rows = items.Select(li =>
         {
             assessmentMap.TryGetValue(li.Id, out var existing);

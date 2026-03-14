@@ -687,7 +687,35 @@ else
     </DialogActions>
 </MudDialog>
 
-<!-- Re-import Excel Dialog -->
+<!-- Re-import: Step 1 — Confirm nuclear warning -->
+<MudDialog @bind-Visible="_reimportConfirmOpen" Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = false, BackdropClick = false })">
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.Warning" Style="color:var(--mud-palette-error);" />
+            <MudText Typo="Typo.h6" Style="color:var(--mud-palette-error);">This cannot be undone</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mb-3">
+            Re-importing will <strong>permanently delete all student grades, assessments, and learning items</strong> for the entire school year that uses "@_reimportTargetName".
+        </MudAlert>
+        <MudText Typo="Typo.body2" Class="mb-2">
+            This affects every student enrolled in every class that uses this curriculum for the school year. There is no undo.
+        </MudText>
+        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+            If you want to continue, click <strong>I understand, continue</strong> to choose your new Excel file.
+        </MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _reimportConfirmOpen = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Error"
+                   OnClick="ProceedToReimportAsync">
+            I understand, continue
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<!-- Re-import Excel Dialog (Step 2 — file picker) -->
 <MudDialog @bind-Visible="_reimportOpen" Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true })">
     <TitleContent>
         <MudText Typo="Typo.h6">
@@ -697,7 +725,7 @@ else
     </TitleContent>
     <DialogContent>
         <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-3">
-            This will <strong>delete all grades, subjects, strands, and sub-strands</strong> for "@_reimportTargetName" and replace them with the new file. Any existing grade entries linked to this curriculum will be orphaned.
+            Choose your updated Excel file. All existing student grades and learning items have already been cleared. This will replace the curriculum structure for "@_reimportTargetName" and reseed all enrolled students.
         </MudAlert>
         <InputFile id="reimportXlsxInput" OnChange="HandleReimportFileSelected" accept=".xlsx" style="display:none;" />
         <MudButton Variant="Variant.Outlined" Color="Color.Primary"
@@ -948,6 +976,7 @@ else
     private string _newSubStrandDesc = "";
 
     // Dialog state — Re-import Excel
+    private bool                  _reimportConfirmOpen;
     private bool                  _reimportOpen;
     private int                   _reimportTargetId;
     private string                _reimportTargetName = "";
@@ -1558,7 +1587,14 @@ else
         _reimportTotal      = 0;
         _reimportPreview    = null;
         _reimportPayload    = null;
-        _reimportOpen       = true;
+        // Show the nuclear warning first
+        _reimportConfirmOpen = true;
+    }
+
+    private void ProceedToReimportAsync()
+    {
+        _reimportConfirmOpen = false;
+        _reimportOpen        = true;
     }
 
     private async Task HandleReimportFileSelected(InputFileChangeEventArgs e)
@@ -1657,7 +1693,23 @@ else
                 await using var db = await DbFactory.CreateDbContextAsync();
 
                 // Step 1: Raw SQL deletes in FK-safe order
-                // 1a. StudentLearningItems has FKs to BOTH YearClassOfferings AND YearSubjectOfferings — delete via YearClassOfferings join
+                // 1a. Assessments reference StudentLearningItems — delete first
+                await db.Database.ExecuteSqlRawAsync(@"
+                    DELETE a FROM Assessments a
+                    INNER JOIN StudentLearningItems sli ON a.StudentLearningItemId = sli.Id
+                    INNER JOIN YearClassOfferings yco ON sli.YearClassOfferingId = yco.Id
+                    INNER JOIN CurriculumClassTemplates cct ON yco.CurriculumClassTemplateId = cct.Id
+                    INNER JOIN CurriculumGradeTemplates cgt ON cct.CurriculumGradeTemplateId = cgt.Id
+                    WHERE cgt.CurriculumSchemaId = {0}", targetId);
+
+                // 1b. StudentSubjectModifiers reference CurriculumClassTemplates
+                await db.Database.ExecuteSqlRawAsync(@"
+                    DELETE ssm FROM StudentSubjectModifiers ssm
+                    INNER JOIN CurriculumClassTemplates cct ON ssm.CurriculumClassTemplateId = cct.Id
+                    INNER JOIN CurriculumGradeTemplates cgt ON cct.CurriculumGradeTemplateId = cgt.Id
+                    WHERE cgt.CurriculumSchemaId = {0}", targetId);
+
+                // 1c. StudentLearningItems
                 await db.Database.ExecuteSqlRawAsync(@"
                     DELETE sli FROM StudentLearningItems sli
                     INNER JOIN YearClassOfferings yco ON sli.YearClassOfferingId = yco.Id
@@ -1665,7 +1717,7 @@ else
                     INNER JOIN CurriculumGradeTemplates cgt ON cct.CurriculumGradeTemplateId = cgt.Id
                     WHERE cgt.CurriculumSchemaId = {0}", targetId);
 
-                // 1b. YearSubjectOfferings
+                // 1d. YearSubjectOfferings
                 await db.Database.ExecuteSqlRawAsync(@"
                     DELETE yso FROM YearSubjectOfferings yso
                     INNER JOIN YearClassOfferings yco ON yso.YearClassOfferingId = yco.Id
@@ -1673,14 +1725,14 @@ else
                     INNER JOIN CurriculumGradeTemplates cgt ON cct.CurriculumGradeTemplateId = cgt.Id
                     WHERE cgt.CurriculumSchemaId = {0}", targetId);
 
-                // 1c. YearClassOfferings
+                // 1e. YearClassOfferings
                 await db.Database.ExecuteSqlRawAsync(@"
                     DELETE yco FROM YearClassOfferings yco
                     INNER JOIN CurriculumClassTemplates cct ON yco.CurriculumClassTemplateId = cct.Id
                     INNER JOIN CurriculumGradeTemplates cgt ON cct.CurriculumGradeTemplateId = cgt.Id
                     WHERE cgt.CurriculumSchemaId = {0}", targetId);
 
-                // 1d. ClassGroupSubjectConfigs references CurriculumClassTemplates
+                // 1f. ClassGroupSubjectConfigs references CurriculumClassTemplates
                 await db.Database.ExecuteSqlRawAsync(@"
                     DELETE cgsc FROM ClassGroupSubjectConfigs cgsc
                     INNER JOIN CurriculumClassTemplates cct ON cgsc.CurriculumClassTemplateId = cct.Id
@@ -1749,6 +1801,85 @@ else
                         }
                     }
                 }
+
+                // Step 4: Reseed all enrolled students for this school year
+                // Find all YearCurriculums pointing to this schema, then all enrollments in those years
+                var yearCurriculumIds = await db.YearCurriculums
+                    .Where(yc => yc.CurriculumSchemaId == targetId)
+                    .Select(yc => new { yc.Id, yc.SchoolYearId })
+                    .ToListAsync();
+
+                foreach (var yc in yearCurriculumIds)
+                {
+                    var termIds = await db.TermInstances
+                        .Where(t => t.SchoolYearId == yc.SchoolYearId)
+                        .Select(t => t.Id)
+                        .ToListAsync();
+
+                    var enrollments = await db.Enrollments
+                        .Where(e => termIds.Contains(e.TermInstanceId))
+                        .ToListAsync();
+
+                    foreach (var enrollment in enrollments)
+                    {
+                        // Load the new offerings for this student's grade
+                        var classOfferings = await db.YearClassOfferings
+                            .Include(o => o.CurriculumClassTemplate)
+                            .Include(o => o.SubjectOfferings)
+                                .ThenInclude(so => so.CurriculumSubjectTemplate)
+                            .Where(o => o.YearCurriculumId == yc.Id
+                                     && o.GradeId == enrollment.GradeId
+                                     && o.IsEnabled)
+                            .ToListAsync();
+
+                        var cgi = await db.ClassGroupInstances
+                            .FirstOrDefaultAsync(c => c.Id == enrollment.ClassGroupInstanceId);
+
+                        var gradingRules = await db.TermGradeGradingRules
+                            .Where(r => r.TermInstanceId == enrollment.TermInstanceId
+                                     && r.GradeId == enrollment.GradeId
+                                     && r.ClassGroupTypeId == cgi!.ClassGroupTypeId)
+                            .ToListAsync();
+                        var fallbackScaleId = gradingRules.FirstOrDefault()?.GradingScaleId;
+                        var defaultScaleId  = await db.GradingScales.Select(g => g.Id).FirstOrDefaultAsync();
+
+                        foreach (var classOffering in classOfferings)
+                        {
+                            var template = classOffering.CurriculumClassTemplate;
+                            if (template == null) continue;
+
+                            if (!template.GradedAtStrandLevel)
+                            {
+                                db.StudentLearningItems.Add(new StudentLearningItem
+                                {
+                                    EnrollmentId        = enrollment.Id,
+                                    DisplayName         = template.Name,
+                                    ItemType            = LearningItemType.Class,
+                                    YearClassOfferingId = classOffering.Id,
+                                    GradingScaleId      = classOffering.GradingScaleId ?? fallbackScaleId ?? defaultScaleId
+                                });
+                            }
+                            else
+                            {
+                                foreach (var subjectOffering in classOffering.SubjectOfferings.Where(so => so.IsEnabled))
+                                {
+                                    var strandTemplate = subjectOffering.CurriculumSubjectTemplate;
+                                    if (strandTemplate == null) continue;
+                                    db.StudentLearningItems.Add(new StudentLearningItem
+                                    {
+                                        EnrollmentId          = enrollment.Id,
+                                        DisplayName           = strandTemplate.Name,
+                                        ItemType              = LearningItemType.Subject,
+                                        YearClassOfferingId   = classOffering.Id,
+                                        YearSubjectOfferingId = subjectOffering.Id,
+                                        GradingScaleId        = subjectOffering.GradingScaleId ?? classOffering.GradingScaleId ?? fallbackScaleId ?? defaultScaleId
+                                    });
+                                }
+                            }
+                        }
+                        await db.SaveChangesAsync();
+                    }
+                }
             });
         }
         catch (Exception ex)
@@ -1767,7 +1898,7 @@ else
         {
             _reimportOpen = false;
             _selectedGradeId = null; _selectedSubjectId = null; _selectedStrandId = null;
-            Snackbar.Add($"'{targetName}' curriculum replaced successfully.", Severity.Success);
+            Snackbar.Add($"'{targetName}' replaced and all enrolled students reseeded.", Severity.Success);
             await LoadAsync();
         }
 
