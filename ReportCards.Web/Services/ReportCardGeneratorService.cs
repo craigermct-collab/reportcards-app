@@ -95,6 +95,7 @@ namespace ReportCards.Web.Services
                 .Include(e => e.LearningItems)
                     .ThenInclude(li => li.YearSubjectOffering)
                         .ThenInclude(o => o!.CurriculumSubjectTemplate)
+                            .ThenInclude(st => st!.CurriculumClassTemplate)
                 .Include(e => e.LearningItems)
                     .ThenInclude(li => li.Assessments)
                 .FirstOrDefaultAsync(e => e.Id == enrollmentId)
@@ -189,6 +190,7 @@ namespace ReportCards.Web.Services
             SetFields(fields, multiMapByKey, ReportDestinationKeys.SchoolBoard,     Cfg(SchoolConfigKeys.Board));
             SetFields(fields, multiMapByKey, ReportDestinationKeys.SchoolAddress,   Cfg(SchoolConfigKeys.Address));
             SetFields(fields, multiMapByKey, ReportDestinationKeys.SchoolPhone,     Cfg(SchoolConfigKeys.ContactPhone));
+            SetFields(fields, multiMapByKey, ReportDestinationKeys.Principal,       Cfg(SchoolConfigKeys.Principal));
             SetFields(fields, multiMapByKey, ReportDestinationKeys.DaysAbsent,      absences.ToString());
             SetFields(fields, multiMapByKey, ReportDestinationKeys.TotalDaysAbsent, absences.ToString());
             SetFields(fields, multiMapByKey, ReportDestinationKeys.TimesLate,       lates.ToString());
@@ -196,8 +198,14 @@ namespace ReportCards.Web.Services
 
             foreach (var li in enrollment.LearningItems)
             {
+                // Prefer explicit ReportDestinationKey on the offering; fall back to
+                // deriving it from the curriculum template name.
                 var destKey = li.YearClassOffering?.ReportDestinationKey
-                           ?? li.YearSubjectOffering?.ReportDestinationKey;
+                           ?? li.YearSubjectOffering?.ReportDestinationKey
+                           ?? DeriveDestinationKey(
+                               li.YearClassOffering?.CurriculumClassTemplate?.Name
+                               ?? li.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.Name,
+                               li.YearSubjectOffering?.CurriculumSubjectTemplate?.Name);
                 if (destKey == null) continue;
 
                 bool isTwoTermCard = template.TemplateType == ReportCardTemplateType.ElementaryReportCard;
@@ -253,53 +261,104 @@ namespace ReportCards.Web.Services
             if (form == null)
                 throw new InvalidOperationException("PDF has no AcroForm fields.");
 
-            // Ensure appearances are generated when opened in a viewer
+            // Set NeedAppearances so viewer renders the filled values
             if (form.Elements.ContainsKey("/NeedAppearances"))
                 form.Elements["/NeedAppearances"] = new PdfSharp.Pdf.PdfBoolean(true);
             else
                 form.Elements.Add("/NeedAppearances", new PdfSharp.Pdf.PdfBoolean(true));
 
-            // Fill text fields by name (handles nested fields that index access can't reach)
-            foreach (var (fieldName, textVal) in data.Fields)
+            // Fill via raw widget annotations on every page (Strategy 2)
+            // This catches ALL fields — both those in the AcroForm tree and those only in /Annots
+            foreach (var page in doc.Pages)
             {
                 try
                 {
-                    var field = form.Fields[fieldName];
-                    if (field != null)
-                        field.Value = new PdfSharp.Pdf.PdfString(textVal ?? "");
+                    var annotsRef = page.Elements["/Annots"];
+                    if (annotsRef == null) continue;
+
+                    // Resolve indirect reference if needed
+                    PdfArray? annots = null;
+                    if (annotsRef is PdfArray pa) annots = pa;
+                    else if (annotsRef is PdfSharp.Pdf.Advanced.PdfReference pr)
+                        annots = pr.Value as PdfArray;
+                    if (annots == null) continue;
+
+                    foreach (var item in annots.Elements)
+                    {
+                        try
+                        {
+                            PdfDictionary? annot = null;
+                            if (item is PdfDictionary d) annot = d;
+                            else if (item is PdfSharp.Pdf.Advanced.PdfReference r)
+                                annot = r.Value as PdfDictionary;
+                            if (annot == null) continue;
+
+                            if (annot.Elements.GetName("/Subtype") != "/Widget") continue;
+
+                            // Get field name from /T
+                            var fieldName = annot.Elements.GetString("/T");
+                            if (string.IsNullOrWhiteSpace(fieldName))
+                            {
+                                // Try parent
+                                var parentEl = annot.Elements["/Parent"];
+                                PdfDictionary? parent = parentEl as PdfDictionary;
+                                if (parent == null && parentEl is PdfSharp.Pdf.Advanced.PdfReference pref)
+                                    parent = pref.Value as PdfDictionary;
+                                fieldName = parent?.Elements.GetString("/T") ?? "";
+                            }
+                            if (string.IsNullOrWhiteSpace(fieldName)) continue;
+
+                            // Set text value
+                            if (data.Fields.TryGetValue(fieldName, out var val))
+                            {
+                                annot.Elements["/V"]  = new PdfSharp.Pdf.PdfString(val);
+                                annot.Elements["/MK"] = new PdfDictionary(); // no highlight
+                                annot.Elements.Remove("/AP");
+                                if (annot.Elements.ContainsKey("/MaxLen"))
+                                    annot.Elements.Remove("/MaxLen");
+
+                                bool isNotesField = fieldName.EndsWith("Notes", StringComparison.OrdinalIgnoreCase);
+                                if (isNotesField)
+                                {
+                                    // Multiline, top-aligned, read-only
+                                    annot.Elements["/DA"] = new PdfSharp.Pdf.PdfString("/Helv 9 Tf 0 g");
+                                    annot.Elements["/Ff"] = new PdfSharp.Pdf.PdfInteger(4097); // ReadOnly + Multiline
+                                    annot.Elements["/Q"]  = new PdfSharp.Pdf.PdfInteger(0);    // Left align
+                                }
+                                else
+                                {
+                                    annot.Elements["/DA"] = new PdfSharp.Pdf.PdfString("/Helv 9 Tf 0 g");
+                                    annot.Elements["/Ff"] = new PdfSharp.Pdf.PdfInteger(1); // ReadOnly
+                                }
+                            }
+                            // Set checkbox
+                            else if (data.Checkboxes.TryGetValue(fieldName, out var cbVal))
+                            {
+                                annot.Elements["/V"] = cbVal
+                                    ? new PdfSharp.Pdf.PdfName("/Yes")
+                                    : new PdfSharp.Pdf.PdfName("/Off");
+                                annot.Elements["/AS"] = cbVal
+                                    ? new PdfSharp.Pdf.PdfName("/Yes")
+                                    : new PdfSharp.Pdf.PdfName("/Off");
+                                annot.Elements["/MK"] = new PdfDictionary();
+                            }
+                        }
+                        catch { /* skip malformed annotation */ }
+                    }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Skipping text field {Name}", fieldName);
-                }
+                catch { /* skip malformed page */ }
             }
 
-            // Fill checkboxes and radio buttons by index (these are top-level fields)
-            for (int i = 0; i < form.Fields.Count; i++)
+            // Strategy 3: for fields in AcroForm /Fields array but not in page /Annots,
+            // write /V directly on the field's PDF object and remove /AP
+            // These are: Student, OEN, Grade, Teacher, School, DaysAbsent, etc.
+            try
             {
-                try
-                {
-                    var field = form.Fields[i];
-                    if (field == null) continue;
-                    var name = field.Name;
-                    if (string.IsNullOrEmpty(name)) continue;
-
-                    if (data.Checkboxes.TryGetValue(name, out var cbVal))
-                    {
-                        if (field is PdfCheckBoxField cb)
-                            cb.Checked = cbVal;
-                    }
-                    else if (data.Radios.TryGetValue(name, out var radioVal))
-                    {
-                        var val = radioVal.TrimStart('/');
-                        field.Value = new PdfSharp.Pdf.PdfName("/" + val);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Skipping PDF field at index {I}", i);
-                }
+                var fieldsArray = form.Elements["/Fields"] as PdfArray;
+                if (fieldsArray != null)
+                    WriteValuesToFieldsArray(fieldsArray, data.Fields, doc);
             }
+            catch { /* non-critical */ }
 
             using var ms = new MemoryStream();
             doc.Save(ms);
@@ -322,8 +381,130 @@ namespace ReportCards.Web.Services
                     fields[pdfField] = value;
         }
 
+        /// <summary>
+        /// Recursively walks the AcroForm /Fields array and writes values directly
+        /// to field PDF objects. Handles indirect references.
+        /// </summary>
+        private static void WriteValuesToFieldsArray(
+            PdfArray fields,
+            Dictionary<string, string> values,
+            PdfDocument doc)
+        {
+            foreach (var item in fields.Elements)
+            {
+                try
+                {
+                    PdfDictionary? field = item as PdfDictionary;
+                    if (field == null && item is PdfSharp.Pdf.Advanced.PdfReference r)
+                        field = r.Value as PdfDictionary;
+                    if (field == null) continue;
+
+                    // Get field name
+                    var t = field.Elements.GetString("/T");
+                    if (!string.IsNullOrWhiteSpace(t) && values.TryGetValue(t, out var val))
+                    {
+                        // Set value + flatten on parent
+                        bool isNotes = t.EndsWith("Notes", StringComparison.OrdinalIgnoreCase);
+                        field.Elements["/V"]  = new PdfSharp.Pdf.PdfString(val);
+                        field.Elements["/DV"] = new PdfSharp.Pdf.PdfString(val);
+                        field.Elements["/DA"] = new PdfSharp.Pdf.PdfString("/Helv 9 Tf 0 g");
+                        field.Elements["/Ff"] = new PdfSharp.Pdf.PdfInteger(isNotes ? 4097 : 1); // ReadOnly [+ Multiline]
+                        field.Elements["/MK"] = new PdfDictionary(); // No highlight
+                        if (isNotes) field.Elements["/Q"] = new PdfSharp.Pdf.PdfInteger(0);
+                        if (field.Elements.ContainsKey("/AP"))
+                            field.Elements.Remove("/AP");
+                        if (field.Elements.ContainsKey("/MaxLen"))
+                            field.Elements.Remove("/MaxLen");
+
+                        // Set value + flatten on every kid widget too
+                        var kids = field.Elements["/Kids"] as PdfArray;
+                        if (kids != null)
+                        {
+                            foreach (var kidItem in kids.Elements)
+                            {
+                                try
+                                {
+                                    PdfDictionary? kid = kidItem as PdfDictionary;
+                                    if (kid == null && kidItem is PdfSharp.Pdf.Advanced.PdfReference kr)
+                                        kid = kr.Value as PdfDictionary;
+                                    if (kid == null) continue;
+                                    kid.Elements["/V"]  = new PdfSharp.Pdf.PdfString(val);
+                                    kid.Elements["/DV"] = new PdfSharp.Pdf.PdfString(val);
+                                    kid.Elements["/DA"] = new PdfSharp.Pdf.PdfString("/Helv 9 Tf 0 g");
+                                    kid.Elements["/Ff"] = new PdfSharp.Pdf.PdfInteger(1); // ReadOnly
+                                    kid.Elements["/MK"] = new PdfDictionary();             // No highlight
+                                    if (kid.Elements.ContainsKey("/AP"))
+                                        kid.Elements.Remove("/AP");
+                                    if (kid.Elements.ContainsKey("/AS"))
+                                        kid.Elements.Remove("/AS");
+                                    if (kid.Elements.ContainsKey("/MaxLen"))
+                                        kid.Elements.Remove("/MaxLen");
+                                }
+                                catch { }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // No value — recurse into kids for nested named fields
+                        var kids = field.Elements["/Kids"] as PdfArray;
+                        if (kids != null)
+                            WriteValuesToFieldsArray(kids, values, doc);
+                    }
+                }
+                catch { }
+            }
+        }
+
         private static bool IsRadioField(string pdfFieldName)
             => pdfFieldName.EndsWith("Skill", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Derives a ReportDestinationKey from curriculum template names when one
+        /// hasn't been explicitly set on the offering record.
+        /// Matches on the class-level name (subject group) first, then subject name.
+        /// </summary>
+        private static string? DeriveDestinationKey(string? className, string? subjectName)
+        {
+            // Try to match on class (subject group) name — used for non-strand subjects
+            if (className != null)
+            {
+                var key = NormalizeToKey(className);
+                if (key != null) return key;
+            }
+            // Try subject/strand name for strand-level items
+            if (subjectName != null)
+            {
+                var key = NormalizeToKey(subjectName);
+                if (key != null) return key;
+            }
+            return null;
+        }
+
+        private static string? NormalizeToKey(string name) => name.ToLowerInvariant().Trim() switch
+        {
+            var n when n.Contains("language") && !n.Contains("native") && !n.Contains("french")
+                                              => ReportDestinationKeys.Language,
+            var n when n.Contains("native language") || n.Contains("native lang")
+                                              => ReportDestinationKeys.NativeLanguage,
+            var n when n.Contains("french")   => ReportDestinationKeys.French,
+            var n when n.Contains("math")     => ReportDestinationKeys.Mathematics,
+            var n when n.Contains("science") && n.Contains("tech")
+                                              => ReportDestinationKeys.ScienceAndTech,
+            var n when n.Contains("science")  => ReportDestinationKeys.ScienceAndTech,
+            var n when n.Contains("social")   => ReportDestinationKeys.SocialStudies,
+            var n when n.Contains("health") && !n.Contains("physical")
+                                              => ReportDestinationKeys.Health,
+            var n when n.Contains("physical") || n.Contains("phys ed") || n.Contains("active living")
+                                              => ReportDestinationKeys.PhysEd,
+            var n when n.Contains("movement") => ReportDestinationKeys.PhysEdMovement,
+            var n when n.Contains("dance")    => ReportDestinationKeys.Dance,
+            var n when n.Contains("drama")    => ReportDestinationKeys.Drama,
+            var n when n.Contains("music")    => ReportDestinationKeys.Music,
+            var n when n.Contains("visual art") || n.Contains("visual arts")
+                                              => ReportDestinationKeys.VisualArts,
+            _ => null
+        };
     }
 
     public record PdfFieldData(

@@ -16,7 +16,8 @@
     <MudGrid Spacing="3" AlignItems="AlignItems.End">
         <MudItem xs="12" sm="4">
             <MudSelect T="int?" Label="School Year" Value="_selectedYearId"
-                       ValueChanged="OnYearChanged" Variant="Variant.Outlined">
+                       ValueChanged="OnYearChanged" Variant="Variant.Outlined"
+                       ToStringFunc="@(id => _years.FirstOrDefault(y => y.Id == id)?.Name ?? (id == null ? "— select year —" : id.ToString()))">
                 <MudSelectItem T="int?" Value="@((int?)null)">— select year —</MudSelectItem>
                 @foreach (var y in _years)
                 {
@@ -27,7 +28,8 @@
         <MudItem xs="12" sm="4">
             <MudSelect T="int?" Label="Term" Value="_selectedTermId"
                        ValueChanged="OnTermChanged" Variant="Variant.Outlined"
-                       Disabled="_terms.Count == 0">
+                       Disabled="_terms.Count == 0"
+                       ToStringFunc="@(id => _terms.FirstOrDefault(t => t.Id == id)?.Name ?? (id == null ? "— select term —" : id.ToString()))">
                 <MudSelectItem T="int?" Value="@((int?)null)">— select term —</MudSelectItem>
                 @foreach (var t in _terms)
                 {
@@ -144,12 +146,22 @@ else if (_selectedClassGroupId.HasValue)
             .ThenByDescending(y => y.Name)
             .ToListAsync();
 
-        // Auto-select active year
+        // Auto-select active year and current term
         var active = _years.FirstOrDefault(y => y.IsActive);
         if (active != null)
         {
             _selectedYearId = active.Id;
             await OnYearChanged(active.Id);
+
+            // Auto-select the term that contains today's date
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var currentTerm = _terms.FirstOrDefault(t =>
+                t.StartDate <= today && t.EndDate >= today);
+
+            // Fall back to the last term if today is outside all windows
+            var termToSelect = currentTerm ?? _terms.LastOrDefault();
+            if (termToSelect != null)
+                await OnTermChanged(termToSelect.Id);
         }
     }
 
