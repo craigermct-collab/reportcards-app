@@ -244,8 +244,8 @@ else
                                     {
                                         var isChecked = subjectGroup.EnabledModifiers.Contains(opt);
                                         <MudCheckBox T="bool"
-                                                     Checked="@isChecked"
-                                                     CheckedChanged="@(async (bool v) => await ToggleModifierAsync(enrollment, subjectGroup, opt))"
+                                                     Value="@isChecked"
+                                                     ValueChanged="@(async (bool v) => await ToggleModifierAsync(enrollment, subjectGroup, opt))"
                                                      Size="Size.Small"
                                                      Color="Color.Secondary"
                                                      Label="@opt"
@@ -289,8 +289,8 @@ else
                                                     {
                                                         var isRowChecked = row.RowEnabledModifiers.Contains(opt);
                                                         <MudCheckBox T="bool"
-                                                                     Checked="@isRowChecked"
-                                                                     CheckedChanged="@(async (bool v) => await ToggleStrandModifierAsync(enrollment, subjectGroup, row, opt))"
+                                                                     Value="@isRowChecked"
+                                                                     ValueChanged="@(async (bool v) => await ToggleStrandModifierAsync(enrollment, subjectGroup, row, opt))"
                                                                      Size="Size.Small"
                                                                      Color="Color.Secondary"
                                                                      Label="@opt"
@@ -1353,7 +1353,6 @@ else
         try
         {
             var json = System.Text.Json.JsonSerializer.Serialize(sg.EnabledModifiers.ToList());
-
             if (sg.ExistingModifierId.HasValue)
             {
                 var existing = await Db.StudentSubjectModifiers.FindAsync(sg.ExistingModifierId.Value);
@@ -1366,7 +1365,6 @@ else
             else
             {
                 // Check DB first — search by EnrollmentId + TermInstanceId + subject name
-                // (template ID may vary across grades for the same subject name)
                 var subjectName = sg.SubjectName;
                 var dbExisting = await Db.StudentSubjectModifiers
                     .Include(m => m.CurriculumClassTemplate)
