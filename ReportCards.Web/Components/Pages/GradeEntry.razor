@@ -857,10 +857,19 @@ else
         state.IsLoading = true;
         StateHasChanged();
 
-        await BuildGradeGroupsAsync(state, studentId);
-
-        state.IsLoading = false;
-        StateHasChanged();
+        try
+        {
+            await BuildGradeGroupsAsync(state, studentId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load grades: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            state.IsLoading = false;
+            StateHasChanged();
+        }
     }
 
     // ── BUILD GRADE ROWS ──────────────────────────────────────────
@@ -917,9 +926,15 @@ else
             name != null && canonicalIdByName.TryGetValue(name, out var cid) ? cid : (id ?? 0);
 
         // Load existing student modifier records for this enrollment + term
-        var studentModifiers = await Db.StudentSubjectModifiers
-            .Where(m => m.EnrollmentId == enrollment.Id && m.TermInstanceId == _selectedTermId)
-            .ToListAsync();
+        // Wrapped in try/catch — StrandModifiersJson column may not exist until migration runs
+        List<StudentSubjectModifier> studentModifiers = new();
+        try
+        {
+            studentModifiers = await Db.StudentSubjectModifiers
+                .Where(m => m.EnrollmentId == enrollment.Id && m.TermInstanceId == _selectedTermId)
+                .ToListAsync();
+        }
+        catch { /* migration pending — carry on without modifiers */ }
         var modifierByTemplateId = studentModifiers.ToDictionary(m => m.CurriculumClassTemplateId);
 
         // Filter out items with broken offering references (stale after curriculum re-import)
