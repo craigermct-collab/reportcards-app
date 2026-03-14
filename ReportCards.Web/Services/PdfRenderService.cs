@@ -46,7 +46,8 @@ public class PdfRenderService
             for (int i = 0; i < pageCount; i++)
             {
                 fs.Seek(0, SeekOrigin.Begin);
-                using var bitmap = Conversion.ToImage(fs, page: i, dpi: dpi);
+                // PDFtoImage 4.x: RenderOptions struct with positional Dpi
+                using var bitmap = Conversion.ToImage(fs, page: i, options: new(Dpi: dpi));
                 using var ms = new MemoryStream();
                 bitmap.Encode(ms, SKEncodedImageFormat.Png, 90);
                 var b64 = Convert.ToBase64String(ms.ToArray());

@@ -160,8 +160,7 @@ else
                     const double PdfH = 792.0;
 
                     <div style="position:relative; display:inline-block; max-width:100%;"
-                         @ondragover:preventDefault="true"
-                         @ondrop:preventDefault="true">
+                         ondragover="event.preventDefault()">
 
                         <!-- Rendered PDF page image -->
                         <img src="@pageImage"
@@ -205,9 +204,10 @@ else
                                             cursor: pointer;
                                             box-sizing: border-box;"
                                      title="@f.Name@(isMapped ? $" ← {srcKey}" : " (unmapped)")"
-                                     @ondragover:preventDefault="true"
-                                     @ondragover="@(() => _dragTargetPdf = f.Name)"
+                                     ondragover="event.preventDefault()"
+                                     @ondragenter="@(() => _dragTargetPdf = f.Name)"
                                      @ondragleave="@(() => { if (_dragTargetPdf == f.Name) _dragTargetPdf = null; })"
+                                     @ondrop:preventDefault="true"
                                      @ondrop="@(() => DropOnPdfField(f.Name))"
                                      @onclick="@(() => ClickPdfField(f.Name))">
                                     @if (isMapped && cssHeight > 14)
