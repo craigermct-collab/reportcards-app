@@ -293,10 +293,15 @@ namespace ReportCards.Web.Services
             // ── Subject modifier checkboxes ──────────────────────────────────────────
             // Load all StudentSubjectModifiers for this enrollment + term, then map
             // each enabled option to the appropriate PDF checkbox field(s).
-            var studentModifiers = await _db.StudentSubjectModifiers
-                .Include(m => m.CurriculumClassTemplate)
-                .Where(m => m.EnrollmentId == enrollmentId && m.TermInstanceId == termInstanceId)
-                .ToListAsync();
+            List<StudentSubjectModifier> studentModifiers = new();
+            try
+            {
+                studentModifiers = await _db.StudentSubjectModifiers
+                    .Include(m => m.CurriculumClassTemplate)
+                    .Where(m => m.EnrollmentId == enrollmentId && m.TermInstanceId == termInstanceId)
+                    .ToListAsync();
+            }
+            catch { /* StrandModifiersJson column missing — migration pending, skip modifiers */ }
 
             foreach (var mod in studentModifiers)
             {
