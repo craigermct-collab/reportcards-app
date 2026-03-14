@@ -1365,26 +1365,73 @@ else
             }
             else
             {
-                var newMod = new StudentSubjectModifier
+                // Check DB first in case a concurrent click already created the record
+                var dbExisting = await Db.StudentSubjectModifiers
+                    .FirstOrDefaultAsync(m =>
+                        m.EnrollmentId              == enrollment.Id &&
+                        m.CurriculumClassTemplateId == sg.CurriculumClassTemplateId.Value &&
+                        m.TermInstanceId            == _selectedTermId.Value);
+
+                if (dbExisting != null)
                 {
-                    EnrollmentId              = enrollment.Id,
-                    TermInstanceId            = _selectedTermId.Value,
-                    CurriculumClassTemplateId = sg.CurriculumClassTemplateId.Value,
-                    EnabledOptionsJson        = json,
-                    EnabledStrandIdsJson      = "[]",
-                    UpdatedAt                 = DateTimeOffset.UtcNow
-                };
-                Db.StudentSubjectModifiers.Add(newMod);
-                await Db.SaveChangesAsync();
-                sg.ExistingModifierId = newMod.Id;
-                return;
+                    dbExisting.EnabledOptionsJson = json;
+                    dbExisting.UpdatedAt          = DateTimeOffset.UtcNow;
+                    sg.ExistingModifierId         = dbExisting.Id;
+                }
+                else
+                {
+                    var newMod = new StudentSubjectModifier
+                    {
+                        EnrollmentId              = enrollment.Id,
+                        TermInstanceId            = _selectedTermId.Value,
+                        CurriculumClassTemplateId = sg.CurriculumClassTemplateId.Value,
+                        EnabledOptionsJson        = json,
+                        EnabledStrandIdsJson      = "[]",
+                        StrandModifiersJson       = "{}",
+                        UpdatedAt                 = DateTimeOffset.UtcNow
+                    };
+                    Db.StudentSubjectModifiers.Add(newMod);
+                    await Db.SaveChangesAsync();
+                    sg.ExistingModifierId = newMod.Id;
+                    return;
+                }
             }
 
             await Db.SaveChangesAsync();
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Failed to save modifier: {ex.Message}", Severity.Error);
+            // Unique constraint violation: another checkbox click already created the record.
+            // Reload the existing record and update it.
+            if (ex.InnerException?.Message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) == true ||
+                ex.InnerException?.Message.Contains("unique",    StringComparison.OrdinalIgnoreCase) == true ||
+                ex.Message.Contains("duplicate",                 StringComparison.OrdinalIgnoreCase) == true)
+            {
+                try
+                {
+                    Db.ChangeTracker.Clear();
+                    var existing2 = await Db.StudentSubjectModifiers
+                        .FirstOrDefaultAsync(m =>
+                            m.EnrollmentId              == enrollment.Id &&
+                            m.CurriculumClassTemplateId == sg.CurriculumClassTemplateId!.Value &&
+                            m.TermInstanceId            == _selectedTermId!.Value);
+                    if (existing2 != null)
+                    {
+                        existing2.EnabledOptionsJson = System.Text.Json.JsonSerializer.Serialize(sg.EnabledModifiers.ToList());
+                        existing2.UpdatedAt          = DateTimeOffset.UtcNow;
+                        sg.ExistingModifierId        = existing2.Id;
+                        await Db.SaveChangesAsync();
+                    }
+                }
+                catch (Exception ex2)
+                {
+                    Snackbar.Add($"Failed to save modifier: {ex2.Message}", Severity.Error);
+                }
+            }
+            else
+            {
+                Snackbar.Add($"Failed to save modifier: {ex.Message}", Severity.Error);
+            }
         }
         finally
         {
