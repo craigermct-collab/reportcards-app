@@ -1365,12 +1365,15 @@ else
             }
             else
             {
-                // Check DB first in case a concurrent click already created the record
+                // Check DB first — search by EnrollmentId + TermInstanceId + subject name
+                // (template ID may vary across grades for the same subject name)
+                var subjectName = sg.SubjectName;
                 var dbExisting = await Db.StudentSubjectModifiers
-                    .FirstOrDefaultAsync(m =>
-                        m.EnrollmentId              == enrollment.Id &&
-                        m.CurriculumClassTemplateId == sg.CurriculumClassTemplateId.Value &&
-                        m.TermInstanceId            == _selectedTermId.Value);
+                    .Include(m => m.CurriculumClassTemplate)
+                    .Where(m => m.EnrollmentId   == enrollment.Id &&
+                                m.TermInstanceId == _selectedTermId.Value)
+                    .FirstOrDefaultAsync(m => m.CurriculumClassTemplate!.Name == subjectName
+                                           || m.CurriculumClassTemplateId     == sg.CurriculumClassTemplateId.Value);
 
                 if (dbExisting != null)
                 {
@@ -1411,10 +1414,11 @@ else
                 {
                     Db.ChangeTracker.Clear();
                     var existing2 = await Db.StudentSubjectModifiers
-                        .FirstOrDefaultAsync(m =>
-                            m.EnrollmentId              == enrollment.Id &&
-                            m.CurriculumClassTemplateId == sg.CurriculumClassTemplateId!.Value &&
-                            m.TermInstanceId            == _selectedTermId!.Value);
+                        .Include(m => m.CurriculumClassTemplate)
+                        .Where(m => m.EnrollmentId   == enrollment.Id &&
+                                    m.TermInstanceId == _selectedTermId!.Value)
+                        .FirstOrDefaultAsync(m => m.CurriculumClassTemplate!.Name == sg.SubjectName
+                                               || m.CurriculumClassTemplateId     == sg.CurriculumClassTemplateId!.Value);
                     if (existing2 != null)
                     {
                         existing2.EnabledOptionsJson = System.Text.Json.JsonSerializer.Serialize(sg.EnabledModifiers.ToList());
