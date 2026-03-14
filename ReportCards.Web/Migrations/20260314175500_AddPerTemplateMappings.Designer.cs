@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ReportCards.Web.Data;
 
@@ -11,9 +12,11 @@ using ReportCards.Web.Data;
 namespace ReportCards.Web.Migrations
 {
     [DbContext(typeof(SchoolDbContext))]
-    partial class SchoolDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260314175500_AddPerTemplateMappings")]
+    partial class AddPerTemplateMappings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1204,9 +1207,6 @@ namespace ReportCards.Web.Migrations
 
                     b.Property<string>("ReportCardFormatCode")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("ReportCardTermSlot")
-                        .HasColumnType("int");
 
                     b.Property<int>("SchoolYearId")
                         .HasColumnType("int");

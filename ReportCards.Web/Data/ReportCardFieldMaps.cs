@@ -11,6 +11,7 @@ public static class ReportDestinationKeys
     public const string SchoolAddress       = "school.address";
     public const string SchoolPhone         = "school.phone";
     public const string TermDate            = "term.date";
+    public const string Principal          = "school.principal";
     public const string DaysAbsent          = "attendance.daysAbsent";
     public const string TotalDaysAbsent     = "attendance.totalDaysAbsent";
     public const string TimesLate           = "attendance.timesLate";

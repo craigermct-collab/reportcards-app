@@ -101,7 +101,9 @@ namespace ReportCards.Web.Services
                 .FirstOrDefaultAsync(e => e.Id == enrollmentId)
             ?? throw new InvalidOperationException($"Enrollment {enrollmentId} not found.");
 
-            var term = enrollment.ClassGroupInstance?.TermInstance
+            // Reload term fresh to get ReportCardTermSlot (navigation property may be stale)
+            var term = await _db.TermInstances
+                .FirstOrDefaultAsync(t => t.Id == enrollment.ClassGroupInstance!.TermInstanceId)
                 ?? throw new InvalidOperationException("Term not found on enrollment.");
 
             var template = enrollment.ClassGroupInstance?.ReportCardTemplate
@@ -226,13 +228,20 @@ namespace ReportCards.Web.Services
 
                 if (isTwoTermCard)
                 {
+                    // Determine which PDF column the current term maps to
+                    var currentSlot = term.ReportCardTermSlot;
+                    var currentColSuffix = currentSlot == ReportCardTermSlot.Term1 ? ".term1" : ".term2";
+                    var otherColSuffix   = currentSlot == ReportCardTermSlot.Term1 ? ".term2" : ".term1";
+
+                    // Write the OTHER term's data into the other column
                     if (term1ByItemId.TryGetValue(li.Id, out var t1a)
-                        && mapByKey.TryGetValue(destKey + ".term1", out var t1f))
+                        && mapByKey.TryGetValue(destKey + otherColSuffix, out var t1f))
                         fields[t1f] = t1a.ValueText ?? "";
 
+                    // Write current term data into the current column
                     if (currentAssessments.TryGetValue(li.Id, out var t2a))
                     {
-                        if (mapByKey.TryGetValue(destKey + ".term2", out var t2f))
+                        if (mapByKey.TryGetValue(destKey + currentColSuffix, out var t2f))
                             fields[t2f] = t2a.ValueText ?? "";
                         if (!string.IsNullOrWhiteSpace(t2a.Comment)
                             && mapByKey.TryGetValue(destKey + ".notes", out var nf))
