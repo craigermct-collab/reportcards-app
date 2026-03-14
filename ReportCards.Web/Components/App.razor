@@ -23,6 +23,43 @@
     <script src="imageHelper.js"></script>
     <script src="assistantSpeech.js"></script>
     <script>
+        window.mappingLines = {
+            draw: function (svgId, pairs) {
+                const svg = document.getElementById(svgId);
+                if (!svg) return;
+                const svgRect = svg.getBoundingClientRect();
+                // Remove old connection lines (keep drag-line if present)
+                svg.querySelectorAll('.conn-line').forEach(l => l.remove());
+                pairs.forEach(function (pair) {
+                    const src = document.getElementById(pair.srcId);
+                    const dst = document.getElementById(pair.dstId);
+                    if (!src || !dst) return;
+                    const sr = src.getBoundingClientRect();
+                    const dr = dst.getBoundingClientRect();
+                    // Right edge of src node, vertically centred
+                    const x1 = sr.right  - svgRect.left;
+                    const y1 = sr.top + sr.height / 2 - svgRect.top;
+                    // Left edge of dst node, vertically centred
+                    const x2 = dr.left   - svgRect.left;
+                    const y2 = dr.top + dr.height / 2 - svgRect.top;
+                    // Bezier curve through the middle
+                    const cx = (x1 + x2) / 2;
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('d', `M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}`);
+                    path.setAttribute('stroke', '#2E7D32');
+                    path.setAttribute('stroke-width', '1.5');
+                    path.setAttribute('fill', 'none');
+                    path.setAttribute('opacity', '0.5');
+                    path.classList.add('conn-line');
+                    svg.appendChild(path);
+                });
+            },
+            clear: function (svgId) {
+                const svg = document.getElementById(svgId);
+                if (svg) svg.querySelectorAll('.conn-line').forEach(l => l.remove());
+            }
+        };
+
         window.downloadFileFromBase64 = function (base64, fileName, mimeType) {
             const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
             const blob = new Blob([bytes], { type: mimeType });

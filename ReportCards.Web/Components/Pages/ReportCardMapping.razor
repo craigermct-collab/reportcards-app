@@ -8,6 +8,7 @@
 @inject PdfFieldReaderService PdfReader
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <PageTitle>Report Card Field Mapping</PageTitle>
 
@@ -131,28 +132,10 @@ else
 
             <!-- Two-column mapping canvas -->
             <div style="position:relative;">
-                <!-- SVG overlay for connection lines -->
+                <!-- SVG overlay for connection lines — drawn by JS after render -->
                 <svg id="mapping-svg"
                      style="position:absolute; top:0; left:0; width:100%; height:100%;
                             pointer-events:none; z-index:10; overflow:visible;">
-                    @foreach (var m in _mappings)
-                    {
-                        var srcId  = $"src-{SanitizeId(m.ReportDestinationKey)}";
-                        var dstId  = $"dst-{SanitizeId(m.PdfFieldName)}";
-                        <line id="line-@SanitizeId(m.ReportDestinationKey)"
-                              data-src="@srcId" data-dst="@dstId"
-                              stroke="#2E7D32" stroke-width="2" stroke-dasharray="none"
-                              opacity="0.7"
-                              style="pointer-events:stroke; cursor:pointer;"
-                              x1="0" y1="0" x2="0" y2="0" />
-                    }
-                    @if (_dragLine != null)
-                    {
-                        <line id="drag-line"
-                              stroke="#1B4F72" stroke-width="2" stroke-dasharray="6 3"
-                              x1="@_dragLine.X1" y1="@_dragLine.Y1"
-                              x2="@_dragLine.X2" y2="@_dragLine.Y2" />
-                    }
                 </svg>
 
                 <MudGrid Spacing="4">
@@ -728,6 +711,34 @@ else
         _mappings.Clear();
         _dirty = false;
         Snackbar.Add("All mappings cleared.", Severity.Info);
+    }
+
+    // ── SVG line drawing ──────────────────────────────────────────
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_mappings.Any() && _selectedTemplate != null)
+            await DrawLinesAsync();
+    }
+
+    private async Task DrawLinesAsync()
+    {
+        try
+        {
+            var pairs = _mappings.Select(m => new
+            {
+                srcId = $"src-{SanitizeId(m.ReportDestinationKey)}",
+                dstId = $"dst-{SanitizeId(m.PdfFieldName)}"
+            }).ToArray();
+            await JS.InvokeVoidAsync("mappingLines.draw", "mapping-svg", pairs);
+        }
+        catch { /* JS not ready yet */ }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("mappingLines.clear", "mapping-svg"); }
+        catch { }
     }
 
     // ── Helpers ───────────────────────────────────────────────────
