@@ -108,9 +108,19 @@ namespace ReportCards.Web.Services
                     $"No report card template assigned to '{enrollment.ClassGroupInstance?.DisplayName}' in term '{term.Name}'. " +
                     "Please assign a template in RC Templates.");
 
+            // Load field maps — prefer per-template maps (new), fall back to per-term (legacy)
             var fieldMaps = await _db.ReportTemplateFieldMaps
-                .Where(m => m.TermInstanceId == termInstanceId)
+                .Where(m => m.ReportCardTemplateId == template.Id)
                 .ToListAsync();
+
+            if (fieldMaps.Count == 0)
+            {
+                // Fall back to legacy per-term maps
+                fieldMaps = await _db.ReportTemplateFieldMaps
+                    .Where(m => m.TermInstanceId == termInstanceId)
+                    .ToListAsync();
+            }
+
             var mapByKey = fieldMaps.ToDictionary(m => m.ReportDestinationKey, m => m.PdfFieldName);
 
             var configs = await _db.SchoolConfigs.ToListAsync();
