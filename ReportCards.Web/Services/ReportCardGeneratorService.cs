@@ -261,13 +261,7 @@ namespace ReportCards.Web.Services
                         {
                             if (!notesAccumulator.ContainsKey(nf))
                                 notesAccumulator[nf] = new List<string>();
-
-                            var strandLabel = li.YearSubjectOffering?.CurriculumSubjectTemplate?.Name
-                                           ?? li.YearClassOffering?.CurriculumClassTemplate?.Name;
-                            var line = strandLabel != null && destKey != parentNotesKey.Replace(".notes", "")
-                                ? $"{strandLabel}: {t2a.Comment}"
-                                : t2a.Comment;
-                            notesAccumulator[nf].Add(line);
+                            notesAccumulator[nf].Add(t2a.Comment.Trim());
                         }
                     }
                 }
@@ -292,9 +286,9 @@ namespace ReportCards.Web.Services
                 }
             }
 
-            // Flush accumulated notes — join multiple strand comments with newlines
+            // Flush accumulated notes — join multiple strand comments with single newlines
             foreach (var (pdfField, lines) in notesAccumulator)
-                fields[pdfField] = string.Join("\n\n", lines.Where(l => !string.IsNullOrWhiteSpace(l)));
+                fields[pdfField] = string.Join("\n", lines.Where(l => !string.IsNullOrWhiteSpace(l)));
 
             return (template, new PdfFieldData(fields, checkboxes, radios));
         }
@@ -520,24 +514,31 @@ namespace ReportCards.Web.Services
         /// </summary>
 
         /// <summary>
-        /// Given a destination key (which may be strand-specific like subject.french.listening),
-        /// returns the parent subject's notes key (subject.french.notes).
-        /// For whole-subject keys (subject.language), returns subject.language.notes.
-        /// Returns null if no notes key can be determined.
+        /// Given a destination key, returns the PDF notes key that should receive
+        /// this item's comment.
+        ///
+        /// Rules:
+        ///   subject.french.listening  → subject.french.notes   (French strand → French notes)
+        ///   subject.language          → subject.language.notes  (whole subject → own notes)
+        ///   subject.dance / .drama / .music / .visualArts
+        ///                             → subject.theArts.notes   (Arts siblings → shared notes)
         /// </summary>
         private static string? DeriveParentNotesKey(string destKey)
         {
-            // Already a notes key — nothing to do
             if (destKey.EndsWith(".notes")) return destKey;
 
-            // Strand-specific keys: subject.french.listening → subject.french.notes
-            // Pattern: if the key has 3+ segments and 3rd segment is a strand name, use parent.notes
+            // Arts subjects all share a single notes field
+            if (destKey == ReportDestinationKeys.Dance      ||
+                destKey == ReportDestinationKeys.Drama      ||
+                destKey == ReportDestinationKeys.Music      ||
+                destKey == ReportDestinationKeys.VisualArts)
+                return ReportDestinationKeys.TheArtsNotes;
+
             var parts = destKey.Split('.');
+
+            // Strand-specific key (3+ segments): subject.french.listening → subject.french.notes
             if (parts.Length >= 3 && parts[0] == "subject")
-            {
-                // e.g. subject.french.listening → subject.french.notes
                 return $"{parts[0]}.{parts[1]}.notes";
-            }
 
             // Whole-subject key: subject.language → subject.language.notes
             if (parts.Length == 2 && parts[0] == "subject")
