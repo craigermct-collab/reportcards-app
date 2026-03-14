@@ -101,25 +101,162 @@ public class PdfFieldReaderService
 
     private static IEnumerable<(string Name, string FieldType)> GetKnownSupplementFields(string fileName)
     {
-        // Ontario Elementary Report Card (RC1) — verified 2025-03 via pypdf
-        if (fileName.Equals("elementary-report-card.pdf", StringComparison.OrdinalIgnoreCase))
-        {
-            // Page 1 header fields — present as widgets, absent from /Fields array
-            yield return ("Student",        "Text");
-            yield return ("OEN",            "Text");
-            yield return ("Grade",          "Text");
-            yield return ("GradeInSeptember","Text");
-            yield return ("Teacher",        "Text");
-            yield return ("Board",          "Text");
-            yield return ("School",         "Text");
-            yield return ("Address",        "Text");
-            yield return ("Principal",      "Text");
-            yield return ("Telephone",      "Text");
-            yield return ("DaysAbsent",     "Text");
-            yield return ("TotalDaysAbsent","Text");
-            yield return ("TimesLate",      "Text");
-            yield return ("TotalTimesLate", "Text");
-        }
+        // Ontario Elementary Report Card (RC1) — all 128 fields verified via pypdf
+        // grouped by their actual page in the PDF.
+        // PdfSharp's AcroForm field tree only returns ~56; the rest are widget
+        // annotations not linked into the /Fields array.
+        if (!fileName.Equals("elementary-report-card.pdf", StringComparison.OrdinalIgnoreCase))
+            yield break;
+
+        // ── Page 1: Header ──────────────────────────────────────────────
+        yield return ("Student",             "Text");
+        yield return ("OEN",                 "Text");
+        yield return ("Grade",               "Text");
+        yield return ("GradeInSeptember",    "Text");
+        yield return ("Teacher",             "Text");
+        yield return ("Board",               "Text");
+        yield return ("School",              "Text");
+        yield return ("Address",             "Text");
+        yield return ("Principal",           "Text");
+        yield return ("Telephone",           "Text");
+        yield return ("DaysAbsent",          "Text");
+        yield return ("TotalDaysAbsent",     "Text");
+        yield return ("TimesLate",           "Text");
+        yield return ("TotalTimesLate",      "Text");
+
+        // ── Page 1: Learning Skills ─────────────────────────────────────
+        yield return ("Term1Responsibiity",  "Text");  // typo in PDF
+        yield return ("Term2Responsibiity",  "Text");
+        yield return ("Term1Organization",   "Text");
+        yield return ("Term2Organization",   "Text");
+        yield return ("Term1IndependentWork","Text");
+        yield return ("Term2IndependentWork","Text");
+        yield return ("Term1Collaboration",  "Text");
+        yield return ("Term2Collaboration",  "Text");
+        yield return ("Term1Initiative",     "Text");
+        yield return ("Term2Initiative",     "Text");
+        yield return ("Term1SelfRegulation", "Text");
+        yield return ("Term2SelfRegulation", "Text");
+
+        // ── Page 2: Language ────────────────────────────────────────────
+        yield return ("LanguageNA",          "Checkbox");
+        yield return ("LanguageESLELD",      "Checkbox");
+        yield return ("LanguageIEP",         "Checkbox");
+        yield return ("LanguageTerm1",       "Text");
+        yield return ("LanguageTerm2",       "Text");
+        yield return ("LanguageNotes",       "Text");
+
+        // ── Page 2: French ──────────────────────────────────────────────
+        yield return ("FrenchNA",            "Checkbox");
+        yield return ("LIsteningESLELD",     "Checkbox");  // typo in PDF
+        yield return ("ListeningIEP",        "Checkbox");
+        yield return ("SpeakingESLELD",      "Checkbox");
+        yield return ("SpeakingIEP",         "Checkbox");
+        yield return ("ReadingESLELD",       "Checkbox");
+        yield return ("ReadingIEP",          "Checkbox");
+        yield return ("WritingESLELD",       "Checkbox");
+        yield return ("WritingIEP",          "Checkbox");
+        yield return ("FrenchCore",          "Checkbox");
+        yield return ("FrenchImmersion",     "Checkbox");
+        yield return ("FrenchExtended",      "Checkbox");
+        yield return ("FrenchListeningTerm1","Text");
+        yield return ("FrenchListeningTerm2","Text");
+        yield return ("FrenchSpeakingTerm1", "Text");
+        yield return ("FrenchSpeakingTerm2", "Text");
+        yield return ("FrenchReadingTerm1",  "Text");
+        yield return ("FrenchReadingTerm2",  "Text");
+        yield return ("FrenchWritingTerm1",  "Text");
+        yield return ("FrenchWritingTerm2",  "Text");
+        yield return ("FrenchNotes",         "Text");
+
+        // ── Page 2: Native Language ─────────────────────────────────────
+        yield return ("NativeLanguageESLELD","Checkbox");
+        yield return ("NativeLanguageIEP",   "Checkbox");
+        yield return ("NativeLanguageNA",    "Checkbox");
+        yield return ("NativeLanguageTerm1", "Text");
+        yield return ("NativeLanguageTerm2", "Text");
+        yield return ("NativeLanguageNotes", "Text");
+
+        // ── Page 2: Mathematics ─────────────────────────────────────────
+        yield return ("MathematicsESLELD",   "Checkbox");
+        yield return ("MathematicsIEP",      "Checkbox");
+        yield return ("MathematicsFrench",   "Checkbox");
+        yield return ("MathematicsTerm1",    "Text");
+        yield return ("MathematicsTerm2",    "Text");
+        yield return ("MathematicsNotes",    "Text");
+
+        // ── Page 2: Science & Technology ───────────────────────────────
+        yield return ("ScienceAndTechESLELD","Checkbox");
+        yield return ("ScienceAndTechIEP",   "Checkbox");
+        yield return ("ScienceAndTechFrench","Checkbox");
+        yield return ("ScienceAndTechTerm1", "Text");
+        yield return ("ScienceAndTechTerm2", "Text");
+        yield return ("ScienceAndTechNotes", "Text");
+
+        // ── Page 3: Social Studies ──────────────────────────────────────
+        yield return ("SocialStudiesESLELD", "Checkbox");
+        yield return ("SocialStudiesIEP",    "Checkbox");
+        yield return ("SocialStudiesFrench", "Checkbox");
+        yield return ("SocialStudiesTerm1",  "Text");
+        yield return ("SocialStudiesTerm2",  "Text");
+        yield return ("SocialStudiesNotes",  "Text");
+
+        // ── Page 3: Health & Physical Education ─────────────────────────
+        yield return ("HealthyESLELD",            "Checkbox");
+        yield return ("HealthyIEP",               "Checkbox");
+        yield return ("HealthyFrench",            "Checkbox");
+        yield return ("MovementESLELD",           "Checkbox");
+        yield return ("MovementIEP",              "Checkbox");
+        yield return ("MovementFrench",           "Checkbox");
+        yield return ("HealthHealthyLivingTerm1", "Text");
+        yield return ("HealthHealthyLivingTerm2", "Text");
+        yield return ("HealthActiveLivingTerm1",  "Text");
+        yield return ("HealthActiveLivingTerm2",  "Text");
+        yield return ("HealthMovementTerm1",      "Text");
+        yield return ("HealthMovementTerm2",      "Text");
+        yield return ("HealthPhysEdNotes",        "Text");
+
+        // ── Page 3: The Arts ────────────────────────────────────────────
+        yield return ("DanceESLELD",   "Checkbox");
+        yield return ("DanceIEP",      "Checkbox");
+        yield return ("DanceFrench",   "Checkbox");
+        yield return ("DanceNA",       "Checkbox");
+        yield return ("DanceTerm1",    "Text");
+        yield return ("DanceTerm2",    "Text");
+        yield return ("DramaESLELD",   "Checkbox");
+        yield return ("DramaIEP",      "Checkbox");
+        yield return ("DramaFrench",   "Checkbox");
+        yield return ("DramaNA",       "Checkbox");
+        yield return ("DramaTerm1",    "Text");
+        yield return ("DramaTerm2",    "Text");
+        yield return ("MusicESLELD",   "Checkbox");
+        yield return ("MusicIEP",      "Checkbox");
+        yield return ("MusicFrench",   "Checkbox");
+        yield return ("MusicNA",       "Checkbox");
+        yield return ("MusicTerm1",    "Text");
+        yield return ("MusicTerm2",    "Text");
+        yield return ("VisualArtsESLELD",  "Checkbox");
+        yield return ("VisualArtsIEP",     "Checkbox");
+        yield return ("VisualArtsFrench",  "Checkbox");
+        yield return ("VisualArtsNA",      "Checkbox");
+        yield return ("VisualArtsTerm1",   "Text");
+        yield return ("VisualArtsTerm2",   "Text");
+        yield return ("CustomESLELD",  "Checkbox");
+        yield return ("CustomIEP",     "Checkbox");
+        yield return ("CustomFrench",  "Checkbox");
+        yield return ("CustomNA",      "Checkbox");
+        yield return ("CustomTerm1",   "Text");
+        yield return ("CustomTerm2",   "Text");
+        yield return ("CustomNotes",   "Text");
+        yield return ("TheArtsNotes",  "Text");
+
+        // ── Page 3: ERS ─────────────────────────────────────────────────
+        yield return ("ERS",         "Checkbox");
+        yield return ("BenchmarkYes","Checkbox");
+        yield return ("BenchmarkNo", "Checkbox");
+        yield return ("ERSday",      "Text");
+        yield return ("ERSmonth",    "Text");
+        yield return ("ERSyear",     "Text");
     }
 }
 
