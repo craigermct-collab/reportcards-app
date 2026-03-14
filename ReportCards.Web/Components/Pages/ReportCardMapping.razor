@@ -81,6 +81,11 @@ else
                                        Disabled="@(!_mappings.Any())">
                                 Clear All
                             </MudButton>
+                            <MudButton Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Small"
+                                       StartIcon="@Icons.Material.Filled.AutoFixHigh"
+                                       OnClick="AutoMapAll">
+                                Auto-Map All
+                            </MudButton>
                             <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
                                        StartIcon="@Icons.Material.Filled.Save"
                                        OnClick="SaveMappingsAsync"
@@ -157,6 +162,7 @@ else
                                  Style="font-weight:700; color:#1B4F72; margin-bottom:12px; display:block;">
                             📊 Data Source Fields
                         </MudText>
+                        <div style="max-height:70vh; overflow-y:auto; padding-right:4px;">
                         @foreach (var group in _sourceGroups)
                         {
                             <div class="mb-3">
@@ -195,6 +201,7 @@ else
                                 }
                             </div>
                         }
+                        </div>
                     </MudItem>
 
                     <!-- MIDDLE: spacer where SVG lines cross -->
@@ -221,6 +228,7 @@ else
                                           Style="max-width:160px; font-size:12px;"
                                           Clearable="true" />
                         </div>
+                        <div style="max-height:70vh; overflow-y:auto; padding-left:4px;">
                         @foreach (var pdfGroup in FilteredPdfGroups)
                         {
                             <div class="mb-3">
@@ -272,6 +280,7 @@ else
                                 }
                             </div>
                         }
+                        </div>
                     </MudItem>
                 </MudGrid>
             </div>
@@ -686,6 +695,26 @@ else
     {
         _mappings.Remove(m);
         _dirty = true;
+    }
+
+    /// <summary>
+    /// One-click: populate all mappings from the verified seeder data.
+    /// Only maps fields that actually exist in the loaded PDF.
+    /// </summary>
+    private void AutoMapAll()
+    {
+        var pdfFieldNames = _pdfFields.Select(f => f.Name).ToHashSet();
+        _mappings.Clear();
+
+        foreach (var (destKey, pdfField) in ReportCardFieldMapSeeder.ElementaryReportCardMaps())
+        {
+            if (pdfFieldNames.Contains(pdfField))
+                _mappings.Add(new MappingEntry(destKey, pdfField));
+        }
+
+        _dirty = true;
+        Snackbar.Add($"{_mappings.Count} mappings auto-populated. Review and click Save Mappings.", Severity.Success);
+        StateHasChanged();
     }
 
     // ── Save / Clear ──────────────────────────────────────────────

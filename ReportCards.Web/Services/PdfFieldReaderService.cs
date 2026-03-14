@@ -37,7 +37,7 @@ public class PdfFieldReaderService
         var results = new List<PdfFieldInfo>();
         try
         {
-            using var doc  = PdfReader.Open(path, PdfDocumentOpenMode.ReadOnly);
+            using var doc  = PdfReader.Open(path, PdfDocumentOpenMode.Import);
             var form = doc.AcroForm;
             if (form == null) return results;
 
