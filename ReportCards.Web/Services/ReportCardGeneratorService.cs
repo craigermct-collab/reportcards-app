@@ -154,17 +154,31 @@ namespace ReportCards.Web.Services
             List<Assessment> term1Assessments = new();
             if (template.TemplateType == ReportCardTemplateType.ElementaryReportCard)
             {
-                var earlierTerm = await _db.TermInstances
-                    .Where(t => t.SchoolYearId == term.SchoolYearId
-                             && t.SortOrder < term.SortOrder)
-                    .OrderByDescending(t => t.SortOrder)
-                    .FirstOrDefaultAsync();
+                TermInstance? term1Instance = null;
 
-                if (earlierTerm != null)
+                if (term.ReportCardTermSlot == ReportCardTermSlot.Term2)
+                {
+                    // Explicitly find the Term1 slot in the same school year
+                    term1Instance = await _db.TermInstances
+                        .FirstOrDefaultAsync(t => t.SchoolYearId == term.SchoolYearId
+                                              && t.ReportCardTermSlot == ReportCardTermSlot.Term1);
+                }
+                else if (term.ReportCardTermSlot == ReportCardTermSlot.NotApplicable)
+                {
+                    // Legacy fallback: look for any earlier term by SortOrder
+                    term1Instance = await _db.TermInstances
+                        .Where(t => t.SchoolYearId == term.SchoolYearId
+                                 && t.SortOrder < term.SortOrder)
+                        .OrderByDescending(t => t.SortOrder)
+                        .FirstOrDefaultAsync();
+                }
+                // If current term IS Term1, term1Assessments stays empty (nothing in left column yet)
+
+                if (term1Instance != null)
                 {
                     term1Assessments = await _db.Assessments
                         .Include(a => a.StudentLearningItem)
-                        .Where(a => a.TermInstanceId == earlierTerm.Id
+                        .Where(a => a.TermInstanceId == term1Instance.Id
                                  && a.StudentLearningItem!.EnrollmentId == enrollmentId)
                         .ToListAsync();
                 }

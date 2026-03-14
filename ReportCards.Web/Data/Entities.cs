@@ -235,6 +235,17 @@ public static class ReportCardFormatCodes
     };
 }
 
+/// <summary>
+/// Which column slot a term fills on a two-term report card.
+/// Term1 = left column, Term2 = right column, NotApplicable = term uses a different report card.
+/// </summary>
+public enum ReportCardTermSlot
+{
+    NotApplicable = 0,  // e.g. Fall term uses a progress report, not the two-column RC
+    Term1         = 1,  // e.g. Winter — fills the left column
+    Term2         = 2,  // e.g. Spring — fills the right column
+}
+
 public class TermInstance
 {
     public int Id { get; set; }
@@ -245,6 +256,12 @@ public class TermInstance
 
     /// <summary>Which report card format is produced at the end of this term.</summary>
     public string? ReportCardFormatCode { get; set; }
+
+    /// <summary>
+    /// Which column this term fills on a two-term Elementary Report Card.
+    /// Defaults to NotApplicable — admin sets this per term in School Years setup.
+    /// </summary>
+    public ReportCardTermSlot ReportCardTermSlot { get; set; } = ReportCardTermSlot.NotApplicable;
 
     public int SchoolYearId { get; set; }
     public SchoolYear? SchoolYear { get; set; }

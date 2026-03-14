@@ -100,12 +100,35 @@ else
                             <MudTh>Term</MudTh>
                             <MudTh>Start Date</MudTh>
                             <MudTh>End Date</MudTh>
+                            <MudTh>
+                                <MudTooltip Text="Which column this term fills on the two-term Elementary Report Card">
+                                    RC Column Slot
+                                </MudTooltip>
+                            </MudTh>
                             <MudTh></MudTh>
                         </HeaderContent>
                         <RowTemplate>
                             <MudTd>@context.Name</MudTd>
                             <MudTd>@context.StartDate.ToString("MMM d, yyyy")</MudTd>
                             <MudTd>@context.EndDate.ToString("MMM d, yyyy")</MudTd>
+                            <MudTd>
+                                <MudSelect T="ReportCardTermSlot"
+                                           Value="context.ReportCardTermSlot"
+                                           ValueChanged="@(async v => await SetTermSlotAsync(context, v))"
+                                           Variant="Variant.Outlined"
+                                           Margin="Margin.Dense"
+                                           Style="min-width:160px;">
+                                    <MudSelectItem T="ReportCardTermSlot" Value="ReportCardTermSlot.NotApplicable">
+                                        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Not Applicable</MudText>
+                                    </MudSelectItem>
+                                    <MudSelectItem T="ReportCardTermSlot" Value="ReportCardTermSlot.Term1">
+                                        <MudText Typo="Typo.body2" Style="color:#1B8A4B; font-weight:600;">Term 1 (left column)</MudText>
+                                    </MudSelectItem>
+                                    <MudSelectItem T="ReportCardTermSlot" Value="ReportCardTermSlot.Term2">
+                                        <MudText Typo="Typo.body2" Style="color:#1B4F72; font-weight:600;">Term 2 (right column)</MudText>
+                                    </MudSelectItem>
+                                </MudSelect>
+                            </MudTd>
                             <MudTd Style="text-align:right;">
                                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
                                                Color="Color.Error" OnClick="@(() => DeleteTermAsync(context))" />
@@ -544,6 +567,19 @@ else
         await Db.SaveChangesAsync();
         Snackbar.Add($"Term '{term.Name}' deleted.", Severity.Info);
         await LoadAsync();
+    }
+
+    private async Task SetTermSlotAsync(TermInstance term, ReportCardTermSlot slot)
+    {
+        term.ReportCardTermSlot = slot;
+        await Db.SaveChangesAsync();
+        var label = slot switch
+        {
+            ReportCardTermSlot.Term1         => "Term 1 (left column)",
+            ReportCardTermSlot.Term2         => "Term 2 (right column)",
+            _                               => "Not Applicable"
+        };
+        Snackbar.Add($"'{term.Name}' set to {label}.", Severity.Success);
     }
 
     private void OpenAddException(int yearId)
