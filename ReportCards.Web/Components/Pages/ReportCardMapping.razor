@@ -285,45 +285,7 @@ else
                 </MudGrid>
             </div>
 
-            <!-- Mapping table summary -->
-            @if (_mappings.Any())
-            {
-                <MudCard Elevation="1" Class="mt-6">
-                    <MudCardHeader>
-                        <CardHeaderContent>
-                            <MudText Typo="Typo.subtitle1" Style="font-weight:700;">
-                                Current Mappings (@_mappings.Count)
-                            </MudText>
-                        </CardHeaderContent>
-                    </MudCardHeader>
-                    <MudCardContent Class="pa-0">
-                        <MudTable Items="_mappings" Dense="true" Hover="true" Elevation="0">
-                            <HeaderContent>
-                                <MudTh>DB Source Key</MudTh>
-                                <MudTh>PDF Field</MudTh>
-                                <MudTh Style="width:48px;"></MudTh>
-                            </HeaderContent>
-                            <RowTemplate>
-                                <MudTd>
-                                    <MudText Typo="Typo.body2" Style="font-family:monospace; font-size:12px; color:#1B4F72;">
-                                        @context.ReportDestinationKey
-                                    </MudText>
-                                </MudTd>
-                                <MudTd>
-                                    <MudText Typo="Typo.body2" Style="font-family:monospace; font-size:12px; color:#7B4FBF;">
-                                        @context.PdfFieldName
-                                    </MudText>
-                                </MudTd>
-                                <MudTd>
-                                    <MudIconButton Icon="@Icons.Material.Filled.Close"
-                                                   Size="Size.Small" Color="Color.Error"
-                                                   OnClick="@(() => RemoveMapping(context))" />
-                                </MudTd>
-                            </RowTemplate>
-                        </MudTable>
-                    </MudCardContent>
-                </MudCard>
-            }
+
         }
     }
     else
