@@ -1,15 +1,16 @@
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.AcroForms;
 using PdfSharp.Pdf.IO;
-using ReportCards.Web.Data;
+using PdfSharp.Pdf.Advanced;
 
 namespace ReportCards.Web.Services;
 
 /// <summary>
-/// Reads AcroForm field names directly from a PDF template file.
+/// Reads AcroForm field names from a PDF template file.
 /// Uses two strategies:
-///   1. Walk the AcroForm field tree (catches most fields)
-///   2. Walk every page's widget annotations (catches fields the tree misses)
+///   1. Walk the AcroForm field tree via PdfSharp
+///   2. Walk each page's /Annots array via the low-level PDF dictionary API
+///      to catch fields that are present as widget annotations but not in /Fields
 /// </summary>
 public class PdfFieldReaderService
 {
@@ -39,58 +40,61 @@ public class PdfFieldReaderService
         {
             using var doc = PdfReader.Open(path, PdfDocumentOpenMode.Import);
 
-            // ── Strategy 1: walk the AcroForm field tree ──────────────────
+            // ── Strategy 1: AcroForm field tree ──────────────────────────
             var form = doc.AcroForm;
             if (form != null)
                 CollectFromFieldTree(form.Fields, seen, results);
 
-            // ── Strategy 2: walk every page's widget annotations ──────────
-            // This catches fields that are present as widgets but not properly
-            // linked into the AcroForm /Fields array (common in scanned/converted PDFs)
+            // ── Strategy 2: page widget annotation scan ───────────────────
+            // Catches fields present as /Widget annotations but missing from /Fields array
             foreach (var page in doc.Pages)
             {
                 try
                 {
-                    var annots = page.Elements["/Annots"];
-                    if (annots == null) continue;
+                    // Access the raw /Annots array from the page dictionary
+                    if (!page.Elements.ContainsKey("/Annots")) continue;
 
-                    PdfArray? annotArray = annots as PdfArray;
-                    if (annotArray == null && annots is PdfReference annotRef)
+                    var annotsObj = page.Elements.GetObject("/Annots");
+                    PdfArray? annotArray = annotsObj as PdfArray;
+
+                    // Could be an indirect reference to an array
+                    if (annotArray == null && annotsObj is PdfReference annotRef)
                         annotArray = annotRef.Value as PdfArray;
+
                     if (annotArray == null) continue;
 
-                    foreach (var item in annotArray.Elements)
+                    foreach (var element in annotArray.Elements)
                     {
                         try
                         {
-                            PdfDictionary? annot = item as PdfDictionary;
-                            if (annot == null && item is PdfReference r)
-                                annot = r.Value as PdfDictionary;
+                            // Each element may be a direct dict or an indirect reference
+                            PdfDictionary? annot = element as PdfDictionary;
+                            if (annot == null && element is PdfReference elemRef)
+                                annot = elemRef.Value as PdfDictionary;
                             if (annot == null) continue;
 
-                            // Only Widget annotations
-                            var subtypeEl = annot.Elements["/Subtype"];
-                            var subtype = subtypeEl?.ToString() ?? "";
+                            // Only process Widget annotations
+                            var subtype = annot.Elements.GetName("/Subtype");
                             if (subtype != "/Widget") continue;
 
-                            // Get field name — check /T directly, or follow /Parent
-                            var name = GetFieldName(annot, doc);
+                            // Get field name from /T (may be on widget or parent)
+                            var name = GetFieldName(annot);
                             if (string.IsNullOrWhiteSpace(name)) continue;
                             if (!seen.Add(name)) continue;
 
-                            var ftEl = annot.Elements["/FT"]?.ToString() ?? "";
-                            // Also check parent for /FT
-                            if (string.IsNullOrEmpty(ftEl))
+                            // Determine field type from /FT (may be on widget or parent)
+                            var ft = annot.Elements.GetName("/FT");
+                            if (string.IsNullOrEmpty(ft))
                             {
-                                var parent = GetParentDict(annot, doc);
+                                var parent = GetParent(annot);
                                 if (parent != null)
-                                    ftEl = parent.Elements["/FT"]?.ToString() ?? "";
+                                    ft = parent.Elements.GetName("/FT");
                             }
 
-                            var fieldType = ftEl switch
+                            var fieldType = ft switch
                             {
                                 "/Tx"  => "Text",
-                                "/Btn" => IsRadioOrCheckbox(annot, doc),
+                                "/Btn" => "Checkbox",
                                 "/Ch"  => "ComboBox",
                                 _      => "Other"
                             };
@@ -111,10 +115,12 @@ public class PdfFieldReaderService
         return results.OrderBy(f => f.Name).ToList();
     }
 
-    // ── AcroForm tree walker ──────────────────────────────────────────────
+    // ── AcroForm tree traversal ───────────────────────────────────────────
 
-    private static void CollectFromFieldTree(PdfAcroField.PdfAcroFieldCollection fields,
-                                             HashSet<string> seen, List<PdfFieldInfo> results)
+    private static void CollectFromFieldTree(
+        PdfAcroField.PdfAcroFieldCollection fields,
+        HashSet<string> seen,
+        List<PdfFieldInfo> results)
     {
         for (int i = 0; i < fields.Count; i++)
         {
@@ -145,34 +151,26 @@ public class PdfFieldReaderService
         }
     }
 
-    // ── Helpers for widget annotation traversal ───────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────
 
-    private static string? GetFieldName(PdfDictionary annot, PdfDocument doc)
+    private static string? GetFieldName(PdfDictionary annot)
     {
-        // /T on the widget itself
-        var t = annot.Elements["/T"];
-        if (t != null)
-        {
-            var name = t.ToString()?.Trim('(', ')');
-            if (!string.IsNullOrWhiteSpace(name)) return name;
-        }
+        // Try /T directly on the widget
+        var t = annot.Elements.GetString("/T");
+        if (!string.IsNullOrWhiteSpace(t)) return t;
 
-        // Follow /Parent chain to find /T
-        var parent = GetParentDict(annot, doc);
+        // Fall back to parent's /T
+        var parent = GetParent(annot);
         if (parent != null)
         {
-            var pt = parent.Elements["/T"];
-            if (pt != null)
-            {
-                var name = pt.ToString()?.Trim('(', ')');
-                if (!string.IsNullOrWhiteSpace(name)) return name;
-            }
+            var pt = parent.Elements.GetString("/T");
+            if (!string.IsNullOrWhiteSpace(pt)) return pt;
         }
 
         return null;
     }
 
-    private static PdfDictionary? GetParentDict(PdfDictionary annot, PdfDocument doc)
+    private static PdfDictionary? GetParent(PdfDictionary annot)
     {
         try
         {
@@ -183,24 +181,6 @@ public class PdfFieldReaderService
         }
         catch { }
         return null;
-    }
-
-    private static string IsRadioOrCheckbox(PdfDictionary annot, PdfDocument doc)
-    {
-        try
-        {
-            // Check /Ff (field flags) bit 16 = radio button
-            var ff = annot.Elements["/Ff"];
-            if (ff == null)
-            {
-                var parent = GetParentDict(annot, doc);
-                ff = parent?.Elements["/Ff"];
-            }
-            if (ff != null && int.TryParse(ff.ToString(), out int flags))
-                return (flags & (1 << 15)) != 0 ? "Radio" : "Checkbox";
-        }
-        catch { }
-        return "Checkbox";
     }
 }
 
