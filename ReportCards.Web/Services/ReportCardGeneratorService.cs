@@ -121,7 +121,15 @@ namespace ReportCards.Web.Services
                     .ToListAsync();
             }
 
-            var mapByKey = fieldMaps.ToDictionary(m => m.ReportDestinationKey, m => m.PdfFieldName);
+            // Use last-wins for duplicate destination keys (e.g. student.grade → Grade + GradeInSeptember)
+            var mapByKey = fieldMaps
+                .GroupBy(m => m.ReportDestinationKey)
+                .ToDictionary(g => g.Key, g => g.Last().PdfFieldName);
+
+            // For keys that map to multiple PDF fields (like student.grade), build a multi-map
+            var multiMapByKey = fieldMaps
+                .GroupBy(m => m.ReportDestinationKey)
+                .ToDictionary(g => g.Key, g => g.Select(m => m.PdfFieldName).ToList());
 
             var configs = await _db.SchoolConfigs.ToListAsync();
             string Cfg(string key) => configs.FirstOrDefault(c => c.Key == key)?.Value ?? "";
@@ -173,18 +181,18 @@ namespace ReportCards.Web.Services
             var radios     = new Dictionary<string, string>();
 
             var student = enrollment.Student!;
-            SetField(fields, mapByKey, ReportDestinationKeys.StudentName,     $"{student.FirstName} {student.LastName}");
-            SetField(fields, mapByKey, ReportDestinationKeys.StudentOen,      student.OenNumber ?? "");
-            SetField(fields, mapByKey, ReportDestinationKeys.StudentGrade,    enrollment.Grade?.Name ?? "");
-            SetField(fields, mapByKey, ReportDestinationKeys.TeacherName,     teacher?.DisplayName ?? "");
-            SetField(fields, mapByKey, ReportDestinationKeys.SchoolName,      Cfg(SchoolConfigKeys.SchoolName));
-            SetField(fields, mapByKey, ReportDestinationKeys.SchoolBoard,     Cfg(SchoolConfigKeys.Board));
-            SetField(fields, mapByKey, ReportDestinationKeys.SchoolAddress,   Cfg(SchoolConfigKeys.Address));
-            SetField(fields, mapByKey, ReportDestinationKeys.SchoolPhone,     Cfg(SchoolConfigKeys.ContactPhone));
-            SetField(fields, mapByKey, ReportDestinationKeys.DaysAbsent,      absences.ToString());
-            SetField(fields, mapByKey, ReportDestinationKeys.TotalDaysAbsent, absences.ToString());
-            SetField(fields, mapByKey, ReportDestinationKeys.TimesLate,       lates.ToString());
-            SetField(fields, mapByKey, ReportDestinationKeys.TotalTimesLate,  lates.ToString());
+            SetFields(fields, multiMapByKey, ReportDestinationKeys.StudentName,     $"{student.FirstName} {student.LastName}");
+            SetFields(fields, multiMapByKey, ReportDestinationKeys.StudentOen,      student.OenNumber ?? "");
+            SetFields(fields, multiMapByKey, ReportDestinationKeys.StudentGrade,    enrollment.Grade?.Name ?? "");
+            SetFields(fields, multiMapByKey, ReportDestinationKeys.TeacherName,     teacher?.DisplayName ?? "");
+            SetFields(fields, multiMapByKey, ReportDestinationKeys.SchoolName,      Cfg(SchoolConfigKeys.SchoolName));
+            SetFields(fields, multiMapByKey, ReportDestinationKeys.SchoolBoard,     Cfg(SchoolConfigKeys.Board));
+            SetFields(fields, multiMapByKey, ReportDestinationKeys.SchoolAddress,   Cfg(SchoolConfigKeys.Address));
+            SetFields(fields, multiMapByKey, ReportDestinationKeys.SchoolPhone,     Cfg(SchoolConfigKeys.ContactPhone));
+            SetFields(fields, multiMapByKey, ReportDestinationKeys.DaysAbsent,      absences.ToString());
+            SetFields(fields, multiMapByKey, ReportDestinationKeys.TotalDaysAbsent, absences.ToString());
+            SetFields(fields, multiMapByKey, ReportDestinationKeys.TimesLate,       lates.ToString());
+            SetFields(fields, multiMapByKey, ReportDestinationKeys.TotalTimesLate,  lates.ToString());
 
             foreach (var li in enrollment.LearningItems)
             {
@@ -302,14 +310,16 @@ namespace ReportCards.Web.Services
         // HELPERS
         // ─────────────────────────────────────────────────────────────
 
-        private static void SetField(
+        /// <summary>Sets one value into all PDF fields mapped from a single destination key.</summary>
+        private static void SetFields(
             Dictionary<string, string> fields,
-            Dictionary<string, string> map,
+            Dictionary<string, List<string>> multiMap,
             string destKey,
             string value)
         {
-            if (map.TryGetValue(destKey, out var pdfField))
-                fields[pdfField] = value;
+            if (multiMap.TryGetValue(destKey, out var pdfFields))
+                foreach (var pdfField in pdfFields)
+                    fields[pdfField] = value;
         }
 
         private static bool IsRadioField(string pdfFieldName)
