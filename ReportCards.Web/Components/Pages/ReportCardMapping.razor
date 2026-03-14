@@ -191,6 +191,7 @@ else
                                                 : isMapped ? "rgba(46,125,50,0.15)"
                                                 : f.FieldType == "Checkbox" ? "rgba(123,79,191,0.08)"
                                                 : "rgba(27,79,114,0.06)";
+                                var fieldTitle  = isMapped ? $"{f.Name} <- {srcKey}" : $"{f.Name} (unmapped)";
 
                                 <div class="pdf-field-zone"
                                      style="position:absolute;
@@ -203,11 +204,11 @@ else
                                             border-radius: 2px;
                                             cursor: pointer;
                                             box-sizing: border-box;"
-                                     title="@f.Name@(isMapped ? $" ← {srcKey}" : " (unmapped)")"
+                                     title="@fieldTitle"
                                      ondragover="event.preventDefault()"
+                                     ondrop="event.preventDefault()"
                                      @ondragenter="@(() => _dragTargetPdf = f.Name)"
                                      @ondragleave="@(() => { if (_dragTargetPdf == f.Name) _dragTargetPdf = null; })"
-                                     @ondrop:preventDefault="true"
                                      @ondrop="@(() => DropOnPdfField(f.Name))"
                                      @onclick="@(() => ClickPdfField(f.Name))">
                                     @if (isMapped && cssHeight > 14)
