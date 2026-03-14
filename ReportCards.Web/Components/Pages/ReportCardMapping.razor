@@ -206,7 +206,7 @@ else
                         </div>
                     </MudItem>
 
-                    <!-- RIGHT: PDF Fields -->
+                    <!-- RIGHT: PDF Fields grouped by report section -->
                     <MudItem xs="12" sm="5">
                         <div class="d-flex align-center justify-space-between mb-3">
                             <MudText Typo="Typo.subtitle1" Style="font-weight:700; color:#7B4FBF; display:block;">
@@ -221,39 +221,55 @@ else
                                           Style="max-width:160px; font-size:12px;"
                                           Clearable="true" />
                         </div>
-                        @foreach (var pdf in FilteredPdfFields)
+                        @foreach (var pdfGroup in FilteredPdfGroups)
                         {
-                            var isMapped = _mappings.Any(m => m.PdfFieldName == pdf.Name);
-                            <div id="dst-@SanitizeId(pdf.Name)"
-                                 class="mapping-node dst-node @(isMapped ? "mapped" : "") @(_dragTargetPdf == pdf.Name ? "drag-over" : "")"
-                                 draggable="true"
-                                 @ondragstart="@(() => StartDrag(pdf.Name, isDst: true))"
-                                 @ondragend="OnDragEnd"
-                                 @ondragover:preventDefault="true"
-                                 @ondragover="@(() => _dragTargetPdf = pdf.Name)"
-                                 @ondragleave="@(() => { if (_dragTargetPdf == pdf.Name) _dragTargetPdf = null; })"
-                                 @ondrop="@(() => Drop(pdf.Name, isDst: true))">
-                                <div class="d-flex align-center gap-2">
-                                    <div class="node-dot dst-dot"></div>
-                                    <div style="flex:1; min-width:0;">
-                                        <MudText Typo="Typo.body2"
-                                                 Style="font-weight:600; font-size:12px; font-family:monospace; line-height:1.2;">
-                                            @pdf.Name
-                                        </MudText>
-                                        <MudText Typo="Typo.caption"
-                                                 Style="color:var(--mud-palette-text-secondary); font-size:10px;">
-                                            @pdf.FieldType
-                                        </MudText>
-                                    </div>
-                                    @if (isMapped)
-                                    {
-                                        var srcKey = _mappings.FirstOrDefault(m => m.PdfFieldName == pdf.Name)?.ReportDestinationKey;
-                                        <MudTooltip Text="@($"Mapped from: {srcKey}")">
-                                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
-                                                     Style="color:#2E7D32; font-size:14px; flex-shrink:0;" />
-                                        </MudTooltip>
-                                    }
+                            <div class="mb-3">
+                                <div class="d-flex align-center gap-1 mb-1">
+                                    <MudText Typo="Typo.overline"
+                                             Style="color:#7B4FBF; font-size:10px; letter-spacing:0.08em;">
+                                        @pdfGroup.PageLabel
+                                    </MudText>
+                                    <div style="height:1px; flex:1; background:rgba(123,79,191,0.2);"></div>
+                                    <MudText Typo="Typo.overline"
+                                             Style="color:var(--mud-palette-text-secondary); font-size:9px;">
+                                        @pdfGroup.Label
+                                    </MudText>
                                 </div>
+                                @foreach (var pdf in pdfGroup.Fields)
+                                {
+                                    var isMapped = _mappings.Any(m => m.PdfFieldName == pdf.Name);
+                                    <div id="dst-@SanitizeId(pdf.Name)"
+                                         class="mapping-node dst-node @(isMapped ? "mapped" : "") @(_dragTargetPdf == pdf.Name ? "drag-over" : "")"
+                                         draggable="true"
+                                         @ondragstart="@(() => StartDrag(pdf.Name, isDst: true))"
+                                         @ondragend="OnDragEnd"
+                                         @ondragover:preventDefault="true"
+                                         @ondragover="@(() => _dragTargetPdf = pdf.Name)"
+                                         @ondragleave="@(() => { if (_dragTargetPdf == pdf.Name) _dragTargetPdf = null; })"
+                                         @ondrop="@(() => Drop(pdf.Name, isDst: true))">
+                                        <div class="d-flex align-center gap-2">
+                                            <div class="node-dot dst-dot"></div>
+                                            <div style="flex:1; min-width:0;">
+                                                <MudText Typo="Typo.body2"
+                                                         Style="font-weight:600; font-size:12px; font-family:monospace; line-height:1.2;">
+                                                    @pdf.Name
+                                                </MudText>
+                                                <MudText Typo="Typo.caption"
+                                                         Style="color:var(--mud-palette-text-secondary); font-size:10px;">
+                                                    @pdf.FieldType
+                                                </MudText>
+                                            </div>
+                                            @if (isMapped)
+                                            {
+                                                var srcKey = _mappings.FirstOrDefault(m => m.PdfFieldName == pdf.Name)?.ReportDestinationKey;
+                                                <MudTooltip Text="@($"Mapped from: {srcKey}")">
+                                                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                                                             Style="color:#2E7D32; font-size:14px; flex-shrink:0;" />
+                                                </MudTooltip>
+                                            }
+                                        </div>
+                                    </div>
+                                }
                             </div>
                         }
                     </MudItem>
@@ -355,6 +371,7 @@ else
 
     private record SourceGroup(string Label, List<SourceField> Fields);
     private record SourceField(string Key, string Label);
+    private record PdfGroup(string PageLabel, string Label, List<PdfFieldInfo> Fields);
     private record MappingEntry(string ReportDestinationKey, string PdfFieldName);
     private record DragLine(double X1, double Y1, double X2, double Y2);
 
@@ -377,10 +394,118 @@ else
     private string? _dragTargetPdf  = null;
     private DragLine? _dragLine     = null;
 
-    private IEnumerable<PdfFieldInfo> FilteredPdfFields =>
-        string.IsNullOrWhiteSpace(_pdfSearch)
-            ? _pdfFields
-            : _pdfFields.Where(f => f.Name.Contains(_pdfSearch, StringComparison.OrdinalIgnoreCase));
+    // PDF fields grouped to mirror report card page structure
+    private static readonly List<(string PageLabel, string Label, string[] Names)> PdfGroupDefinitions = new()
+    {
+        ("Page 1", "Header", new[]
+        {
+            "Student", "OEN", "Grade", "GradeInSeptember", "Teacher",
+            "Board", "School", "Address", "Principal", "Telephone",
+            "DaysAbsent", "TotalDaysAbsent", "TimesLate", "TotalTimesLate",
+        }),
+        ("Page 1", "Learning Skills", new[]
+        {
+            "Term1Responsibiity", "Term2Responsibiity",
+            "Term1Organization",  "Term2Organization",
+            "Term1IndependentWork", "Term2IndependentWork",
+            "Term1Collaboration",  "Term2Collaboration",
+            "Term1Initiative",     "Term2Initiative",
+            "Term1SelfRegulation", "Term2SelfRegulation",
+        }),
+        ("Page 2", "Language", new[]
+        {
+            "LanguageTerm1", "LanguageTerm2", "LanguageNotes",
+        }),
+        ("Page 2", "French", new[]
+        {
+            "FrenchListeningTerm1", "FrenchListeningTerm2",
+            "FrenchSpeakingTerm1",  "FrenchSpeakingTerm2",
+            "FrenchReadingTerm1",   "FrenchReadingTerm2",
+            "FrenchWritingTerm1",   "FrenchWritingTerm2",
+            "FrenchNotes",
+        }),
+        ("Page 2", "Native Language", new[]
+        {
+            "NativeLanguageTerm1", "NativeLanguageTerm2", "NativeLanguageNotes",
+        }),
+        ("Page 2", "Mathematics", new[]
+        {
+            "MathematicsTerm1", "MathematicsTerm2", "MathematicsNotes",
+        }),
+        ("Page 2", "Science & Technology", new[]
+        {
+            "ScienceAndTechTerm1", "ScienceAndTechTerm2", "ScienceAndTechNotes",
+        }),
+        ("Page 3", "Social Studies", new[]
+        {
+            "SocialStudiesTerm1", "SocialStudiesTerm2", "SocialStudiesNotes",
+        }),
+        ("Page 3", "Health & Phys Ed", new[]
+        {
+            "HealthHealthyLivingTerm1", "HealthHealthyLivingTerm2",
+            "HealthActiveLivingTerm1",  "HealthActiveLivingTerm2",
+            "HealthMovementTerm1",      "HealthMovementTerm2",
+            "HealthPhysEdNotes",
+        }),
+        ("Page 3", "The Arts", new[]
+        {
+            "DanceTerm1",      "DanceTerm2",
+            "DramaTerm1",      "DramaTerm2",
+            "MusicTerm1",      "MusicTerm2",
+            "VisualArtsTerm1", "VisualArtsTerm2",
+            "TheArtsNotes",
+        }),
+        ("Other", "Checkboxes / Flags", new[]
+        {
+            "LanguageESLELD", "LanguageIEP", "LanguageNA",
+            "MathematicsESLELD", "MathematicsIEP", "MathematicsFrench",
+            "ScienceAndTechESLELD", "ScienceAndTechIEP", "ScienceAndTechFrench",
+            "SocialStudiesESLELD", "SocialStudiesIEP", "SocialStudiesFrench",
+            "DanceESLELD", "DanceIEP", "DanceFrench", "DanceNA",
+            "DramaESLELD", "DramaIEP", "DramaFrench", "DramaNA",
+            "MusicESLELD", "MusicIEP", "MusicFrench", "MusicNA",
+            "VisualArtsESLELD", "VisualArtsIEP", "VisualArtsFrench", "VisualArtsNA",
+            "FrenchCore", "FrenchImmersion", "FrenchExtended", "FrenchNA",
+            "NativeLanguageESLELD", "NativeLanguageIEP", "NativeLanguageNA",
+            "HealthyESLELD", "HealthyIEP", "HealthyFrench",
+            "MovementESLELD", "MovementIEP", "MovementFrench",
+            "LIsteningESLELD", "ListeningIEP",
+            "ReadingESLELD", "ReadingIEP",
+            "SpeakingESLELD", "SpeakingIEP",
+            "WritingESLELD", "WritingIEP",
+            "CustomESLELD", "CustomIEP", "CustomNA", "CustomFrench",
+            "CustomTerm1", "CustomTerm2", "CustomNotes",
+            "ERS", "BenchmarkYes", "BenchmarkNo", "ERSday", "ERSmonth", "ERSyear",
+        }),
+    };
+
+    private IEnumerable<PdfGroup> FilteredPdfGroups
+    {
+        get
+        {
+            var fieldMap = _pdfFields.ToDictionary(f => f.Name);
+            foreach (var (pageLabel, label, names) in PdfGroupDefinitions)
+            {
+                var matching = names
+                    .Where(n => fieldMap.ContainsKey(n))
+                    .Where(n => string.IsNullOrWhiteSpace(_pdfSearch)
+                             || n.Contains(_pdfSearch, StringComparison.OrdinalIgnoreCase))
+                    .Select(n => fieldMap[n])
+                    .ToList();
+                if (matching.Any())
+                    yield return new PdfGroup(pageLabel, label, matching);
+            }
+            // Any PDF fields not in any group go to an "Other" bucket
+            var grouped = PdfGroupDefinitions.SelectMany(g => g.Names).ToHashSet();
+            var ungrouped = _pdfFields
+                .Where(f => !grouped.Contains(f.Name))
+                .Where(f => string.IsNullOrWhiteSpace(_pdfSearch)
+                         || f.Name.Contains(_pdfSearch, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (ungrouped.Any())
+                yield return new PdfGroup("Other", "Ungrouped", ungrouped);
+        }
+    }
 
     // ── Lifecycle ─────────────────────────────────────────────────
 
