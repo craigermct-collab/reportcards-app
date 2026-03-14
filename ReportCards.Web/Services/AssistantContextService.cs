@@ -38,15 +38,23 @@ public class AssistantContextService
 
     public event Action? OnContextChanged;
 
-    public void SetContext(AssistantContext context)
+    /// <summary>
+    /// When in CommentWriter mode, the page that opened the bot registers this
+    /// callback. The drawer calls it when the teacher clicks "Use this comment".
+    /// </summary>
+    public Action<string>? OnCommentAccepted { get; private set; }
+
+    public void SetContext(AssistantContext context, Action<string>? onCommentAccepted = null)
     {
         _current = context;
+        OnCommentAccepted = onCommentAccepted;
         OnContextChanged?.Invoke();
     }
 
     public void ClearContext()
     {
         _current = new();
+        OnCommentAccepted = null;
         OnContextChanged?.Invoke();
     }
 

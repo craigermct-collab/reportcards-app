@@ -1047,21 +1047,28 @@ else
         var gradeLabel = enrollment.Grade?.Name;
         var term       = _terms.FirstOrDefault(t => t.Id == _selectedTermId);
 
-        AssistantCtx.SetContext(new AssistantContext
-        {
-            Mode             = AssistantMode.CommentWriter,
-            Page             = "grade-entry",
-            PageLabel        = $"Comment: {subjectName}",
-            StudentName      = student != null ? $"{student.FirstName} {student.LastName}" : null,
-            StudentFirstName = student?.FirstName,
-            GradeLabel       = gradeLabel,
-            Subject          = subjectName,
-            Term             = term != null ? $"{term.SchoolYear?.Name} – {term.Name}" : null,
-            CurrentText      = string.IsNullOrWhiteSpace(row.Comment) ? null : row.Comment,
-            SuggestedPrompt  = string.IsNullOrWhiteSpace(row.Comment)
-                ? $"Write a report card comment for {student?.FirstName} in {subjectName}"
-                : "Improve this comment",
-        });
+        AssistantCtx.SetContext(
+            new AssistantContext
+            {
+                Mode             = AssistantMode.CommentWriter,
+                Page             = "grade-entry",
+                PageLabel        = $"Comment: {subjectName}",
+                StudentName      = student != null ? $"{student.FirstName} {student.LastName}" : null,
+                StudentFirstName = student?.FirstName,
+                GradeLabel       = gradeLabel,
+                Subject          = subjectName,
+                Term             = term != null ? $"{term.SchoolYear?.Name} – {term.Name}" : null,
+                CurrentText      = string.IsNullOrWhiteSpace(row.Comment) ? null : row.Comment,
+                SuggestedPrompt  = string.IsNullOrWhiteSpace(row.Comment)
+                    ? $"Write a report card comment for {student?.FirstName} in {subjectName}"
+                    : "Improve this comment",
+            },
+            // Callback: teacher clicks “Use this comment” in the drawer
+            onCommentAccepted: text =>
+            {
+                row.Comment = text;
+                StateHasChanged();
+            });
     }
 
     private async Task OpenTemplatePickerAsync(Enrollment enrollment, GradeRow row, string subjectName)

@@ -175,6 +175,19 @@
 
                         @((MarkupString)FormatMessage(msg.Content))
 
+                        @if (!isUser && AssistantCtx.Current.Mode == AssistantMode.CommentWriter && AssistantCtx.OnCommentAccepted != null)
+                        {
+                            <div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(0,0,0,0.08);">
+                                <MudButton Size="Size.Small"
+                                           Variant="Variant.Filled"
+                                           Style="background:#1B3A4B; color:white; font-size:0.75rem; font-weight:600; text-transform:none; padding:3px 12px; border-radius:20px;"
+                                           StartIcon="@Icons.Material.Filled.ArrowForward"
+                                           OnClick="@(() => AcceptComment(msg.Content))">
+                                    Use this comment
+                                </MudButton>
+                            </div>
+                        }
+
                         @if (msg.Action != null && msg == _pendingActionMessage)
                         {
                             <div style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.25);">
@@ -572,6 +585,15 @@
     {
         _pendingActionMessage = null;
         _messages.Add(new ChatMessage("assistant", "No worries — no changes were made."));
+        StateHasChanged();
+    }
+
+    private void AcceptComment(string rawText)
+    {
+        // Strip any markdown bold/italic so plain text lands in the comment box
+        var clean = System.Text.RegularExpressions.Regex.Replace(rawText, @"\*+", "").Trim();
+        AssistantCtx.OnCommentAccepted?.Invoke(clean);
+        _messages.Add(new ChatMessage("assistant", "✅ Comment copied to the field! Keep chatting to refine it, or close the assistant."));
         StateHasChanged();
     }
 
