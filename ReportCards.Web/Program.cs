@@ -64,6 +64,7 @@ builder.Services.AddScoped<AssistantService>();
 builder.Services.AddScoped<CommentTemplateService>();
 builder.Services.AddScoped<ReportCardGeneratorService>();
 builder.Services.AddScoped<PdfFieldReaderService>();
+builder.Services.AddSingleton<PdfRenderService>();
 builder.Services.AddScoped<AttendanceService>();
 builder.Services.AddScoped<SchoolConfigService>();
 builder.Services.AddScoped<CurriculumStampService>();
