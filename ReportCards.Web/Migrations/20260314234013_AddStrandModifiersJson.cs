@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -15,7 +15,7 @@ namespace ReportCards.Web.Migrations
                 table: "StudentSubjectModifiers",
                 type: "nvarchar(max)",
                 nullable: false,
-                defaultValue: "{}");
+                defaultValue: "");
         }
 
         /// <inheritdoc />
