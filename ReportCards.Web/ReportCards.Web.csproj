@@ -31,6 +31,7 @@
     <PackageReference Include="EPPlus" Version="7.5.2" />
     <PackageReference Include="PDFtoImage" Version="4.0.0" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="2.88.9" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="2.88.9" />
   </ItemGroup>
 
 </Project>

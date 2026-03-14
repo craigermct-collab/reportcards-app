@@ -246,9 +246,13 @@ else
                 }
                 else if (_selectedTemplate != null && !_pageImages.Any())
                 {
+                    var renderErr = PdfRenderer.GetLastError(_selectedTemplate.FileName);
                     <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
                         Could not render PDF pages for <strong>@_selectedTemplate.FileName</strong>.
-                        Make sure the file exists in the ReportCardTemplates/ folder.
+                        @if (renderErr != null)
+                        {
+                            <div style="font-family:monospace; font-size:11px; margin-top:4px;">@renderErr</div>
+                        }
                     </MudAlert>
                 }
             </div>

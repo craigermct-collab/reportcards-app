@@ -15,6 +15,10 @@ public class PdfRenderService
 
     // Cache rendered pages so we don't re-render on every Blazor render cycle
     private readonly Dictionary<string, List<string>> _cache = new();
+    private readonly Dictionary<string, string> _lastError = new();
+
+    public string? GetLastError(string fileName) =>
+        _lastError.TryGetValue(fileName, out var err) ? err : null;
 
     public PdfRenderService(IWebHostEnvironment env, ILogger<PdfRenderService> logger)
     {
@@ -60,6 +64,8 @@ public class PdfRenderService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to render PDF pages for {File}", fileName);
+            // Store the error message so the UI can surface it
+            _lastError[fileName] = ex.Message + (ex.InnerException != null ? " — " + ex.InnerException.Message : "");
             return new();
         }
     }
