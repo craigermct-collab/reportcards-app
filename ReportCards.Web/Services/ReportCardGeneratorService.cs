@@ -489,20 +489,52 @@ namespace ReportCards.Web.Services
         /// </summary>
         private static string? DeriveDestinationKey(string? className, string? subjectName)
         {
-            // Try to match on class (subject group) name — used for non-strand subjects
+            // For subjects that have strand-level PDF fields (French, Health/PhysEd),
+            // try the strand name first — it resolves to a more specific key.
+            // For all other subjects, the class/parent name is sufficient.
+            if (subjectName != null)
+            {
+                var strandKey = NormalizeStrandKey(subjectName);
+                if (strandKey != null) return strandKey;
+            }
+
+            // Fall back to parent class template name for whole-subject grading
             if (className != null)
             {
                 var key = NormalizeToKey(className);
                 if (key != null) return key;
             }
-            // Try subject/strand name for strand-level items
+
+            // Last resort: try the strand name as a subject key
             if (subjectName != null)
             {
                 var key = NormalizeToKey(subjectName);
                 if (key != null) return key;
             }
+
             return null;
         }
+
+        /// <summary>
+        /// Matches strand names that have their OWN dedicated PDF fields
+        /// (i.e. the PDF has separate grade boxes per strand, not just one per subject).
+        /// Returns null for strands that should roll up to the parent subject key.
+        /// </summary>
+        private static string? NormalizeStrandKey(string name) => name.ToLowerInvariant().Trim() switch
+        {
+            // French strands — each has FrenchListeningTerm1/2, FrenchSpeakingTerm1/2, etc.
+            var n when n.Contains("listen")                           => ReportDestinationKeys.French + ".listening",
+            var n when n.Contains("speak") || n.Contains("oral comm") => ReportDestinationKeys.French + ".speaking",
+            var n when n.Contains("read") && !n.Contains("social")    => ReportDestinationKeys.French + ".reading",
+            var n when n.Contains("writ") && !n.Contains("social")    => ReportDestinationKeys.French + ".writing",
+
+            // Health/PhysEd strands — HealthHealthyLivingTerm1/2, HealthActiveLivingTerm1/2, HealthMovementTerm1/2
+            var n when n.Contains("healthy living") || n.Contains("healthy")     => ReportDestinationKeys.Health,
+            var n when n.Contains("active living")  || n.Contains("active")      => ReportDestinationKeys.PhysEd,
+            var n when n.Contains("movement")                                     => ReportDestinationKeys.PhysEdMovement,
+
+            _ => null
+        };
 
         private static string? NormalizeToKey(string name) => name.ToLowerInvariant().Trim() switch
         {
@@ -516,8 +548,7 @@ namespace ReportCards.Web.Services
                                               => ReportDestinationKeys.ScienceAndTech,
             var n when n.Contains("science")  => ReportDestinationKeys.ScienceAndTech,
             var n when n.Contains("social")   => ReportDestinationKeys.SocialStudies,
-            var n when n.Contains("health") && !n.Contains("physical")
-                                              => ReportDestinationKeys.Health,
+            var n when n.Contains("health")   => ReportDestinationKeys.Health,
             var n when n.Contains("physical") || n.Contains("phys ed") || n.Contains("active living")
                                               => ReportDestinationKeys.PhysEd,
             var n when n.Contains("movement") => ReportDestinationKeys.PhysEdMovement,
