@@ -212,6 +212,12 @@ namespace ReportCards.Web.Services
             SetFields(fields, multiMapByKey, ReportDestinationKeys.TimesLate,       lates.ToString());
             SetFields(fields, multiMapByKey, ReportDestinationKeys.TotalTimesLate,  lates.ToString());
 
+            // ── Accumulate strand comments per parent subject notes field ──────────
+            // When multiple strands map to the same parent subject (e.g. Language strands
+            // all roll up to LanguageNotes), we collect them and join rather than overwrite.
+            // Key = PDF notes field name, Value = ordered list of "Strand: comment" lines.
+            var notesAccumulator = new Dictionary<string, List<string>>();
+
             foreach (var li in enrollment.LearningItems)
             {
                 // Prefer explicit ReportDestinationKey on the offering; fall back to
@@ -223,6 +229,11 @@ namespace ReportCards.Web.Services
                                ?? li.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.Name,
                                li.YearSubjectOffering?.CurriculumSubjectTemplate?.Name);
                 if (destKey == null) continue;
+
+                // The notes field for this item lives under the PARENT subject key, not
+                // the strand-specific key. E.g. subject.french.listening → subject.french.notes
+                // subject.language (whole subject) → subject.language.notes
+                var parentNotesKey = DeriveParentNotesKey(destKey);
 
                 bool isTwoTermCard = template.TemplateType == ReportCardTemplateType.ElementaryReportCard;
 
@@ -238,14 +249,26 @@ namespace ReportCards.Web.Services
                         && mapByKey.TryGetValue(destKey + otherColSuffix, out var t1f))
                         fields[t1f] = t1a.ValueText ?? "";
 
-                    // Write current term data into the current column
+                    // Write current term grade into the current column
                     if (currentAssessments.TryGetValue(li.Id, out var t2a))
                     {
                         if (mapByKey.TryGetValue(destKey + currentColSuffix, out var t2f))
                             fields[t2f] = t2a.ValueText ?? "";
-                        if (!string.IsNullOrWhiteSpace(t2a.Comment)
-                            && mapByKey.TryGetValue(destKey + ".notes", out var nf))
-                            fields[nf] = t2a.Comment;
+
+                        // Accumulate comment into the parent notes field
+                        if (!string.IsNullOrWhiteSpace(t2a.Comment) && parentNotesKey != null
+                            && mapByKey.TryGetValue(parentNotesKey, out var nf))
+                        {
+                            if (!notesAccumulator.ContainsKey(nf))
+                                notesAccumulator[nf] = new List<string>();
+
+                            var strandLabel = li.YearSubjectOffering?.CurriculumSubjectTemplate?.Name
+                                           ?? li.YearClassOffering?.CurriculumClassTemplate?.Name;
+                            var line = strandLabel != null && destKey != parentNotesKey.Replace(".notes", "")
+                                ? $"{strandLabel}: {t2a.Comment}"
+                                : t2a.Comment;
+                            notesAccumulator[nf].Add(line);
+                        }
                     }
                 }
                 else
@@ -259,11 +282,19 @@ namespace ReportCards.Web.Services
                     else
                         fields[pdfField] = val;
 
-                    if (!string.IsNullOrWhiteSpace(assess.Comment)
-                        && mapByKey.TryGetValue(destKey + ".notes", out var nf))
-                        fields[nf] = assess.Comment;
+                    if (!string.IsNullOrWhiteSpace(assess.Comment) && parentNotesKey != null
+                        && mapByKey.TryGetValue(parentNotesKey, out var nf))
+                    {
+                        if (!notesAccumulator.ContainsKey(nf))
+                            notesAccumulator[nf] = new List<string>();
+                        notesAccumulator[nf].Add(assess.Comment);
+                    }
                 }
             }
+
+            // Flush accumulated notes — join multiple strand comments with newlines
+            foreach (var (pdfField, lines) in notesAccumulator)
+                fields[pdfField] = string.Join("\n\n", lines.Where(l => !string.IsNullOrWhiteSpace(l)));
 
             return (template, new PdfFieldData(fields, checkboxes, radios));
         }
@@ -487,6 +518,34 @@ namespace ReportCards.Web.Services
         /// hasn't been explicitly set on the offering record.
         /// Matches on the class-level name (subject group) first, then subject name.
         /// </summary>
+
+        /// <summary>
+        /// Given a destination key (which may be strand-specific like subject.french.listening),
+        /// returns the parent subject's notes key (subject.french.notes).
+        /// For whole-subject keys (subject.language), returns subject.language.notes.
+        /// Returns null if no notes key can be determined.
+        /// </summary>
+        private static string? DeriveParentNotesKey(string destKey)
+        {
+            // Already a notes key — nothing to do
+            if (destKey.EndsWith(".notes")) return destKey;
+
+            // Strand-specific keys: subject.french.listening → subject.french.notes
+            // Pattern: if the key has 3+ segments and 3rd segment is a strand name, use parent.notes
+            var parts = destKey.Split('.');
+            if (parts.Length >= 3 && parts[0] == "subject")
+            {
+                // e.g. subject.french.listening → subject.french.notes
+                return $"{parts[0]}.{parts[1]}.notes";
+            }
+
+            // Whole-subject key: subject.language → subject.language.notes
+            if (parts.Length == 2 && parts[0] == "subject")
+                return $"{destKey}.notes";
+
+            return null;
+        }
+
         private static string? DeriveDestinationKey(string? className, string? subjectName)
         {
             // For subjects that have strand-level PDF fields (French, Health/PhysEd),
