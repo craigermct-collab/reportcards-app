@@ -290,6 +290,70 @@ namespace ReportCards.Web.Services
             foreach (var (pdfField, lines) in notesAccumulator)
                 fields[pdfField] = string.Join("\n", lines.Where(l => !string.IsNullOrWhiteSpace(l)));
 
+            // ── Subject modifier checkboxes ──────────────────────────────────────────
+            // Load all StudentSubjectModifiers for this enrollment + term, then map
+            // each enabled option to the appropriate PDF checkbox field(s).
+            var studentModifiers = await _db.StudentSubjectModifiers
+                .Include(m => m.CurriculumClassTemplate)
+                .Where(m => m.EnrollmentId == enrollmentId && m.TermInstanceId == termInstanceId)
+                .ToListAsync();
+
+            foreach (var mod in studentModifiers)
+            {
+                var enabledOptions = System.Text.Json.JsonSerializer
+                    .Deserialize<List<string>>(mod.EnabledOptionsJson) ?? new();
+                if (!enabledOptions.Any()) continue;
+
+                var subjectName = mod.CurriculumClassTemplate?.Name ?? "";
+
+                // Derive the parent subject dest key so we know which PDF checkbox prefix to use
+                var subjectDestKey = NormalizeToKey(subjectName);
+                if (subjectDestKey == null) continue;
+
+                // Also check if this subject is per-strand (French, Health) — those have
+                // strand-level checkboxes in the PDF rather than subject-level ones.
+                // For per-strand subjects we map modifiers per strand using the mapped dest keys.
+                var isPerStrand = enrollment.LearningItems
+                    .Any(li => li.ItemType == LearningItemType.Subject &&
+                               (li.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplateId
+                                == mod.CurriculumClassTemplateId));
+
+                if (isPerStrand)
+                {
+                    // Get all strand dest keys for this subject from the learning items
+                    var strandDestKeys = enrollment.LearningItems
+                        .Where(li => li.ItemType == LearningItemType.Subject &&
+                                     li.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplateId
+                                     == mod.CurriculumClassTemplateId)
+                        .Select(li => DeriveDestinationKey(
+                            li.YearSubjectOffering?.CurriculumSubjectTemplate?.CurriculumClassTemplate?.Name,
+                            li.YearSubjectOffering?.CurriculumSubjectTemplate?.Name))
+                        .Where(k => k != null)
+                        .Distinct()
+                        .ToList();
+
+                    foreach (var strandKey in strandDestKeys)
+                    {
+                        foreach (var option in enabledOptions)
+                        {
+                            var cbKey = MapModifierToCheckboxKey(strandKey!, option);
+                            if (cbKey != null && mapByKey.TryGetValue(cbKey, out var cbField))
+                                checkboxes[cbField] = true;
+                        }
+                    }
+                }
+                else
+                {
+                    // Whole-subject modifiers — one checkbox per option
+                    foreach (var option in enabledOptions)
+                    {
+                        var cbKey = MapModifierToCheckboxKey(subjectDestKey, option);
+                        if (cbKey != null && mapByKey.TryGetValue(cbKey, out var cbField))
+                            checkboxes[cbField] = true;
+                    }
+                }
+            }
+
             return (template, new PdfFieldData(fields, checkboxes, radios));
         }
 
@@ -506,6 +570,25 @@ namespace ReportCards.Web.Services
 
         private static bool IsRadioField(string pdfFieldName)
             => pdfFieldName.EndsWith("Skill", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Maps a subject dest key + modifier option label to the checkbox dest key.
+        /// e.g. (subject.language, "ESL/ELD") → subject.language.esleld
+        ///      (subject.french.listening, "IEP") → subject.french.listening.iep
+        /// Returns null if the option isn't recognised.
+        /// </summary>
+        private static string? MapModifierToCheckboxKey(string destKey, string option)
+        {
+            var suffix = option.ToLowerInvariant().Trim() switch
+            {
+                var o when o.Contains("esl") || o.Contains("eld") => ".esleld",
+                var o when o.Contains("iep")                      => ".iep",
+                var o when o.Contains("french") || o == "f"       => ".french",
+                var o when o is "na" or "n/a" or "not applicable" => ".na",
+                _ => null
+            };
+            return suffix == null ? null : destKey + suffix;
+        }
 
         /// <summary>
         /// Derives a ReportDestinationKey from curriculum template names when one
