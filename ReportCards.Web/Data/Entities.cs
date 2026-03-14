@@ -849,6 +849,11 @@ public class ReportTemplateFieldMap
     public required string ReportDestinationKey { get; set; }
     public required string PdfFieldName { get; set; }
 
-    public int TermInstanceId { get; set; }
+    // Legacy: per-term mapping (kept for backward compat, nullable going forward)
+    public int? TermInstanceId { get; set; }
     public TermInstance? TermInstance { get; set; }
+
+    // Preferred: per-template mapping (new)
+    public int? ReportCardTemplateId { get; set; }
+    public ReportCardTemplate? ReportCardTemplate { get; set; }
 }

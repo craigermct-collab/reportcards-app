@@ -1,0 +1,620 @@
+@page "/report-card-mapping"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@using ReportCards.Web.Services
+@inject SchoolDbContext Db
+@inject PdfFieldReaderService PdfReader
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<PageTitle>Report Card Field Mapping</PageTitle>
+
+<div class="d-flex align-center gap-3 mb-1">
+    <MudIcon Icon="@Icons.Material.Filled.AccountTree"
+             Style="background:#1B4F72; color:white; padding:8px; border-radius:10px; font-size:24px;" />
+    <div>
+        <MudText Typo="Typo.h5" Style="font-family:'DM Serif Display',serif; line-height:1.1;">Report Card Field Mapping</MudText>
+        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+            Connect data fields to PDF form fields. Mappings are saved per template.
+        </MudText>
+    </div>
+</div>
+
+<MudDivider Class="my-4" />
+
+@if (_loading)
+{
+    <div class="d-flex justify-center pa-8">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+    </div>
+}
+else
+{
+    <!-- Template selector -->
+    <MudCard Elevation="1" Class="mb-5">
+        <MudCardContent Class="py-3">
+            <MudGrid Spacing="3" AlignItems="Center">
+                <MudItem xs="12" sm="5">
+                    <MudSelect T="int?" Label="Report Card Template" Value="_selectedTemplateId"
+                               ValueChanged="OnTemplateChanged"
+                               Variant="Variant.Outlined"
+                               AnchorOrigin="Origin.BottomLeft"
+                               Clearable="true">
+                        @foreach (var t in _templates)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)t.Id)">
+                                @t.Name
+                                <MudChip T="string" Size="Size.Small" Class="ml-2"
+                                         Color="@(t.TemplateType == ReportCardTemplateType.ElementaryProgressReport ? Color.Info : Color.Secondary)"
+                                         Variant="Variant.Filled" Style="font-size:10px; height:18px;">
+                                    @(t.TemplateType == ReportCardTemplateType.ElementaryProgressReport ? "Progress" : "RC1")
+                                </MudChip>
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                @if (_selectedTemplate != null)
+                {
+                    <MudItem xs="12" sm="7">
+                        <div class="d-flex align-center gap-3 flex-wrap">
+                            <MudChip T="string" Icon="@Icons.Material.Filled.PictureAsPdf"
+                                     Color="Color.Default" Variant="Variant.Outlined" Size="Size.Small">
+                                @_selectedTemplate.FileName
+                            </MudChip>
+                            <MudChip T="string" Icon="@Icons.Material.Filled.Link"
+                                     Color="@(_mappings.Any() ? Color.Success : Color.Warning)"
+                                     Variant="Variant.Filled" Size="Size.Small">
+                                @_mappings.Count mapped
+                            </MudChip>
+                            @if (_pdfFields.Any())
+                            {
+                                <MudChip T="string" Icon="@Icons.Material.Filled.ViewList"
+                                         Color="Color.Info" Variant="Variant.Outlined" Size="Size.Small">
+                                    @_pdfFields.Count PDF fields
+                                </MudChip>
+                            }
+                            <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small"
+                                       StartIcon="@Icons.Material.Filled.DeleteSweep"
+                                       OnClick="ClearAllMappingsAsync"
+                                       Disabled="@(!_mappings.Any())">
+                                Clear All
+                            </MudButton>
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                       StartIcon="@Icons.Material.Filled.Save"
+                                       OnClick="SaveMappingsAsync"
+                                       Disabled="@(!_dirty)">
+                                Save Mappings
+                            </MudButton>
+                        </div>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
+    @if (_selectedTemplate != null)
+    {
+        @if (!_pdfFields.Any())
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+                Could not read PDF fields from <strong>@_selectedTemplate.FileName</strong>.
+                Make sure the file exists in the ReportCardTemplates/ folder on the server.
+            </MudAlert>
+        }
+        else
+        {
+            <!-- Legend -->
+            <div class="d-flex align-center gap-4 mb-3 flex-wrap">
+                <div class="d-flex align-center gap-1">
+                    <div style="width:12px; height:12px; border-radius:50%; background:#1B4F72;"></div>
+                    <MudText Typo="Typo.caption">DB Source field</MudText>
+                </div>
+                <div class="d-flex align-center gap-1">
+                    <div style="width:12px; height:12px; border-radius:50%; background:#7B4FBF;"></div>
+                    <MudText Typo="Typo.caption">PDF form field</MudText>
+                </div>
+                <div class="d-flex align-center gap-1">
+                    <div style="width:24px; height:2px; background:#2E7D32;"></div>
+                    <MudText Typo="Typo.caption">Mapped connection</MudText>
+                </div>
+                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                    Drag a DB field onto a PDF field (or vice versa) to create a mapping. Click a connection to remove it.
+                </MudText>
+            </div>
+
+            <!-- Two-column mapping canvas -->
+            <div style="position:relative;">
+                <!-- SVG overlay for connection lines -->
+                <svg id="mapping-svg"
+                     style="position:absolute; top:0; left:0; width:100%; height:100%;
+                            pointer-events:none; z-index:10; overflow:visible;">
+                    @foreach (var m in _mappings)
+                    {
+                        var srcId  = $"src-{SanitizeId(m.ReportDestinationKey)}";
+                        var dstId  = $"dst-{SanitizeId(m.PdfFieldName)}";
+                        <line id="line-@SanitizeId(m.ReportDestinationKey)"
+                              data-src="@srcId" data-dst="@dstId"
+                              stroke="#2E7D32" stroke-width="2" stroke-dasharray="none"
+                              opacity="0.7"
+                              style="pointer-events:stroke; cursor:pointer;"
+                              x1="0" y1="0" x2="0" y2="0" />
+                    }
+                    @if (_dragLine != null)
+                    {
+                        <line id="drag-line"
+                              stroke="#1B4F72" stroke-width="2" stroke-dasharray="6 3"
+                              x1="@_dragLine.X1" y1="@_dragLine.Y1"
+                              x2="@_dragLine.X2" y2="@_dragLine.Y2" />
+                    }
+                </svg>
+
+                <MudGrid Spacing="4">
+                    <!-- LEFT: DB Source Fields -->
+                    <MudItem xs="12" sm="5">
+                        <MudText Typo="Typo.subtitle1"
+                                 Style="font-weight:700; color:#1B4F72; margin-bottom:12px; display:block;">
+                            📊 Data Source Fields
+                        </MudText>
+                        @foreach (var group in _sourceGroups)
+                        {
+                            <div class="mb-3">
+                                <MudText Typo="Typo.overline"
+                                         Style="color:var(--mud-palette-text-secondary); font-size:10px;
+                                                letter-spacing:0.08em; display:block; margin-bottom:4px;">
+                                    @group.Label
+                                </MudText>
+                                @foreach (var src in group.Fields)
+                                {
+                                    var isMapped = _mappings.Any(m => m.ReportDestinationKey == src.Key);
+                                    <div id="src-@SanitizeId(src.Key)"
+                                         class="mapping-node src-node @(isMapped ? "mapped" : "") @(_dragSourceKey == src.Key ? "dragging" : "")"
+                                         draggable="true"
+                                         @ondragstart="@(() => StartDrag(src.Key, isDst: false))"
+                                         @ondragend="OnDragEnd"
+                                         @ondragover:preventDefault="true"
+                                         @ondrop="@(() => Drop(src.Key, isDst: false))">
+                                        <div class="d-flex align-center gap-2">
+                                            <div class="node-dot src-dot"></div>
+                                            <div style="flex:1; min-width:0;">
+                                                <MudText Typo="Typo.body2" Style="font-weight:600; font-size:12px; line-height:1.2;">
+                                                    @src.Label
+                                                </MudText>
+                                                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary); font-size:10px; font-family:monospace;">
+                                                    @src.Key
+                                                </MudText>
+                                            </div>
+                                            @if (isMapped)
+                                            {
+                                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                                                         Style="color:#2E7D32; font-size:14px; flex-shrink:0;" />
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </MudItem>
+
+                    <!-- MIDDLE: spacer where SVG lines cross -->
+                    <MudItem xs="12" sm="2"
+                             Style="display:flex; align-items:center; justify-content:center;">
+                        <div style="width:100%; text-align:center; color:var(--mud-palette-text-secondary);">
+                            <MudIcon Icon="@Icons.Material.Filled.CompareArrows"
+                                     Style="font-size:32px; opacity:0.2;" />
+                        </div>
+                    </MudItem>
+
+                    <!-- RIGHT: PDF Fields -->
+                    <MudItem xs="12" sm="5">
+                        <div class="d-flex align-center justify-space-between mb-3">
+                            <MudText Typo="Typo.subtitle1" Style="font-weight:700; color:#7B4FBF; display:block;">
+                                📄 PDF Form Fields
+                            </MudText>
+                            <MudTextField @bind-Value="_pdfSearch"
+                                          Placeholder="Filter…"
+                                          Adornment="Adornment.Start"
+                                          AdornmentIcon="@Icons.Material.Filled.Search"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense"
+                                          Style="max-width:160px; font-size:12px;"
+                                          Clearable="true" />
+                        </div>
+                        @foreach (var pdf in FilteredPdfFields)
+                        {
+                            var isMapped = _mappings.Any(m => m.PdfFieldName == pdf.Name);
+                            <div id="dst-@SanitizeId(pdf.Name)"
+                                 class="mapping-node dst-node @(isMapped ? "mapped" : "") @(_dragTargetPdf == pdf.Name ? "drag-over" : "")"
+                                 draggable="true"
+                                 @ondragstart="@(() => StartDrag(pdf.Name, isDst: true))"
+                                 @ondragend="OnDragEnd"
+                                 @ondragover:preventDefault="true"
+                                 @ondragover="@(() => _dragTargetPdf = pdf.Name)"
+                                 @ondragleave="@(() => { if (_dragTargetPdf == pdf.Name) _dragTargetPdf = null; })"
+                                 @ondrop="@(() => Drop(pdf.Name, isDst: true))">
+                                <div class="d-flex align-center gap-2">
+                                    <div class="node-dot dst-dot"></div>
+                                    <div style="flex:1; min-width:0;">
+                                        <MudText Typo="Typo.body2"
+                                                 Style="font-weight:600; font-size:12px; font-family:monospace; line-height:1.2;">
+                                            @pdf.Name
+                                        </MudText>
+                                        <MudText Typo="Typo.caption"
+                                                 Style="color:var(--mud-palette-text-secondary); font-size:10px;">
+                                            @pdf.FieldType
+                                        </MudText>
+                                    </div>
+                                    @if (isMapped)
+                                    {
+                                        var srcKey = _mappings.FirstOrDefault(m => m.PdfFieldName == pdf.Name)?.ReportDestinationKey;
+                                        <MudTooltip Text="@($"Mapped from: {srcKey}")">
+                                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                                                     Style="color:#2E7D32; font-size:14px; flex-shrink:0;" />
+                                        </MudTooltip>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </MudItem>
+                </MudGrid>
+            </div>
+
+            <!-- Mapping table summary -->
+            @if (_mappings.Any())
+            {
+                <MudCard Elevation="1" Class="mt-6">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.subtitle1" Style="font-weight:700;">
+                                Current Mappings (@_mappings.Count)
+                            </MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent Class="pa-0">
+                        <MudTable Items="_mappings" Dense="true" Hover="true" Elevation="0">
+                            <HeaderContent>
+                                <MudTh>DB Source Key</MudTh>
+                                <MudTh>PDF Field</MudTh>
+                                <MudTh Style="width:48px;"></MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>
+                                    <MudText Typo="Typo.body2" Style="font-family:monospace; font-size:12px; color:#1B4F72;">
+                                        @context.ReportDestinationKey
+                                    </MudText>
+                                </MudTd>
+                                <MudTd>
+                                    <MudText Typo="Typo.body2" Style="font-family:monospace; font-size:12px; color:#7B4FBF;">
+                                        @context.PdfFieldName
+                                    </MudText>
+                                </MudTd>
+                                <MudTd>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                                   Size="Size.Small" Color="Color.Error"
+                                                   OnClick="@(() => RemoveMapping(context))" />
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    </MudCardContent>
+                </MudCard>
+            }
+        }
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+            Select a report card template above to begin mapping.
+        </MudAlert>
+    }
+}
+
+<style>
+    .mapping-node {
+        padding: 8px 12px;
+        margin-bottom: 6px;
+        border-radius: 8px;
+        border: 1.5px solid var(--mud-palette-divider);
+        background: var(--mud-palette-surface);
+        cursor: grab;
+        transition: all 0.15s ease;
+        user-select: none;
+    }
+    .mapping-node:hover {
+        border-color: var(--mud-palette-primary);
+        box-shadow: 0 2px 8px rgba(27,79,114,0.12);
+        transform: translateX(2px);
+    }
+    .src-node:hover  { border-color: #1B4F72; transform: translateX(3px); }
+    .dst-node:hover  { border-color: #7B4FBF; transform: translateX(-3px); }
+    .mapping-node.mapped {
+        border-color: #2E7D32;
+        background: rgba(46,125,50,0.04);
+    }
+    .mapping-node.dragging {
+        opacity: 0.5;
+        cursor: grabbing;
+    }
+    .mapping-node.drag-over {
+        border-color: #E67E22;
+        background: rgba(230,126,34,0.08);
+        box-shadow: 0 0 0 2px rgba(230,126,34,0.3);
+    }
+    .node-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+    .src-dot { background: #1B4F72; }
+    .dst-dot { background: #7B4FBF; }
+</style>
+
+@code {
+    // ── Models ────────────────────────────────────────────────────
+
+    private record SourceGroup(string Label, List<SourceField> Fields);
+    private record SourceField(string Key, string Label);
+    private record MappingEntry(string ReportDestinationKey, string PdfFieldName);
+    private record DragLine(double X1, double Y1, double X2, double Y2);
+
+    // ── State ─────────────────────────────────────────────────────
+
+    private bool _loading = true;
+    private bool _dirty   = false;
+
+    private List<ReportCardTemplate> _templates        = new();
+    private ReportCardTemplate?      _selectedTemplate = null;
+    private int?                     _selectedTemplateId = null;
+
+    private List<PdfFieldInfo>   _pdfFields  = new();
+    private List<MappingEntry>   _mappings   = new();
+    private List<SourceGroup>    _sourceGroups = new();
+
+    private string? _pdfSearch      = null;
+    private string? _dragSourceKey  = null;   // the key being dragged
+    private bool    _dragIsDst      = false;  // true if dragging from PDF side
+    private string? _dragTargetPdf  = null;
+    private DragLine? _dragLine     = null;
+
+    private IEnumerable<PdfFieldInfo> FilteredPdfFields =>
+        string.IsNullOrWhiteSpace(_pdfSearch)
+            ? _pdfFields
+            : _pdfFields.Where(f => f.Name.Contains(_pdfSearch, StringComparison.OrdinalIgnoreCase));
+
+    // ── Lifecycle ─────────────────────────────────────────────────
+
+    protected override async Task OnInitializedAsync()
+    {
+        _templates = await Db.ReportCardTemplates.OrderBy(t => t.Name).ToListAsync();
+        BuildSourceGroups();
+        _loading = false;
+    }
+
+    // ── Template selection ────────────────────────────────────────
+
+    private async Task OnTemplateChanged(int? id)
+    {
+        _selectedTemplateId = id;
+        _selectedTemplate   = _templates.FirstOrDefault(t => t.Id == id);
+        _pdfFields          = new();
+        _mappings           = new();
+        _dirty              = false;
+
+        if (_selectedTemplate == null) return;
+
+        // Read PDF fields
+        _pdfFields = PdfReader.GetFields(_selectedTemplate.FileName);
+
+        // Load saved mappings for this template
+        var saved = await Db.ReportTemplateFieldMaps
+            .Where(m => m.ReportCardTemplateId == id)
+            .ToListAsync();
+
+        _mappings = saved
+            .Select(m => new MappingEntry(m.ReportDestinationKey, m.PdfFieldName))
+            .ToList();
+    }
+
+    // ── Source group builder ──────────────────────────────────────
+
+    private void BuildSourceGroups()
+    {
+        _sourceGroups = new List<SourceGroup>
+        {
+            new("Student Info", new()
+            {
+                new(ReportDestinationKeys.StudentName,  "Student Full Name"),
+                new(ReportDestinationKeys.StudentOen,   "Student OEN"),
+                new(ReportDestinationKeys.StudentGrade, "Grade"),
+                new(ReportDestinationKeys.TeacherName,  "Teacher Name"),
+                new(ReportDestinationKeys.SchoolName,   "School Name"),
+                new(ReportDestinationKeys.SchoolBoard,  "School Board"),
+                new(ReportDestinationKeys.SchoolAddress,"School Address"),
+                new(ReportDestinationKeys.SchoolPhone,  "School Phone"),
+                new(ReportDestinationKeys.TermDate,     "Term Date"),
+            }),
+            new("Attendance", new()
+            {
+                new(ReportDestinationKeys.DaysAbsent,       "Days Absent (this term)"),
+                new(ReportDestinationKeys.TotalDaysAbsent,  "Total Days Absent"),
+                new(ReportDestinationKeys.TimesLate,        "Times Late (this term)"),
+                new(ReportDestinationKeys.TotalTimesLate,   "Total Times Late"),
+            }),
+            new("Learning Skills", new()
+            {
+                new(ReportDestinationKeys.Responsibility,     "Responsibility"),
+                new(ReportDestinationKeys.Organization,       "Organization"),
+                new(ReportDestinationKeys.IndependentWork,    "Independent Work"),
+                new(ReportDestinationKeys.Collaboration,      "Collaboration"),
+                new(ReportDestinationKeys.Initiative,         "Initiative"),
+                new(ReportDestinationKeys.SelfRegulation,     "Self-Regulation"),
+                new(ReportDestinationKeys.StrengthsNextSteps, "Strengths & Next Steps"),
+                // Two-term variants
+                new(ReportDestinationKeys.Responsibility  + ".term1", "Responsibility (Term 1)"),
+                new(ReportDestinationKeys.Responsibility  + ".term2", "Responsibility (Term 2)"),
+                new(ReportDestinationKeys.Organization    + ".term1", "Organization (Term 1)"),
+                new(ReportDestinationKeys.Organization    + ".term2", "Organization (Term 2)"),
+                new(ReportDestinationKeys.IndependentWork + ".term1", "Independent Work (Term 1)"),
+                new(ReportDestinationKeys.IndependentWork + ".term2", "Independent Work (Term 2)"),
+                new(ReportDestinationKeys.Collaboration   + ".term1", "Collaboration (Term 1)"),
+                new(ReportDestinationKeys.Collaboration   + ".term2", "Collaboration (Term 2)"),
+                new(ReportDestinationKeys.Initiative      + ".term1", "Initiative (Term 1)"),
+                new(ReportDestinationKeys.Initiative      + ".term2", "Initiative (Term 2)"),
+                new(ReportDestinationKeys.SelfRegulation  + ".term1", "Self-Regulation (Term 1)"),
+                new(ReportDestinationKeys.SelfRegulation  + ".term2", "Self-Regulation (Term 2)"),
+            }),
+            new("Subjects — Grade", new()
+            {
+                new(ReportDestinationKeys.Language            + ".term1", "Language (Term 1)"),
+                new(ReportDestinationKeys.Language            + ".term2", "Language (Term 2)"),
+                new(ReportDestinationKeys.LanguageNotes,                  "Language Notes"),
+                new(ReportDestinationKeys.French              + ".term1", "French (Term 1)"),
+                new(ReportDestinationKeys.French              + ".term2", "French (Term 2)"),
+                new(ReportDestinationKeys.NativeLanguage      + ".term1", "Native Language (Term 1)"),
+                new(ReportDestinationKeys.NativeLanguage      + ".term2", "Native Language (Term 2)"),
+                new(ReportDestinationKeys.Mathematics         + ".term1", "Mathematics (Term 1)"),
+                new(ReportDestinationKeys.Mathematics         + ".term2", "Mathematics (Term 2)"),
+                new(ReportDestinationKeys.MathematicsNotes,               "Mathematics Notes"),
+                new(ReportDestinationKeys.ScienceAndTech      + ".term1", "Science & Tech (Term 1)"),
+                new(ReportDestinationKeys.ScienceAndTech      + ".term2", "Science & Tech (Term 2)"),
+                new(ReportDestinationKeys.ScienceAndTechNotes,            "Science & Tech Notes"),
+                new(ReportDestinationKeys.SocialStudies       + ".term1", "Social Studies (Term 1)"),
+                new(ReportDestinationKeys.SocialStudies       + ".term2", "Social Studies (Term 2)"),
+                new(ReportDestinationKeys.SocialStudiesNotes,             "Social Studies Notes"),
+                new(ReportDestinationKeys.Health              + ".term1", "Health (Term 1)"),
+                new(ReportDestinationKeys.Health              + ".term2", "Health (Term 2)"),
+                new(ReportDestinationKeys.PhysEd              + ".term1", "Physical Education (Term 1)"),
+                new(ReportDestinationKeys.PhysEd              + ".term2", "Physical Education (Term 2)"),
+            }),
+            new("The Arts", new()
+            {
+                new(ReportDestinationKeys.Dance      + ".term1", "Dance (Term 1)"),
+                new(ReportDestinationKeys.Dance      + ".term2", "Dance (Term 2)"),
+                new(ReportDestinationKeys.Drama      + ".term1", "Drama (Term 1)"),
+                new(ReportDestinationKeys.Drama      + ".term2", "Drama (Term 2)"),
+                new(ReportDestinationKeys.Music      + ".term1", "Music (Term 1)"),
+                new(ReportDestinationKeys.Music      + ".term2", "Music (Term 2)"),
+                new(ReportDestinationKeys.VisualArts + ".term1", "Visual Arts (Term 1)"),
+                new(ReportDestinationKeys.VisualArts + ".term2", "Visual Arts (Term 2)"),
+                new(ReportDestinationKeys.TheArtsNotes,          "The Arts Notes"),
+            }),
+        };
+    }
+
+    // ── Drag and drop ─────────────────────────────────────────────
+
+    private void StartDrag(string key, bool isDst)
+    {
+        _dragSourceKey = key;
+        _dragIsDst     = isDst;
+    }
+
+    private void OnDragEnd()
+    {
+        _dragSourceKey = null;
+        _dragTargetPdf = null;
+        _dragLine      = null;
+    }
+
+    private void Drop(string targetKey, bool isDst)
+    {
+        if (_dragSourceKey == null) return;
+
+        string srcKey, dstKey;
+
+        if (!isDst && _dragIsDst)
+        {
+            // Dragged from PDF side → dropped on DB side
+            srcKey = targetKey;
+            dstKey = _dragSourceKey;
+        }
+        else if (isDst && !_dragIsDst)
+        {
+            // Dragged from DB side → dropped on PDF side
+            srcKey = _dragSourceKey;
+            dstKey = targetKey;
+        }
+        else if (!isDst && !_dragIsDst)
+        {
+            // Both DB side — ignore
+            OnDragEnd();
+            return;
+        }
+        else
+        {
+            // Both PDF side — ignore
+            OnDragEnd();
+            return;
+        }
+
+        // Remove any existing mapping for either endpoint
+        _mappings.RemoveAll(m => m.ReportDestinationKey == srcKey || m.PdfFieldName == dstKey);
+
+        _mappings.Add(new MappingEntry(srcKey, dstKey));
+        _dirty = true;
+        OnDragEnd();
+        StateHasChanged();
+    }
+
+    private void RemoveMapping(MappingEntry m)
+    {
+        _mappings.Remove(m);
+        _dirty = true;
+    }
+
+    // ── Save / Clear ──────────────────────────────────────────────
+
+    private async Task SaveMappingsAsync()
+    {
+        if (_selectedTemplate == null) return;
+
+        try
+        {
+            // Delete existing template-scoped maps
+            var existing = await Db.ReportTemplateFieldMaps
+                .Where(m => m.ReportCardTemplateId == _selectedTemplate.Id)
+                .ToListAsync();
+            Db.ReportTemplateFieldMaps.RemoveRange(existing);
+
+            // Insert new
+            foreach (var m in _mappings)
+            {
+                Db.ReportTemplateFieldMaps.Add(new ReportTemplateFieldMap
+                {
+                    ReportCardTemplateId = _selectedTemplate.Id,
+                    ReportDestinationKey = m.ReportDestinationKey,
+                    PdfFieldName         = m.PdfFieldName,
+                });
+            }
+
+            await Db.SaveChangesAsync();
+            _dirty = false;
+            Snackbar.Add($"{_mappings.Count} mappings saved for '{_selectedTemplate.Name}'.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Save failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ClearAllMappingsAsync()
+    {
+        if (_selectedTemplate == null) return;
+
+        var existing = await Db.ReportTemplateFieldMaps
+            .Where(m => m.ReportCardTemplateId == _selectedTemplate.Id)
+            .ToListAsync();
+        Db.ReportTemplateFieldMaps.RemoveRange(existing);
+        await Db.SaveChangesAsync();
+
+        _mappings.Clear();
+        _dirty = false;
+        Snackbar.Add("All mappings cleared.", Severity.Info);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────
+
+    private static string SanitizeId(string key)
+        => key.Replace(".", "_").Replace(" ", "_").Replace("/", "_");
+}
