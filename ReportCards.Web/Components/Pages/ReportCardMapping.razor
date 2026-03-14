@@ -206,10 +206,9 @@ else
                                             box-sizing: border-box;"
                                      title="@fieldTitle"
                                      ondragover="event.preventDefault()"
-                                     ondrop="event.preventDefault()"
                                      @ondragenter="@(() => _dragTargetPdf = f.Name)"
                                      @ondragleave="@(() => { if (_dragTargetPdf == f.Name) _dragTargetPdf = null; })"
-                                     @ondrop="@(() => DropOnPdfField(f.Name))"
+                                     @ondrop="@(async (DragEventArgs e) => await HandleDropAsync(f.Name))"
                                      @onclick="@(() => ClickPdfField(f.Name))">
                                     @if (isMapped && cssHeight > 14)
                                     {
@@ -370,10 +369,15 @@ else
         catch { }
     }
 
+    private Task HandleDropAsync(string pdfFieldName)
+    {
+        DropOnPdfField(pdfFieldName);
+        return Task.CompletedTask;
+    }
+
     private void DropOnPdfField(string pdfFieldName)
     {
         if (_dragSourceKey == null) return;
-        // Remove any existing mapping for either endpoint
         _mappings.RemoveAll(m => m.ReportDestinationKey == _dragSourceKey || m.PdfFieldName == pdfFieldName);
         _mappings.Add(new MappingEntry(_dragSourceKey, pdfFieldName));
         _dirty = true;
