@@ -632,11 +632,25 @@ else
         }
         else
         {
-            var segments = _rubricQuestions
+            var orderedQuestions = _rubricQuestions
+                .OrderBy(q => q.Segment ?? "")
+                .ThenBy(q => q.SortOrder)
+                .ToList();
+            var segments = orderedQuestions
                 .GroupBy(q => q.Segment ?? "")
                 .OrderBy(g => string.IsNullOrWhiteSpace(g.Key) ? "" : g.Key)
                 .ToList();
             var answeredCount = _rubricResponses.Count(r => r.Value != null);
+
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                <MudText Typo="Typo.caption">
+                    <strong>Keyboard shortcut:</strong> Press the first letter of an option to score and advance.
+                    Use <kbd style="background:#eee; border:1px solid #ccc; border-radius:3px; padding:0 4px;">Tab</kbd> /
+                    <kbd style="background:#eee; border:1px solid #ccc; border-radius:3px; padding:0 4px;">Shift+Tab</kbd> to move between questions.
+                </MudText>
+            </MudAlert>
+
+            <div @onkeydown="RubricKeyDown" tabindex="-1" id="rubric-questions-container">
             @foreach (var seg in segments)
             {
                 @if (!string.IsNullOrWhiteSpace(seg.Key))
@@ -656,9 +670,18 @@ else
                 <MudPaper Outlined="@(!string.IsNullOrWhiteSpace(seg.Key))" Class="@(!string.IsNullOrWhiteSpace(seg.Key) ? "pa-3 mb-2" : "")" Style="border-radius:8px;">
                 @foreach (var q in seg.OrderBy(x => x.SortOrder))
                 {
-                    var response = _rubricResponses.GetValueOrDefault(q.Id);
+                    var response  = _rubricResponses.GetValueOrDefault(q.Id);
                     var isAnswered = response != null;
-                    <div class="d-flex align-center gap-3 mb-3">
+                    var qIndex    = orderedQuestions.IndexOf(q);
+                    var isFocused = qIndex == _rubricFocusIndex;
+                    var rowStyle  = isFocused
+                        ? "border-radius:6px; background:rgba(27,79,114,0.06); outline:2px solid var(--mud-palette-primary); outline-offset:2px; padding:6px 8px; margin-bottom:8px;"
+                        : "padding:6px 8px; margin-bottom:8px;";
+
+                    <div class="d-flex align-center gap-3" style="@rowStyle"
+                         tabindex="0"
+                         id="rubric-q-@qIndex"
+                         @onfocus="@(() => _rubricFocusIndex = qIndex)">
                         <div style="flex:1; min-width:0;">
                             <div class="d-flex align-center gap-1">
                                 @if (isAnswered)
@@ -671,39 +694,55 @@ else
                                     <MudIcon Icon="@Icons.Material.Outlined.RadioButtonUnchecked"
                                              Style="color:var(--mud-palette-text-disabled); font-size:14px; flex-shrink:0;" />
                                 }
-                                <MudText Typo="Typo.body2" Style="font-weight:500;">@q.QuestionText</MudText>
+                                <MudText Typo="Typo.body2" Style="font-weight:@(isFocused ? "700" : "500"); color:@(isFocused ? "var(--mud-palette-primary)" : "inherit");">@q.QuestionText</MudText>
                             </div>
                         </div>
-                        <div style="width:200px; flex-shrink:0;">
-                            @if (q.GradingScale?.ValueType == GradingValueType.OptionList)
-                            {
-                                <MudSelect T="string?"
-                                           Value="@response"
-                                           ValueChanged="@((string? v) => _rubricResponses[q.Id] = v)"
-                                           Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense"
-                                           Clearable="true" Placeholder="Select…"
-                                           AnchorOrigin="Origin.BottomLeft">
-                                    @foreach (var opt in q.GradingScale.Options.OrderBy(o => o.SortOrder))
-                                    {
-                                        <MudSelectItem T="string?" Value="@opt.Label">
-                                            @(opt.Code != null ? $"{opt.Code} – {opt.Label}" : opt.Label)
-                                        </MudSelectItem>
-                                    }
-                                </MudSelect>
-                            }
-                            else
-                            {
+
+                        @* Option buttons — one per scale option *@
+                        @if (q.GradingScale?.ValueType == GradingValueType.OptionList)
+                        {
+                            <div class="d-flex gap-1" style="flex-shrink:0;">
+                                @foreach (var opt in q.GradingScale.Options.OrderBy(o => o.SortOrder))
+                                {
+                                    var isSelected = response == opt.Label;
+                                    var btnStyle = isSelected
+                                        ? "min-width:44px; height:34px; font-weight:700; font-size:13px;"
+                                        : "min-width:44px; height:34px; font-size:13px;";
+                                    var label = opt.Code ?? opt.Label;
+                                    if (label.Length > 4) label = label[..4]; // truncate long codes
+                                    <MudButton Variant="@(isSelected ? Variant.Filled : Variant.Outlined)"
+                                               Color="@(isSelected ? Color.Primary : Color.Default)"
+                                               Style="@btnStyle"
+                                               OnClick="@(() => { _rubricResponses[q.Id] = opt.Label; _rubricFocusIndex = Math.Min(qIndex + 1, orderedQuestions.Count - 1); StateHasChanged(); })">
+                                        @label
+                                    </MudButton>
+                                }
+                                @if (response != null)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.Clear"
+                                                   Size="Size.Small"
+                                                   Color="Color.Default"
+                                                   Style="opacity:0.5;"
+                                                   OnClick="@(() => { _rubricResponses[q.Id] = null; StateHasChanged(); })" />
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div style="width:180px; flex-shrink:0;">
                                 <MudTextField T="string?"
                                               Value="@response"
                                               ValueChanged="@((string? v) => _rubricResponses[q.Id] = v)"
                                               Variant="Variant.Outlined" Margin="Margin.Dense"
                                               Placeholder="Enter value" />
-                            }
-                        </div>
+                            </div>
+                        }
                     </div>
                 }
                 </MudPaper>
             }
+            </div>
+
             <div class="d-flex align-center justify-end mt-1 mb-2">
                 <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
                     @answeredCount / @_rubricQuestions.Count answered
@@ -1579,6 +1618,8 @@ else
     private GradeRow?                 _rubricTargetRow;
     private List<RubricQuestion>      _rubricQuestions  = new();
     private Dictionary<int, string?>  _rubricResponses  = new();
+    // Keyboard navigation
+    private int      _rubricFocusIndex     = 0;     // which question row has keyboard focus
     // Inline result panel state
     private string?  _rubricGeneratedText  = null;  // null = not yet generated
     private bool     _rubricIsGenerating   = false;
@@ -1594,6 +1635,7 @@ else
         _rubricSubjectScope     = subjectScope;
         _rubricTargetRow        = targetRow;
         _rubricResponses        = new();
+        _rubricFocusIndex       = 0;
         _rubricGeneratedText    = null;
         _rubricIsGenerating     = false;
         _rubricIsEditing        = false;
@@ -1641,6 +1683,78 @@ else
 
         _rubricDialogVisible = true;
         StateHasChanged();
+    }
+
+    private void RubricKeyDown(KeyboardEventArgs e)
+    {
+        if (!_rubricQuestions.Any()) return;
+
+        var orderedQuestions = _rubricQuestions
+            .OrderBy(q => q.Segment ?? "")
+            .ThenBy(q => q.SortOrder)
+            .ToList();
+
+        var q = orderedQuestions.ElementAtOrDefault(_rubricFocusIndex);
+        if (q == null) return;
+
+        // Tab / Shift+Tab — move focus
+        if (e.Key == "Tab")
+        {
+            // Tab is handled by browser focus natively, just update our index
+            _rubricFocusIndex = e.ShiftKey
+                ? Math.Max(0, _rubricFocusIndex - 1)
+                : Math.Min(orderedQuestions.Count - 1, _rubricFocusIndex + 1);
+            StateHasChanged();
+            return;
+        }
+
+        // Arrow keys — move focus
+        if (e.Key == "ArrowDown")
+        {
+            _rubricFocusIndex = Math.Min(orderedQuestions.Count - 1, _rubricFocusIndex + 1);
+            StateHasChanged();
+            return;
+        }
+        if (e.Key == "ArrowUp")
+        {
+            _rubricFocusIndex = Math.Max(0, _rubricFocusIndex - 1);
+            StateHasChanged();
+            return;
+        }
+
+        // Letter key — match to first option whose Code or Label starts with that letter
+        if (e.Key.Length == 1 && char.IsLetter(e.Key[0]) && !e.CtrlKey && !e.AltKey)
+        {
+            if (q.GradingScale?.ValueType != GradingValueType.OptionList) return;
+
+            var keyChar = e.Key.ToUpperInvariant()[0];
+            var options = q.GradingScale.Options.OrderBy(o => o.SortOrder).ToList();
+
+            // Match: Code first letter, then Label first letter
+            var match = options.FirstOrDefault(o =>
+                (o.Code?.ToUpperInvariant().TrimStart().FirstOrDefault() == keyChar) ||
+                (o.Label?.ToUpperInvariant().TrimStart().FirstOrDefault() == keyChar));
+
+            if (match != null)
+            {
+                _rubricResponses[q.Id] = match.Label;
+                // Advance to next unanswered question, or just next
+                var next = orderedQuestions
+                    .Skip(_rubricFocusIndex + 1)
+                    .FirstOrDefault(nq => !_rubricResponses.ContainsKey(nq.Id) || _rubricResponses[nq.Id] == null);
+                _rubricFocusIndex = next != null
+                    ? orderedQuestions.IndexOf(next)
+                    : Math.Min(orderedQuestions.Count - 1, _rubricFocusIndex + 1);
+                StateHasChanged();
+            }
+        }
+
+        // Backspace / Delete — clear current
+        if (e.Key is "Backspace" or "Delete")
+        {
+            _rubricResponses[q.Id] = null;
+            StateHasChanged();
+        }
     }
 
     private string BuildRubricPrompt(int attempt = 0)
