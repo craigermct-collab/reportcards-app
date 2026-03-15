@@ -297,17 +297,18 @@ else
                             <div class="d-flex align-center gap-2 mb-1">
                                 <MudText Typo="Typo.caption" Style="font-weight:700; color:#6B7A8D; text-transform:uppercase; letter-spacing:0.06em;">Strengths / Next Steps</MudText>
                                 <MudSpacer />
-                                <MudTooltip Text="Launch rubric assessment (all subjects)">
-                                    <MudButton Size="Size.Small"
-                                               Variant="Variant.Outlined"
-                                               Color="Color.Secondary"
-                                               StartIcon="@Icons.Material.Filled.Quiz"
-                                               Style="font-size:11px; text-transform:none; height:22px;"
-                                               @onclick:stopPropagation="true"
-                                               OnClick="@(() => OpenRubricAssessment(enrollment, state, null, null))">
-                                        Rubric
-                                    </MudButton>
-                                </MudTooltip>
+                                <div @onclick:stopPropagation="true">
+                                    <MudTooltip Text="Launch rubric assessment (all subjects)">
+                                        <MudButton Size="Size.Small"
+                                                   Variant="Variant.Outlined"
+                                                   Color="Color.Secondary"
+                                                   StartIcon="@Icons.Material.Filled.Quiz"
+                                                   Style="font-size:11px; text-transform:none; height:22px;"
+                                                   OnClick="@(() => OpenRubricAssessment(enrollment, state, null, null))">
+                                            Rubric
+                                        </MudButton>
+                                    </MudTooltip>
+                                </div>
                             </div>
                             <MudTextField T="string?" @bind-Value="ls.StrengthsNextSteps"
                                           Variant="Variant.Outlined" Margin="Margin.Dense"
@@ -338,17 +339,18 @@ else
                                 @if (state.IsKindergarten)
                                 {
                                     <MudSpacer />
-                                    <MudTooltip Text="Launch rubric assessment for this frame">
-                                        <MudButton Size="Size.Small"
-                                                   Variant="Variant.Outlined"
-                                                   Color="Color.Secondary"
-                                                   StartIcon="@Icons.Material.Filled.Quiz"
-                                                   Style="font-size:11px; text-transform:none; height:26px;"
-                                                   @onclick:stopPropagation="true"
-                                                   OnClick="@(() => OpenRubricAssessment(enrollment, state, subjectGroup.SubjectName, subjectGroup.Rows.FirstOrDefault()))">
-                                            Rubric
-                                        </MudButton>
-                                    </MudTooltip>
+                                    <div @onclick:stopPropagation="true">
+                                        <MudTooltip Text="Launch rubric assessment for this frame">
+                                            <MudButton Size="Size.Small"
+                                                       Variant="Variant.Outlined"
+                                                       Color="Color.Secondary"
+                                                       StartIcon="@Icons.Material.Filled.Quiz"
+                                                       Style="font-size:11px; text-transform:none; height:26px;"
+                                                       OnClick="@(() => OpenRubricAssessment(enrollment, state, subjectGroup.SubjectName, subjectGroup.Rows.FirstOrDefault()))">
+                                                Rubric
+                                            </MudButton>
+                                        </MudTooltip>
+                                    </div>
                                 }
                             </div>
 
