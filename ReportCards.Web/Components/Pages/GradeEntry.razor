@@ -230,8 +230,16 @@ else
                         <MudPaper Outlined="true" Class="pa-3 mb-4" Style="border-radius:8px;">
                             <div class="d-flex align-center gap-2 mb-2 px-1">
                                 <div style="flex:1;"></div>
-                                <MudText Typo="Typo.caption" Style="width:90px; text-align:center; font-weight:700; color:#6B7A8D;">TERM 1</MudText>
-                                <MudText Typo="Typo.caption" Style="width:90px; text-align:center; font-weight:700; color:#6B7A8D;">TERM 2</MudText>
+                                @{
+                                    var hdrSlot = _terms.FirstOrDefault(t => t.Id == _selectedTermId)?.ReportCardTermSlot
+                                                  ?? ReportCardTermSlot.NotApplicable;
+                                }
+                                <MudText Typo="Typo.caption" Style="width:90px; text-align:center; font-weight:700; color:@(hdrSlot == ReportCardTermSlot.Term1 || hdrSlot == ReportCardTermSlot.NotApplicable ? "#1B4F72" : "#B0BEC5");">
+                                    TERM 1@(hdrSlot == ReportCardTermSlot.Term1 ? " ✎" : "")
+                                </MudText>
+                                <MudText Typo="Typo.caption" Style="width:90px; text-align:center; font-weight:700; color:@(hdrSlot == ReportCardTermSlot.Term2 ? "#1B4F72" : "#B0BEC5");">
+                                    TERM 2@(hdrSlot == ReportCardTermSlot.Term2 ? " ✎" : "")
+                                </MudText>
                             </div>
                             @{
                                 var ls = state.LearningSkills!;
@@ -245,15 +253,22 @@ else
                                     (Label: "Self-Regulation", T1: ls.SelfRegulation_T1,  T1Set: (Action<string?>)(v => ls.SelfRegulation_T1  = v), T2: ls.SelfRegulation_T2,  T2Set: (Action<string?>)(v => ls.SelfRegulation_T2  = v)),
                                 };
                             }
+                            @{
+                                var currentSlot = _terms.FirstOrDefault(t => t.Id == _selectedTermId)?.ReportCardTermSlot
+                                                  ?? ReportCardTermSlot.NotApplicable;
+                                bool t1IsEditable = currentSlot == ReportCardTermSlot.Term1 || currentSlot == ReportCardTermSlot.NotApplicable;
+                                bool t2IsEditable = currentSlot == ReportCardTermSlot.Term2;
+                            }
                             @foreach (var skill in skillRows)
                             {
                                 <div class="d-flex align-center gap-2 mb-1 px-1">
                                     <MudText Typo="Typo.body2" Style="flex:1; font-weight:500;">@skill.Label</MudText>
-                                    <div style="width:90px;">
+                                    <div style="width:90px; @(t1IsEditable ? "" : "opacity:0.45;")">
                                         <MudSelect T="string?" Value="@skill.T1"
                                                    ValueChanged="@((string? v) => { skill.T1Set(v); _ = SaveLearningSkillsAsync(enrollment, state); })"
                                                    Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense"
-                                                   Clearable="true" AnchorOrigin="Origin.BottomLeft"
+                                                   Clearable="@t1IsEditable" ReadOnly="@(!t1IsEditable)"
+                                                   AnchorOrigin="Origin.BottomLeft"
                                                    @onclick:stopPropagation="true">
                                             @foreach (var opt in _egsnOptions)
                                             {
@@ -261,11 +276,12 @@ else
                                             }
                                         </MudSelect>
                                     </div>
-                                    <div style="width:90px;">
+                                    <div style="width:90px; @(t2IsEditable ? "" : "opacity:0.45;")">
                                         <MudSelect T="string?" Value="@skill.T2"
                                                    ValueChanged="@((string? v) => { skill.T2Set(v); _ = SaveLearningSkillsAsync(enrollment, state); })"
                                                    Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense"
-                                                   Clearable="true" AnchorOrigin="Origin.BottomLeft"
+                                                   Clearable="@t2IsEditable" ReadOnly="@(!t2IsEditable)"
+                                                   AnchorOrigin="Origin.BottomLeft"
                                                    @onclick:stopPropagation="true">
                                             @foreach (var opt in _egsnOptions)
                                             {
