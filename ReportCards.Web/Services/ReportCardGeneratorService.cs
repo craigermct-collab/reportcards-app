@@ -266,8 +266,31 @@ namespace ReportCards.Web.Services
                 }
                 else
                 {
-                    if (!mapByKey.TryGetValue(destKey, out var pdfField)) continue;
                     if (!currentAssessments.TryGetValue(li.Id, out var assess)) continue;
+
+                    // For Kindergarten, the dest key IS the notes field.
+                    // Write comment (and optionally grade) directly into the notes field.
+                    bool isKgNotesKey = destKey.StartsWith("kg.") && destKey.EndsWith(".notes");
+                    if (isKgNotesKey)
+                    {
+                        if (mapByKey.TryGetValue(destKey, out var kgNf))
+                        {
+                            if (!notesAccumulator.ContainsKey(kgNf))
+                                notesAccumulator[kgNf] = new List<string>();
+                            var kgLine = "";
+                            if (!string.IsNullOrWhiteSpace(assess.ValueText))
+                                kgLine = assess.ValueText.Trim();
+                            if (!string.IsNullOrWhiteSpace(assess.Comment))
+                                kgLine = string.IsNullOrWhiteSpace(kgLine)
+                                    ? assess.Comment.Trim()
+                                    : kgLine + "\n" + assess.Comment.Trim();
+                            if (!string.IsNullOrWhiteSpace(kgLine))
+                                notesAccumulator[kgNf].Add(kgLine);
+                        }
+                        continue;
+                    }
+
+                    if (!mapByKey.TryGetValue(destKey, out var pdfField)) continue;
 
                     var val = assess.ValueText ?? "";
                     if (IsRadioField(pdfField))
@@ -679,15 +702,23 @@ namespace ReportCards.Web.Services
         /// </summary>
         private static string? MapModifierToCheckboxKey(string destKey, string option)
         {
+            // For KG dest keys (e.g. kg.belonging.notes), strip the .notes suffix
+            // before appending the modifier suffix so we get kg.belonging.esl not kg.belonging.notes.esl
+            var baseKey = destKey.StartsWith("kg.") && destKey.EndsWith(".notes")
+                ? destKey[..^6]  // strip ".notes"
+                : destKey;
+
             var suffix = option.ToLowerInvariant().Trim() switch
             {
-                var o when o.Contains("esl") || o.Contains("eld") => ".esleld",
+                var o when o.Contains("esl") || o.Contains("eld") => ".esl",
                 var o when o.Contains("iep")                      => ".iep",
                 var o when o.Contains("french") || o == "f"       => ".french",
                 var o when o is "na" or "n/a" or "not applicable" => ".na",
                 _ => null
             };
-            return suffix == null ? null : destKey + suffix;
+            // For non-KG keys keep the old .esleld suffix for backward compat
+            if (!destKey.StartsWith("kg.") && suffix == ".esl") suffix = ".esleld";
+            return suffix == null ? null : baseKey + suffix;
         }
 
         /// <summary>
@@ -708,6 +739,8 @@ namespace ReportCards.Web.Services
         /// </summary>
         private static string? DeriveParentNotesKey(string destKey)
         {
+            // KG dest keys are already the notes field
+            if (destKey.StartsWith("kg.")) return destKey;
             if (destKey.EndsWith(".notes")) return destKey;
 
             // Arts subjects all share a single notes field
@@ -781,6 +814,14 @@ namespace ReportCards.Web.Services
 
         private static string? NormalizeToKey(string name) => name.ToLowerInvariant().Trim() switch
         {
+            // ── Kindergarten Four Frames ───────────────────────────────────
+            var n when n.Contains("belonging")                            => ReportDestinationKeys.KindergartenBelongingNotes,
+            var n when n.Contains("self-reg") || n.Contains("self reg")
+                    || n.Contains("well-being") || n.Contains("wellbeing") => ReportDestinationKeys.KindergartenSelfRegNotes,
+            var n when n.Contains("literacy") && n.Contains("math")       => ReportDestinationKeys.KindergartenLiteracyNotes,
+            var n when n.Contains("demonstrat")                           => ReportDestinationKeys.KindergartenLiteracyNotes,
+            var n when n.Contains("problem solv") || n.Contains("innovat") => ReportDestinationKeys.KindergartenProblemNotes,
+            // ── Elementary subjects ───────────────────────────────────────
             var n when n.Contains("language") && !n.Contains("native") && !n.Contains("french")
                                               => ReportDestinationKeys.Language,
             var n when n.Contains("native language") || n.Contains("native lang")
