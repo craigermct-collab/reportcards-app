@@ -1,23 +1,60 @@
 // ── Text-to-Speech ────────────────────────────────────────────────────────────
 
 window.assistantTts = {
+
+    _selectedVoiceName: localStorage.getItem("asst_voice") || null,
+
     speak: function (text) {
         if (!window.speechSynthesis) return;
         window.speechSynthesis.cancel();
         const utt = new SpeechSynthesisUtterance(text);
         utt.rate  = 1.05;
         utt.pitch = 1.0;
+
         const voices = window.speechSynthesis.getVoices();
-        const preferred = voices.find(v =>
-            v.name.includes("Google") || v.name.includes("Samantha") || v.name.includes("Karen")
-        );
-        if (preferred) utt.voice = preferred;
+
+        if (this._selectedVoiceName) {
+            const saved = voices.find(v => v.name === this._selectedVoiceName);
+            if (saved) utt.voice = saved;
+        } else {
+            // sensible default: prefer natural-sounding English voices
+            const preferred = voices.find(v =>
+                v.name.includes("Google") || v.name.includes("Samantha") || v.name.includes("Karen")
+            );
+            if (preferred) utt.voice = preferred;
+        }
+
         window.speechSynthesis.speak(utt);
     },
+
     stop: function () {
         if (window.speechSynthesis) window.speechSynthesis.cancel();
+    },
+
+    setVoice: function (voiceName) {
+        this._selectedVoiceName = voiceName || null;
+        if (voiceName) localStorage.setItem("asst_voice", voiceName);
+        else           localStorage.removeItem("asst_voice");
+    },
+
+    getVoices: function () {
+        if (!window.speechSynthesis) return [];
+        return window.speechSynthesis.getVoices()
+            .filter(v => v.lang.startsWith("en"))
+            .map(v => ({ name: v.name, lang: v.lang, local: v.localService }));
+    },
+
+    getSelectedVoice: function () {
+        return this._selectedVoiceName;
     }
 };
+
+// Voices load async in some browsers — re-expose when ready
+if (window.speechSynthesis) {
+    window.speechSynthesis.onvoiceschanged = function () {
+        // voices are now available; nothing extra needed
+    };
+}
 
 // ── Speech-to-Text ────────────────────────────────────────────────────────────
 

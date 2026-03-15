@@ -6,6 +6,7 @@
 @inject SchoolDbContext Db
 @inject ISnackbar Snackbar
 @inject IWebHostEnvironment Env
+@using Microsoft.AspNetCore.Components.Forms
 
 <div class="d-flex align-center gap-3 mb-1">
     <MudIcon Icon="@Icons.Material.Filled.Description"
@@ -256,28 +257,60 @@ else
            Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true })">
     <TitleContent><MudText Typo="Typo.h6">Register PDF Template</MudText></TitleContent>
     <DialogContent>
-        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
-            Place your PDF in <code>ReportCardTemplates/</code> on the server first.
-        </MudAlert>
+        <!-- File Upload -->
+        <MudText Typo="Typo.subtitle2" Class="mb-1">Upload PDF File</MudText>
+        <MudFileUpload T="IBrowserFile" Accept=".pdf" FilesChanged="HandleFileUploadAsync" MaximumFileCount="1">
+            <ActivatorContent>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.UploadFile"
+                           FullWidth="true" Class="mb-2">
+                    Choose PDF…
+                </MudButton>
+            </ActivatorContent>
+        </MudFileUpload>
+        @if (_uploadedFileName is not null)
+        {
+            <MudAlert Severity="@(_uploadError != null ? Severity.Error : Severity.Success)"
+                      Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                @if (_uploadError != null)
+                {
+                    <span>Upload failed: @_uploadError</span>
+                }
+                else
+                {
+                    <span>✓ Uploaded: <strong>@_uploadedFileName</strong></span>
+                }
+            </MudAlert>
+        }
+        else
+        {
+            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);" Class="mb-3 d-block">
+                Upload a fillable PDF — it will be saved to the server automatically.
+            </MudText>
+        }
+
+        <MudDivider Class="mb-3" />
+
         <MudTextField @bind-Value="_newName" Label="Display Name"
                       Placeholder="e.g. Elementary Progress Report 2025"
                       Variant="Variant.Outlined" Class="mb-3" FullWidth="true" />
         <MudTextField @bind-Value="_newFileName" Label="File Name"
                       Placeholder="e.g. progress-report.pdf"
                       Variant="Variant.Outlined" Class="mb-3" FullWidth="true"
-                      HelperText="Filename only — must exist in ReportCardTemplates/ folder" />
+                      HelperText="Auto-filled from upload, or enter manually" />
         <MudSelect T="ReportCardTemplateType" @bind-Value="_newTemplateType"
-                   Label="Template Type" Variant="Variant.Outlined" FullWidth="true">
+                   Label="Generation Mode" Variant="Variant.Outlined" FullWidth="true"
+                   HelperText="Controls how data is written into this PDF — single column vs two-term columns">
             <MudSelectItem T="ReportCardTemplateType" Value="ReportCardTemplateType.ElementaryProgressReport">
-                Elementary Progress Report (single-term, fall)
+                Single-Term (Progress Report) — one grade column per subject
             </MudSelectItem>
             <MudSelectItem T="ReportCardTemplateType" Value="ReportCardTemplateType.ElementaryReportCard">
-                Elementary Report Card (two-term, winter/spring)
+                Two-Term (Report Card) — Term 1 &amp; Term 2 columns side by side
             </MudSelectItem>
         </MudSelect>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="@(() => _addTemplateOpen = false)">Cancel</MudButton>
+        <MudButton OnClick="@CloseDialog">Cancel</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                    Disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newFileName))"
                    OnClick="AddTemplateAsync">Register</MudButton>
@@ -295,6 +328,8 @@ else
     private string                 _newName         = "";
     private string                 _newFileName     = "";
     private ReportCardTemplateType _newTemplateType = ReportCardTemplateType.ElementaryProgressReport;
+    private string?                _uploadedFileName;
+    private string?                _uploadError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -399,6 +434,55 @@ else
         catch (Exception ex) { Snackbar.Add($"Seed failed: {ex.Message}", Severity.Error); }
     }
 
+    private async Task HandleFileUploadAsync(IBrowserFile file)
+    {
+        _uploadError    = null;
+        _uploadedFileName = null;
+
+        if (!file.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            _uploadError = "Only PDF files are supported.";
+            return;
+        }
+
+        try
+        {
+            var folder = Path.Combine(Env.ContentRootPath, "ReportCardTemplates");
+            Directory.CreateDirectory(folder);
+            var filePath = Path.Combine(folder, file.Name);
+
+            await using var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write);
+            await using var stream = file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024); // 20 MB max
+            await stream.CopyToAsync(fs);
+
+            _uploadedFileName = file.Name;
+            _newFileName      = file.Name;
+
+            // Auto-populate display name from filename if not yet set
+            if (string.IsNullOrWhiteSpace(_newName))
+                _newName = Path.GetFileNameWithoutExtension(file.Name)
+                               .Replace("-", " ")
+                               .Replace("_", " ");
+        }
+        catch (Exception ex)
+        {
+            _uploadError = ex.Message;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private void CloseDialog()
+    {
+        _addTemplateOpen  = false;
+        _newName          = "";
+        _newFileName      = "";
+        _uploadedFileName = null;
+        _uploadError      = null;
+    }
+
     private async Task AddTemplateAsync()
     {
         if (string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newFileName)) return;
@@ -408,8 +492,7 @@ else
             TemplateType = _newTemplateType, CreatedAt = DateTimeOffset.UtcNow,
         });
         await Db.SaveChangesAsync();
-        _addTemplateOpen = false;
-        _newName = _newFileName = "";
+        CloseDialog();
         Snackbar.Add("Template registered.", Severity.Success);
         await LoadAsync();
     }
