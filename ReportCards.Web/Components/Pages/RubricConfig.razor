@@ -48,11 +48,18 @@ else
                     </div>
                 </CardHeaderContent>
                 <CardHeaderActions>
-                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
-                               StartIcon="@Icons.Material.Filled.Add"
-                               OnClick="@(() => OpenAddQuestion(cgt))">
-                        Add Question
-                    </MudButton>
+                    <div class="d-flex gap-2">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Default" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Upload"
+                                   OnClick="@(() => OpenImportDialog(cgt))">
+                            Import
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="@(() => OpenAddQuestion(cgt))">
+                            Add Question
+                        </MudButton>
+                    </div>
                 </CardHeaderActions>
             </MudCardHeader>
             <MudCardContent Class="pa-0">
@@ -126,6 +133,120 @@ else
         </MudCard>
     }
 }
+
+<!-- ══ IMPORT DIALOG ═══════════════════════════════════════════════ -->
+<MudDialog @bind-Visible="_importDialogOpen"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true })">
+    <TitleContent>
+        <div>
+            <MudText Typo="Typo.h6">Import Questions</MudText>
+            @if (_importClassGroupType != null)
+            {
+                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                    @_importClassGroupType.Name
+                </MudText>
+            }
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudRadioGroup T="string" @bind-Value="_importFormat" Class="mb-3">
+            <MudRadio T="string" Value="@("simple")" Color="Color.Primary">
+                <MudText Typo="Typo.body2" Style="font-weight:600;">Simple — one question per line</MudText>
+            </MudRadio>
+            <MudRadio T="string" Value="@("csv")" Color="Color.Primary">
+                <MudText Typo="Typo.body2" Style="font-weight:600;">CSV — Question, Segment, Subject Scope</MudText>
+            </MudRadio>
+        </MudRadioGroup>
+
+        @if (_importFormat == "simple")
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                <MudText Typo="Typo.caption">
+                    One question per line. All questions get the grading scale you select below.
+                    You can edit individual questions afterward to change their scale, segment, or scope.
+                </MudText>
+            </MudAlert>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                <MudText Typo="Typo.caption">
+                    <strong>Format:</strong> <code>Question, Segment, Subject Scope</code><br />
+                    Segment and Subject Scope are optional — leave them blank to skip.<br />
+                    <strong>Example:</strong> <code>Does the student share materials?, Social Skills, Belonging and Contributing</code>
+                </MudText>
+            </MudAlert>
+        }
+
+        <MudTextField @bind-Value="_importText"
+                      Label="Paste your questions here"
+                      Variant="Variant.Outlined"
+                      Lines="10"
+                      FullWidth="true"
+                      Class="mb-3"
+                      Placeholder="@(_importFormat == "simple"
+                          ? "Does the student share materials with classmates?\nDoes the student follow classroom routines?\nDoes the student participate in group activities?"
+                          : "Does the student share materials?, Social Skills, Belonging and Contributing\nCan the student count to 20?, Numeracy, Demonstrating Literacy and Mathematics")" />
+
+        <MudSelect T="int?" @bind-Value="_importGradingScaleId"
+                   Label="Default Grading Scale"
+                   HelperText="Applied to all imported questions — can be changed individually afterward"
+                   Variant="Variant.Outlined" FullWidth="true" Class="mb-3"
+                   AnchorOrigin="Origin.BottomLeft">
+            @foreach (var scale in _scales)
+            {
+                <MudSelectItem T="int?" Value="@((int?)scale.Id)">@scale.Name</MudSelectItem>
+            }
+        </MudSelect>
+
+        @if (_importPreview.Any())
+        {
+            <MudDivider Class="mb-2" />
+            <MudText Typo="Typo.subtitle2" Class="mb-2" Style="color:var(--mud-palette-success-default);">
+                ✅ @_importPreview.Count question@(_importPreview.Count != 1 ? "s" : "") ready to import
+            </MudText>
+            <div style="max-height:180px; overflow-y:auto; display:flex; flex-direction:column; gap:4px;">
+                @foreach (var (q, seg, scope) in _importPreview)
+                {
+                    <div class="d-flex align-center gap-2 px-2 py-1"
+                         style="border-radius:6px; background:var(--mud-palette-background-grey);">
+                        <MudText Typo="Typo.body2" Style="flex:1; font-size:12px;">@q</MudText>
+                        @if (!string.IsNullOrWhiteSpace(seg))
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled"
+                                     Style="font-size:10px; height:18px;">@seg</MudChip>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(scope))
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined"
+                                     Style="font-size:10px; height:18px;">@scope</MudChip>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else if (_importParseError != null)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">
+                @_importParseError
+            </MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _importDialogOpen = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                   Disabled="@(string.IsNullOrWhiteSpace(_importText) || _importGradingScaleId == null)"
+                   OnClick="PreviewImport">
+            Preview
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Upload"
+                   Disabled="@(!_importPreview.Any() || _importGradingScaleId == null)"
+                   OnClick="ExecuteImportAsync">
+            Import @(_importPreview.Any() ? $"{_importPreview.Count} Questions" : "")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
 
 <!-- ══ ADD / EDIT QUESTION DIALOG ════════════════════════════════ -->
 <MudDialog @bind-Visible="_questionDialogOpen"
@@ -294,5 +415,130 @@ else
         await Db.SaveChangesAsync();
         Snackbar.Add("Question deleted.", Severity.Info);
         await LoadAsync();
+    }
+
+    // ── IMPORT ────────────────────────────────────────────────────
+
+    private bool             _importDialogOpen;
+    private ClassGroupType?  _importClassGroupType;
+    private string           _importFormat         = "simple";
+    private string           _importText           = "";
+    private int?             _importGradingScaleId;
+    private string?          _importParseError;
+    private List<(string Question, string? Segment, string? Scope)> _importPreview = new();
+
+    private void OpenImportDialog(ClassGroupType cgt)
+    {
+        _importClassGroupType = cgt;
+        _importFormat         = "simple";
+        _importText           = "";
+        _importGradingScaleId = null;
+        _importPreview        = new();
+        _importParseError     = null;
+        _importDialogOpen     = true;
+    }
+
+    private void PreviewImport()
+    {
+        _importParseError = null;
+        _importPreview    = new();
+
+        var lines = _importText
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(l => l.Trim())
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .ToList();
+
+        if (!lines.Any())
+        {
+            _importParseError = "No questions found. Paste at least one question.";
+            return;
+        }
+
+        foreach (var line in lines)
+        {
+            if (_importFormat == "csv")
+            {
+                // Split on comma but respect quoted fields
+                var parts = SplitCsvLine(line);
+                var question = parts.ElementAtOrDefault(0)?.Trim() ?? "";
+                var segment  = parts.ElementAtOrDefault(1)?.Trim();
+                var scope    = parts.ElementAtOrDefault(2)?.Trim();
+                if (!string.IsNullOrWhiteSpace(question))
+                    _importPreview.Add((question,
+                        string.IsNullOrWhiteSpace(segment) ? null : segment,
+                        string.IsNullOrWhiteSpace(scope)   ? null : scope));
+            }
+            else
+            {
+                _importPreview.Add((line, null, null));
+            }
+        }
+
+        if (!_importPreview.Any())
+            _importParseError = "Could not parse any questions from the input. Check your format.";
+    }
+
+    private async Task ExecuteImportAsync()
+    {
+        if (!_importPreview.Any() || _importGradingScaleId == null || _importClassGroupType == null) return;
+
+        // Ensure template exists
+        var template = _templates.FirstOrDefault(t => t.ClassGroupTypeId == _importClassGroupType.Id);
+        if (template == null)
+        {
+            template = new RubricTemplate
+            {
+                Name             = $"{_importClassGroupType.Name} Assessment Rubric",
+                ClassGroupTypeId = _importClassGroupType.Id,
+                UpdatedAt        = DateTimeOffset.UtcNow,
+            };
+            Db.RubricTemplates.Add(template);
+            await Db.SaveChangesAsync();
+            _templates.Add(template);
+        }
+
+        // Start sort order after existing questions
+        var existingMax = _questions
+            .Where(q => q.RubricTemplateId == template.Id)
+            .Select(q => q.SortOrder)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        var sortOrder = existingMax + 10;
+        foreach (var (question, segment, scope) in _importPreview)
+        {
+            Db.RubricQuestions.Add(new RubricQuestion
+            {
+                QuestionText     = question,
+                Segment          = segment,
+                SubjectScope     = scope,
+                GradingScaleId   = _importGradingScaleId.Value,
+                SortOrder        = sortOrder,
+                RubricTemplateId = template.Id,
+            });
+            sortOrder += 10;
+        }
+
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"{_importPreview.Count} question{(_importPreview.Count != 1 ? "s" : "")} imported.", Severity.Success);
+        _importDialogOpen = false;
+        await LoadAsync();
+    }
+
+    /// <summary>Splits a CSV line respecting double-quoted fields.</summary>
+    private static List<string> SplitCsvLine(string line)
+    {
+        var result = new List<string>();
+        var current = new System.Text.StringBuilder();
+        bool inQuotes = false;
+        foreach (var c in line)
+        {
+            if (c == '"') { inQuotes = !inQuotes; }
+            else if (c == ',' && !inQuotes) { result.Add(current.ToString()); current.Clear(); }
+            else { current.Append(c); }
+        }
+        result.Add(current.ToString());
+        return result;
     }
 }
