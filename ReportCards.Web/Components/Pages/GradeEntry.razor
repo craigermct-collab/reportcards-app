@@ -434,6 +434,14 @@ else
                                             }
                                         </div>
                                         <div style="flex:1.4; min-width:0;">
+                                            @{
+                                                var charLimit = CommentCharLimits.ForSubject(subjectGroup.SubjectName);
+                                                var charCount = row.Comment?.Length ?? 0;
+                                                var isOver    = charCount > charLimit;
+                                                var isWarning = charCount > (int)(charLimit * 0.90) && !isOver;
+                                                var counterColor = isOver ? "#C0392B" : isWarning ? "#D4AC0D" : "var(--mud-palette-text-secondary)";
+                                                var counterStyle = $"font-size:10px; font-family:monospace; color:{counterColor}; white-space:nowrap;";
+                                            }
                                             <div class="d-flex align-center gap-1">
                                                 <MudTextField T="string?"
                                                               @bind-Value="row.Comment"
@@ -461,6 +469,14 @@ else
                                                                        OnClick="@(() => OpenCommentAssistant(enrollment, row, subjectGroup.SubjectName))" />
                                                     </MudTooltip>
                                                 </div>
+                                            </div>
+                                            <div class="d-flex justify-end mt-1" @onclick:stopPropagation="true">
+                                                <MudTooltip Text="@($"PDF field limit: {charLimit} characters")">
+                                                    <span style="@counterStyle">
+                                                        @charCount / @charLimit
+                                                        @if (isOver) { <span> ⚠ over limit</span> }
+                                                    </span>
+                                                </MudTooltip>
                                             </div>
                                         </div>
                                         <div style="width:32px; flex-shrink:0; text-align:center;">
@@ -1310,6 +1326,7 @@ else
         var student    = enrollment.Student;
         var gradeLabel = enrollment.Grade?.Name;
         var term       = _terms.FirstOrDefault(t => t.Id == _selectedTermId);
+        var charLimit  = CommentCharLimits.ForSubject(subjectName);
 
         AssistantCtx.SetContext(
             new AssistantContext
@@ -1323,9 +1340,10 @@ else
                 Subject          = subjectName,
                 Term             = term != null ? $"{term.SchoolYear?.Name} – {term.Name}" : null,
                 CurrentText      = string.IsNullOrWhiteSpace(row.Comment) ? null : row.Comment,
+                CommentCharLimit = charLimit,
                 SuggestedPrompt  = string.IsNullOrWhiteSpace(row.Comment)
-                    ? $"Write a report card comment for {student?.FirstName} in {subjectName}"
-                    : "Improve this comment",
+                    ? $"Write a report card comment for {student?.FirstName} in {subjectName} (max {charLimit} characters)"
+                    : $"Improve this comment (must fit in {charLimit} characters)",
             },
             // Callback: teacher clicks “Use this comment” in the drawer
             onCommentAccepted: text =>

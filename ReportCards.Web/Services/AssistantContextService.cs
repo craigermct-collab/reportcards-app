@@ -25,6 +25,8 @@ public class AssistantContext
     public string? CurrentText { get; set; }
     public Dictionary<string, string> Extra { get; set; } = new();
     public string? SuggestedPrompt { get; set; }
+    /// <summary>Character limit for the comment field (0 = no limit).</summary>
+    public int CommentCharLimit { get; set; }
 }
 
 /// <summary>
@@ -78,6 +80,14 @@ public class AssistantContextService
 
         foreach (var kv in _current.Extra)
             sb.AppendLine($"{kv.Key}: {kv.Value}");
+
+        if (_current.CommentCharLimit > 0)
+        {
+            sb.AppendLine($"Comment character limit: {_current.CommentCharLimit} characters");
+            sb.AppendLine($"IMPORTANT: Your comment MUST fit within {_current.CommentCharLimit} characters. " +
+                          $"Aim for {(int)(_current.CommentCharLimit * 0.90)} characters or fewer to be safe. " +
+                          $"Count carefully before responding.");
+        }
 
         sb.AppendLine();
         sb.AppendLine("Tailor your response to this context. If the teacher is editing a comment, " +

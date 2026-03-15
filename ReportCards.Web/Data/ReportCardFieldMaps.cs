@@ -134,6 +134,50 @@ public static class ReportDestinationKeys
     public const string VisualArtsNa            = "subject.visualArts.na";
 }
 
+/// <summary>
+/// Safe character limits per PDF comment field, calculated from actual PDF field dimensions.
+/// Based on Helv 9pt font: ~5.2pt/char width, ~11pt line height, with 10% safety margin.
+/// </summary>
+public static class CommentCharLimits
+{
+    // ── Kindergarten Four Frames ─────────────────────────────────────
+    public const int KgBelonging  = 1555; // BelAndConNotes:      563x176pt  = 16L x 108C
+    public const int KgSelfReg    = 1458; // SelfRegAndWellNotes: 563x171pt  = 15L x 108C
+    public const int KgLiteracy   = 1360; // LitAndMathNotes:     563x163pt  = 14L x 108C
+    public const int KgProblem    = 1360; // ProbAndInnNotes:     563x163pt  = 14L x 108C
+
+    // ── Elementary Report Card Notes Fields ──────────────────────────
+    public const int ElementaryLanguage      = 782;  // LanguageNotes:      413x122pt = 11L x 79C
+    public const int ElementaryFrench        = 853;  // FrenchNotes:        413x140pt = 12L x 79C
+    public const int ElementaryNativeLang    = 782;  // NativeLanguageNotes
+    public const int ElementaryMath          = 782;  // MathematicsNotes
+    public const int ElementarySciTech       = 782;  // ScienceAndTechNotes
+    public const int ElementarySocialStudies = 853;  // SocialStudiesNotes
+    public const int ElementaryHealthPhysEd  = 853;  // HealthPhysEdNotes
+    public const int ElementaryArts          = 853;  // TheArtsNotes
+    public const int ElementaryDefault       = 782;  // fallback
+
+    /// <summary>Returns the char limit for a given subject name, or the default if not found.</summary>
+    public static int ForSubject(string subjectName) =>
+        subjectName.ToLowerInvariant() switch
+        {
+            var n when n.Contains("belonging")                             => KgBelonging,
+            var n when n.Contains("self-reg") || n.Contains("well-being")  => KgSelfReg,
+            var n when n.Contains("literacy") || n.Contains("demonstrat")  => KgLiteracy,
+            var n when n.Contains("problem")  || n.Contains("innovat")     => KgProblem,
+            var n when n.Contains("french")                                => ElementaryFrench,
+            var n when n.Contains("language") && n.Contains("native")      => ElementaryNativeLang,
+            var n when n.Contains("language")                              => ElementaryLanguage,
+            var n when n.Contains("math")                                  => ElementaryMath,
+            var n when n.Contains("science")                               => ElementarySciTech,
+            var n when n.Contains("social")                                => ElementarySocialStudies,
+            var n when n.Contains("health") || n.Contains("physical")      => ElementaryHealthPhysEd,
+            var n when n.Contains("art")  || n.Contains("dance")
+                    || n.Contains("music") || n.Contains("drama")          => ElementaryArts,
+            _ => ElementaryDefault
+        };
+}
+
 public static class ReportCardFieldMapSeeder
 {
     /// <summary>
