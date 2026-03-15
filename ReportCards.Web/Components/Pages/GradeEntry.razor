@@ -231,15 +231,15 @@ else
                             <div class="d-flex align-center gap-2 mb-2 px-1">
                                 <div style="flex:1;"></div>
                                 @{
-                                    var hdrSlot = _terms.FirstOrDefault(t => t.Id == _selectedTermId)?.ReportCardTermSlot
-                                                  ?? ReportCardTermSlot.NotApplicable;
+                                    var hdrSlot   = _terms.FirstOrDefault(t => t.Id == _selectedTermId)?.ReportCardTermSlot ?? ReportCardTermSlot.NotApplicable;
+                                    var t1Active  = hdrSlot == ReportCardTermSlot.Term1 || hdrSlot == ReportCardTermSlot.NotApplicable;
+                                    var t1HdrStyle = $"width:90px; text-align:center; font-weight:700; color:{(t1Active ? "#1B4F72" : "#B0BEC5")}";
+                                    var t2HdrStyle = $"width:90px; text-align:center; font-weight:700; color:{(hdrSlot == ReportCardTermSlot.Term2 ? "#1B4F72" : "#B0BEC5")}";
+                                    var t1Label   = t1Active ? "TERM 1 ✎" : "TERM 1";
+                                    var t2Label   = hdrSlot == ReportCardTermSlot.Term2 ? "TERM 2 ✎" : "TERM 2";
                                 }
-                                <MudText Typo="Typo.caption" Style="width:90px; text-align:center; font-weight:700; color:@(hdrSlot == ReportCardTermSlot.Term1 || hdrSlot == ReportCardTermSlot.NotApplicable ? "#1B4F72" : "#B0BEC5");">
-                                    TERM 1@(hdrSlot == ReportCardTermSlot.Term1 ? " ✎" : "")
-                                </MudText>
-                                <MudText Typo="Typo.caption" Style="width:90px; text-align:center; font-weight:700; color:@(hdrSlot == ReportCardTermSlot.Term2 ? "#1B4F72" : "#B0BEC5");">
-                                    TERM 2@(hdrSlot == ReportCardTermSlot.Term2 ? " ✎" : "")
-                                </MudText>
+                                <MudText Typo="Typo.caption" Style="@t1HdrStyle">@t1Label</MudText>
+                                <MudText Typo="Typo.caption" Style="@t2HdrStyle">@t2Label</MudText>
                             </div>
                             @{
                                 var ls = state.LearningSkills!;
