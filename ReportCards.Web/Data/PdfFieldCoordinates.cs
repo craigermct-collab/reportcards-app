@@ -211,7 +211,7 @@ public static class PdfFieldCoordinates
     {
         if (fileName.Equals("elementary-report-card.pdf", StringComparison.OrdinalIgnoreCase))
             return ElementaryReportCard;
-        if (fileName.Equals("KindergartenCommunicationofLearning.pdf", StringComparison.OrdinalIgnoreCase))
+        if (fileName.StartsWith("Kindergarten", StringComparison.OrdinalIgnoreCase))
             return KindergartenCommunicationOfLearning;
         return new();
     }

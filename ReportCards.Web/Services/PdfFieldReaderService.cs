@@ -105,8 +105,8 @@ public class PdfFieldReaderService
         // grouped by their actual page in the PDF.
         // PdfSharp's AcroForm field tree only returns ~56; the rest are widget
         // annotations not linked into the /Fields array.
-        // Kindergarten Communication of Learning
-        if (fileName.Equals("KindergartenCommunicationofLearning.pdf", StringComparison.OrdinalIgnoreCase))
+        // Kindergarten Communication of Learning — matches any Kindergarten PDF filename
+        if (fileName.StartsWith("Kindergarten", StringComparison.OrdinalIgnoreCase))
         {
             // All fields verified via full widget annotation scan (pypdf)
             // Text fields
