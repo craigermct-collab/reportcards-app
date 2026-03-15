@@ -241,7 +241,7 @@ else
         </MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                    StartIcon="@Icons.Material.Filled.Upload"
-                   Disabled="@(!_importPreview.Any() || _importGradingScaleId == null)"
+                   Disabled="@(string.IsNullOrWhiteSpace(_importText) || _importGradingScaleId == null)"
                    OnClick="ExecuteImportAsync">
             Import @(_importPreview.Any() ? $"{_importPreview.Count} Questions" : "")
         </MudButton>
@@ -501,6 +501,10 @@ else
 
     private async Task ExecuteImportAsync()
     {
+        // Auto-preview if not done yet
+        if (!_importPreview.Any())
+            PreviewImport();
+
         if (!_importPreview.Any() || _importGradingScaleId == null || _importClassGroupType == null) return;
 
         // Ensure template exists
