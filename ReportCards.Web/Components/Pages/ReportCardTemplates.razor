@@ -94,6 +94,8 @@ else
                             </MudText>
                         </MudTd>
                         <MudTd Style="text-align:right;">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                           Color="Color.Primary" OnClick="@(() => OpenEditDialog(context))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
                                            Color="Color.Error" OnClick="@(() => DeleteTemplateAsync(context))" />
                         </MudTd>
@@ -253,13 +255,77 @@ else
     </MudCard>
 }
 
+<!-- ══ EDIT TEMPLATE DIALOG ══════════════════════════════════════════ -->
+<MudDialog @bind-Visible="_editTemplateOpen"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true })">
+    <TitleContent><MudText Typo="Typo.h6">Edit Template</MudText></TitleContent>
+    <DialogContent>
+        <!-- Optional PDF re-upload -->
+        <MudText Typo="Typo.subtitle2" Class="mb-1">Replace PDF File (optional)</MudText>
+        <MudFileUpload T="IBrowserFile" Accept=".pdf" OnFilesChanged="HandleEditFileSelectedAsync" MaximumFileCount="1">
+            <ActivatorContent>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.UploadFile"
+                           FullWidth="true" Class="mb-2">
+                    Choose PDF…
+                </MudButton>
+            </ActivatorContent>
+        </MudFileUpload>
+        @if (_editUploadedFileName is not null)
+        {
+            <MudAlert Severity="@(_editUploadError != null ? Severity.Error : Severity.Success)"
+                      Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                @if (_editUploadError != null)
+                {
+                    <span>Upload failed: @_editUploadError</span>
+                }
+                else
+                {
+                    <span>✓ Replaced with: <strong>@_editUploadedFileName</strong></span>
+                }
+            </MudAlert>
+        }
+        else
+        {
+            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);" Class="mb-3 d-block">
+                Leave blank to keep the existing file on the server.
+            </MudText>
+        }
+
+        <MudDivider Class="mb-3" />
+
+        <MudTextField @bind-Value="_editName" Label="Display Name"
+                      Variant="Variant.Outlined" Class="mb-3" FullWidth="true" />
+        <MudTextField @bind-Value="_editFileName" Label="File Name"
+                      Variant="Variant.Outlined" Class="mb-3" FullWidth="true"
+                      HelperText="Auto-updated on upload, or edit manually" />
+        <MudSelect T="ReportCardTemplateType" @bind-Value="_editTemplateType"
+                   Label="Generation Mode" Variant="Variant.Outlined" FullWidth="true"
+                   HelperText="Controls how data is written into this PDF — single column vs two-term columns">
+            <MudSelectItem T="ReportCardTemplateType" Value="ReportCardTemplateType.ElementaryProgressReport">
+                Single-Term (Progress Report) — one grade column per subject
+            </MudSelectItem>
+            <MudSelectItem T="ReportCardTemplateType" Value="ReportCardTemplateType.ElementaryReportCard">
+                Two-Term (Report Card) — Term 1 &amp; Term 2 columns side by side
+            </MudSelectItem>
+        </MudSelect>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@CloseEditDialog">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(string.IsNullOrWhiteSpace(_editName) || string.IsNullOrWhiteSpace(_editFileName))"
+                   OnClick="SaveEditAsync">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<!-- ══ REGISTER TEMPLATE DIALOG ═══════════════════════════════════════ -->
 <MudDialog @bind-Visible="_addTemplateOpen"
            Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true })">
     <TitleContent><MudText Typo="Typo.h6">Register PDF Template</MudText></TitleContent>
     <DialogContent>
         <!-- File Upload -->
         <MudText Typo="Typo.subtitle2" Class="mb-1">Upload PDF File</MudText>
-        <MudFileUpload T="IBrowserFile" Accept=".pdf" FilesChanged="HandleFileUploadAsync" MaximumFileCount="1">
+        <MudFileUpload T="IBrowserFile" Accept=".pdf" OnFilesChanged="HandleFileSelectedAsync" MaximumFileCount="1">
             <ActivatorContent>
                 <MudButton Variant="Variant.Outlined" Color="Color.Primary"
                            StartIcon="@Icons.Material.Filled.UploadFile"
@@ -330,6 +396,15 @@ else
     private ReportCardTemplateType _newTemplateType = ReportCardTemplateType.ElementaryProgressReport;
     private string?                _uploadedFileName;
     private string?                _uploadError;
+
+    // Edit dialog state
+    private bool                   _editTemplateOpen;
+    private ReportCardTemplate?    _editingTemplate;
+    private string                 _editName         = "";
+    private string                 _editFileName     = "";
+    private ReportCardTemplateType _editTemplateType = ReportCardTemplateType.ElementaryProgressReport;
+    private string?                _editUploadedFileName;
+    private string?                _editUploadError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -434,8 +509,83 @@ else
         catch (Exception ex) { Snackbar.Add($"Seed failed: {ex.Message}", Severity.Error); }
     }
 
-    private async Task HandleFileUploadAsync(IBrowserFile file)
+    private void OpenEditDialog(ReportCardTemplate template)
     {
+        _editingTemplate      = template;
+        _editName             = template.Name;
+        _editFileName         = template.FileName;
+        _editTemplateType     = template.TemplateType;
+        _editUploadedFileName = null;
+        _editUploadError      = null;
+        _editTemplateOpen     = true;
+    }
+
+    private void CloseEditDialog()
+    {
+        _editTemplateOpen     = false;
+        _editingTemplate      = null;
+        _editUploadedFileName = null;
+        _editUploadError      = null;
+        StateHasChanged();
+    }
+
+    private async Task HandleEditFileSelectedAsync(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        _editUploadError      = null;
+        _editUploadedFileName = null;
+
+        if (!file.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            _editUploadError = "Only PDF files are supported.";
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            var folder   = Path.Combine(Env.ContentRootPath, "ReportCardTemplates");
+            Directory.CreateDirectory(folder);
+            var filePath = Path.Combine(folder, file.Name);
+
+            await using var fs     = new FileStream(filePath, FileMode.Create, FileAccess.Write);
+            await using var stream = file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
+            await stream.CopyToAsync(fs);
+
+            _editUploadedFileName = file.Name;
+            _editFileName         = file.Name;
+        }
+        catch (Exception ex)
+        {
+            _editUploadError = ex.Message;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveEditAsync()
+    {
+        if (_editingTemplate == null) return;
+        if (string.IsNullOrWhiteSpace(_editName) || string.IsNullOrWhiteSpace(_editFileName)) return;
+
+        var dbTemplate = await Db.ReportCardTemplates.FindAsync(_editingTemplate.Id);
+        if (dbTemplate == null) return;
+
+        dbTemplate.Name         = _editName.Trim();
+        dbTemplate.FileName     = _editFileName.Trim();
+        dbTemplate.TemplateType = _editTemplateType;
+        await Db.SaveChangesAsync();
+
+        Snackbar.Add($"'{dbTemplate.Name}' updated.", Severity.Success);
+        CloseEditDialog();
+        await LoadAsync();
+    }
+
+    private async Task HandleFileSelectedAsync(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
         _uploadError    = null;
         _uploadedFileName = null;
 
@@ -481,6 +631,7 @@ else
         _newFileName      = "";
         _uploadedFileName = null;
         _uploadError      = null;
+        StateHasChanged();
     }
 
     private async Task AddTemplateAsync()
