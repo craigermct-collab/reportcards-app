@@ -167,9 +167,52 @@ public static class PdfFieldCoordinates
         new("ERSday",       3, 343.7, 239.4, 383.6, 252.1, "Text"),
     };
 
+    public static readonly List<FieldRect> KindergartenCommunicationOfLearning = new()
+    {
+        // ── Page 1: Header ──────────────────────────────────────────────
+        new("Student",           1,  57.3, 694.5, 207.3, 709.1, "Text"),
+        new("OEN",               1, 276.0, 694.6, 356.6, 707.5, "Text"),
+        new("DaysAbsent",        1, 418.6, 694.3, 471.7, 708.0, "Text"),
+        new("TotalDaysAbsent",   1, 548.7, 694.3, 581.7, 707.1, "Text"),
+        new("TimesLate",         1, 419.3, 677.1, 472.4, 690.9, "Text"),
+        new("TotalTimesLate",    1, 548.1, 677.6, 581.1, 690.4, "Text"),
+        new("ReportPgYr1",       1,  55.5, 679.1,  64.3, 688.0, "Checkbox"),
+        new("ReportPgYr2",       1, 115.6, 679.1, 124.4, 688.1, "Checkbox"),
+        new("Teacher",           1,  61.1, 657.0, 272.2, 671.5, "Text"),
+        new("School",            1,  55.1, 626.2, 302.3, 640.8, "Text"),
+        new("Board",             1, 338.7, 627.2, 545.4, 641.8, "Text"),
+        new("Address",           1,  60.8, 590.6, 294.2, 620.1, "Text"),
+        new("Principal",         1,  61.9, 567.4, 195.1, 578.6, "Text"),
+        new("Telephone",         1, 220.3, 565.4, 300.9, 578.3, "Text"),
+        new("Date",              1, 427.6, 709.3, 565.9, 729.2, "Text"),
+        // ── Page 1: Placement ─────────────────────────────────────────────
+        new("SeptemberYear2",    1, 305.2, 545.7, 313.9, 554.6, "Checkbox"),
+        new("SeptemberGd1",      1, 380.6, 545.7, 389.3, 554.6, "Checkbox"),
+        // ── Page 1: Belonging & Contributing ───────────────────────────
+        new("BelAndConESL",      1, 472.0, 523.6, 480.8, 532.5, "Checkbox"),
+        new("BelAndConIEP",      1, 536.6, 523.7, 545.3, 532.5, "Checkbox"),
+        new("BelAndConNotes",    1,  25.9, 304.1, 588.5, 480.5, "Text"),
+        // ── Page 1: Self-Regulation & Well-Being ───────────────────────
+        new("SelfRegAndWelESL",  1, 472.0, 278.0, 480.8, 286.9, "Checkbox"),
+        new("SelfRegAndWelIEP",  1, 536.6, 278.1, 545.3, 287.0, "Checkbox"),
+        new("SelfRegAndWellNotes",1, 26.3,  63.7, 589.0, 234.4, "Text"),
+        // ── Page 2: Lit & Math Behaviours ───────────────────────────────
+        new("LitAndMathESL",     2, 472.0, 747.6, 480.8, 756.5, "Checkbox"),
+        new("LitAndMathIEP",     2, 536.6, 747.7, 545.3, 756.5, "Checkbox"),
+        new("LitAndMathNotes",   2,  24.7, 546.5, 587.4, 709.8, "Text"),
+        // ── Page 2: Problem Solving & Innovating ───────────────────────
+        new("ProbAndInnESL",     2, 472.0, 523.6, 480.8, 532.5, "Checkbox"),
+        new("ProbAndInnIEP",     2, 536.6, 523.7, 545.3, 532.5, "Checkbox"),
+        new("ProbAndInnNotes",   2,  24.7, 322.6, 587.4, 485.9, "Text"),
+    };
+
     /// <summary>Get field rects for a specific PDF filename.</summary>
-    public static List<FieldRect> GetForFile(string fileName) =>
-        fileName.Equals("elementary-report-card.pdf", StringComparison.OrdinalIgnoreCase)
-            ? ElementaryReportCard
-            : new();
+    public static List<FieldRect> GetForFile(string fileName)
+    {
+        if (fileName.Equals("elementary-report-card.pdf", StringComparison.OrdinalIgnoreCase))
+            return ElementaryReportCard;
+        if (fileName.Equals("KindergartenCommunicationofLearning.pdf", StringComparison.OrdinalIgnoreCase))
+            return KindergartenCommunicationOfLearning;
+        return new();
+    }
 }

@@ -105,6 +105,44 @@ public class PdfFieldReaderService
         // grouped by their actual page in the PDF.
         // PdfSharp's AcroForm field tree only returns ~56; the rest are widget
         // annotations not linked into the /Fields array.
+        // Kindergarten Communication of Learning
+        if (fileName.Equals("KindergartenCommunicationofLearning.pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            // All fields verified via full widget annotation scan (pypdf)
+            // Text fields
+            yield return ("Student",            "Text");
+            yield return ("OEN",                "Text");
+            yield return ("Teacher",            "Text");
+            yield return ("School",             "Text");
+            yield return ("Board",              "Text");
+            yield return ("Address",            "Text");
+            yield return ("Telephone",          "Text");
+            yield return ("Principal",          "Text");
+            yield return ("Date",               "Text");
+            yield return ("DaysAbsent",         "Text");
+            yield return ("TotalDaysAbsent",    "Text");
+            yield return ("TimesLate",          "Text");
+            yield return ("TotalTimesLate",     "Text");
+            yield return ("BelAndConNotes",     "Text");
+            yield return ("SelfRegAndWellNotes","Text");
+            yield return ("LitAndMathNotes",    "Text");
+            yield return ("ProbAndInnNotes",    "Text");
+            // Checkboxes
+            yield return ("SeptemberYear2",     "Checkbox");
+            yield return ("SeptemberGd1",       "Checkbox");
+            yield return ("ReportPgYr1",        "Checkbox");
+            yield return ("ReportPgYr2",        "Checkbox");
+            yield return ("BelAndConESL",       "Checkbox");
+            yield return ("BelAndConIEP",       "Checkbox");
+            yield return ("SelfRegAndWelESL",   "Checkbox");
+            yield return ("SelfRegAndWelIEP",   "Checkbox");
+            yield return ("LitAndMathESL",      "Checkbox");
+            yield return ("LitAndMathIEP",      "Checkbox");
+            yield return ("ProbAndInnESL",      "Checkbox");
+            yield return ("ProbAndInnIEP",      "Checkbox");
+            yield break;
+        }
+
         if (!fileName.Equals("elementary-report-card.pdf", StringComparison.OrdinalIgnoreCase))
             yield break;
 

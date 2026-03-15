@@ -96,6 +96,25 @@ public static class ReportDestinationKeys
     public const string FrenchWritingIep        = "subject.french.writing.iep";
     public const string FrenchNa                = "subject.french.na";
 
+    // Kindergarten Four Frames
+    public const string KindergartenBelongingNotes  = "kg.belonging.notes";
+    public const string KindergartenBelongingESL    = "kg.belonging.esl";
+    public const string KindergartenBelongingIEP    = "kg.belonging.iep";
+    public const string KindergartenSelfRegNotes    = "kg.selfReg.notes";
+    public const string KindergartenSelfRegESL      = "kg.selfReg.esl";
+    public const string KindergartenSelfRegIEP      = "kg.selfReg.iep";
+    public const string KindergartenLiteracyNotes   = "kg.literacy.notes";
+    public const string KindergartenLiteracyESL     = "kg.literacy.esl";
+    public const string KindergartenLiteracyIEP     = "kg.literacy.iep";
+    public const string KindergartenProblemNotes    = "kg.problemSolving.notes";
+    public const string KindergartenProblemESL      = "kg.problemSolving.esl";
+    public const string KindergartenProblemIEP      = "kg.problemSolving.iep";
+    // Kindergarten placement checkboxes
+    public const string KindergartenYear2           = "kg.placement.year2";
+    public const string KindergartenGrade1          = "kg.placement.grade1";
+    public const string KindergartenReportYear1     = "kg.report.year1";
+    public const string KindergartenReportYear2     = "kg.report.year2";
+
     // Arts strand-level modifier checkboxes
     public const string DanceEslEld             = "subject.dance.esleld";
     public const string DanceIep                = "subject.dance.iep";
@@ -117,6 +136,56 @@ public static class ReportDestinationKeys
 
 public static class ReportCardFieldMapSeeder
 {
+    /// <summary>
+    /// Kindergarten Communication of Learning.
+    /// All 29 unique named fields verified via pypdf widget annotation scan.
+    /// Single-term card — one comment block per frame, no term columns.
+    /// </summary>
+    public static IEnumerable<(string DestKey, string PdfField)> KindergartenCommunicationOfLearningMaps()
+    {
+        // ── Page 1: Header ──────────────────────────────────────────────
+        yield return (ReportDestinationKeys.StudentName,     "Student");
+        yield return (ReportDestinationKeys.StudentOen,      "OEN");
+        yield return (ReportDestinationKeys.TeacherName,     "Teacher");
+        yield return (ReportDestinationKeys.SchoolName,      "School");
+        yield return (ReportDestinationKeys.SchoolBoard,     "Board");
+        yield return (ReportDestinationKeys.SchoolAddress,   "Address");
+        yield return (ReportDestinationKeys.SchoolPhone,     "Telephone");
+        yield return (ReportDestinationKeys.Principal,       "Principal");
+        yield return (ReportDestinationKeys.TermDate,        "Date");
+        yield return (ReportDestinationKeys.DaysAbsent,      "DaysAbsent");
+        yield return (ReportDestinationKeys.TotalDaysAbsent, "TotalDaysAbsent");
+        yield return (ReportDestinationKeys.TimesLate,       "TimesLate");
+        yield return (ReportDestinationKeys.TotalTimesLate,  "TotalTimesLate");
+
+        // ── Page 1: Placement checkboxes ────────────────────────────────
+        yield return (ReportDestinationKeys.KindergartenYear2, "SeptemberYear2");
+        yield return (ReportDestinationKeys.KindergartenGrade1, "SeptemberGd1");
+        yield return (ReportDestinationKeys.KindergartenReportYear1, "ReportPgYr1");
+        yield return (ReportDestinationKeys.KindergartenReportYear2, "ReportPgYr2");
+
+        // ── Page 1: Belonging & Contributing ────────────────────────────
+        yield return (ReportDestinationKeys.KindergartenBelongingESL,   "BelAndConESL");
+        yield return (ReportDestinationKeys.KindergartenBelongingIEP,   "BelAndConIEP");
+        yield return (ReportDestinationKeys.KindergartenBelongingNotes, "BelAndConNotes");
+
+        // ── Page 1: Self-Regulation & Well-Being ────────────────────────
+        yield return (ReportDestinationKeys.KindergartenSelfRegESL,   "SelfRegAndWelESL");
+        yield return (ReportDestinationKeys.KindergartenSelfRegIEP,   "SelfRegAndWelIEP");
+        yield return (ReportDestinationKeys.KindergartenSelfRegNotes, "SelfRegAndWellNotes");
+
+        // ── Page 2: Demonstrating Literacy & Math Behaviours ────────────
+        yield return (ReportDestinationKeys.KindergartenLiteracyESL,   "LitAndMathESL");
+        yield return (ReportDestinationKeys.KindergartenLiteracyIEP,   "LitAndMathIEP");
+        yield return (ReportDestinationKeys.KindergartenLiteracyNotes, "LitAndMathNotes");
+
+        // ── Page 2: Problem Solving & Innovating ────────────────────────
+        yield return (ReportDestinationKeys.KindergartenProblemESL,   "ProbAndInnESL");
+        yield return (ReportDestinationKeys.KindergartenProblemIEP,   "ProbAndInnIEP");
+        yield return (ReportDestinationKeys.KindergartenProblemNotes, "ProbAndInnNotes");
+    }
+
+
     /// <summary>
     /// Elementary Report Card (RC1 — two-term card).
     /// Field names verified against the actual AcroForm fields in the PDF.

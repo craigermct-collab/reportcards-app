@@ -342,6 +342,8 @@ else
 
         if (_selectedTemplate == null) return;
 
+        BuildSourceGroups(_selectedTemplate);
+
         // Load PDF field list
         _pdfFields = PdfReader.GetFields(_selectedTemplate.FileName);
 
@@ -418,10 +420,15 @@ else
 
     private void AutoMapAll()
     {
+        if (_selectedTemplate == null) return;
         var pdfFieldNames = _pdfFields.Select(f => f.Name).ToHashSet();
         _mappings.Clear();
 
-        foreach (var (destKey, pdfField) in ReportCardFieldMapSeeder.ElementaryReportCardMaps())
+        var maps = IsKindergartenTemplate(_selectedTemplate)
+            ? ReportCardFieldMapSeeder.KindergartenCommunicationOfLearningMaps()
+            : ReportCardFieldMapSeeder.ElementaryReportCardMaps();
+
+        foreach (var (destKey, pdfField) in maps)
         {
             if (pdfFieldNames.Contains(pdfField))
                 _mappings.Add(new MappingEntry(destKey, pdfField));
@@ -431,6 +438,10 @@ else
         Snackbar.Add($"{_mappings.Count} mappings auto-populated. Click Save Mappings.", Severity.Success);
         StateHasChanged();
     }
+
+    private static bool IsKindergartenTemplate(ReportCardTemplate t) =>
+        t.FileName.StartsWith("Kindergarten", StringComparison.OrdinalIgnoreCase) ||
+        t.FileName.StartsWith("kindergarten", StringComparison.OrdinalIgnoreCase);
 
     private async Task SaveMappingsAsync()
     {
@@ -475,8 +486,66 @@ else
         Snackbar.Add("All mappings cleared.", Severity.Info);
     }
 
-    private void BuildSourceGroups()
+    private void BuildSourceGroups(ReportCardTemplate? template = null)
     {
+        if (template != null && IsKindergartenTemplate(template))
+        {
+            _sourceGroups = new List<SourceGroup>
+            {
+                new("Student Info", new()
+                {
+                    new(ReportDestinationKeys.StudentName,    "Student Name"),
+                    new(ReportDestinationKeys.StudentOen,     "OEN"),
+                    new(ReportDestinationKeys.TeacherName,    "Teacher"),
+                    new(ReportDestinationKeys.SchoolName,     "School Name"),
+                    new(ReportDestinationKeys.SchoolBoard,    "School Board"),
+                    new(ReportDestinationKeys.SchoolAddress,  "Address"),
+                    new(ReportDestinationKeys.SchoolPhone,    "Phone"),
+                    new(ReportDestinationKeys.Principal,      "Principal"),
+                    new(ReportDestinationKeys.TermDate,       "Date"),
+                }),
+                new("Attendance", new()
+                {
+                    new(ReportDestinationKeys.DaysAbsent,      "Days Absent"),
+                    new(ReportDestinationKeys.TotalDaysAbsent, "Total Days Absent"),
+                    new(ReportDestinationKeys.TimesLate,       "Times Late"),
+                    new(ReportDestinationKeys.TotalTimesLate,  "Total Times Late"),
+                }),
+                new("Placement", new()
+                {
+                    new(ReportDestinationKeys.KindergartenYear2,      "Kindergarten Year 2"),
+                    new(ReportDestinationKeys.KindergartenGrade1,     "Grade 1"),
+                    new(ReportDestinationKeys.KindergartenReportYear1,"Report Year 1"),
+                    new(ReportDestinationKeys.KindergartenReportYear2,"Report Year 2"),
+                }),
+                new("Belonging & Contributing", new()
+                {
+                    new(ReportDestinationKeys.KindergartenBelongingESL,   "ESL"),
+                    new(ReportDestinationKeys.KindergartenBelongingIEP,   "IEP"),
+                    new(ReportDestinationKeys.KindergartenBelongingNotes, "Notes / Comments"),
+                }),
+                new("Self-Regulation & Well-Being", new()
+                {
+                    new(ReportDestinationKeys.KindergartenSelfRegESL,   "ESL"),
+                    new(ReportDestinationKeys.KindergartenSelfRegIEP,   "IEP"),
+                    new(ReportDestinationKeys.KindergartenSelfRegNotes, "Notes / Comments"),
+                }),
+                new("Demonstrating Literacy & Math", new()
+                {
+                    new(ReportDestinationKeys.KindergartenLiteracyESL,   "ESL"),
+                    new(ReportDestinationKeys.KindergartenLiteracyIEP,   "IEP"),
+                    new(ReportDestinationKeys.KindergartenLiteracyNotes, "Notes / Comments"),
+                }),
+                new("Problem Solving & Innovating", new()
+                {
+                    new(ReportDestinationKeys.KindergartenProblemESL,   "ESL"),
+                    new(ReportDestinationKeys.KindergartenProblemIEP,   "IEP"),
+                    new(ReportDestinationKeys.KindergartenProblemNotes, "Notes / Comments"),
+                }),
+            };
+            return;
+        }
+
         _sourceGroups = new List<SourceGroup>
         {
             new("Student Info", new()
