@@ -75,6 +75,11 @@ public class SchoolDbContext : DbContext
     // Comment templates
     public DbSet<CommentTemplate> CommentTemplates => Set<CommentTemplate>();
 
+    // Rubric templates
+    public DbSet<RubricTemplate> RubricTemplates => Set<RubricTemplate>();
+    public DbSet<RubricQuestion> RubricQuestions => Set<RubricQuestion>();
+    public DbSet<StudentRubricResponse> StudentRubricResponses => Set<StudentRubricResponse>();
+
     protected override void OnModelCreating(ModelBuilder m)
     {
         base.OnModelCreating(m);
@@ -467,6 +472,48 @@ public class SchoolDbContext : DbContext
             .HasOne(r => r.ReviewerTeacher)
             .WithMany()
             .HasForeignKey(r => r.ReviewerTeacherId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        // ── RubricTemplate ───────────────────────────────────────────
+        // One template per ClassGroupType
+        m.Entity<RubricTemplate>()
+            .HasIndex(r => r.ClassGroupTypeId).IsUnique();
+
+        m.Entity<RubricTemplate>()
+            .HasOne(r => r.ClassGroupType)
+            .WithMany()
+            .HasForeignKey(r => r.ClassGroupTypeId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        // ── RubricQuestion ──────────────────────────────────────────
+        // GradingScale FK — NoAction (shared hub)
+        m.Entity<RubricQuestion>()
+            .HasOne(q => q.GradingScale)
+            .WithMany()
+            .HasForeignKey(q => q.GradingScaleId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        // ── StudentRubricResponse ──────────────────────────────────
+        // Unique per enrollment + question + term
+        m.Entity<StudentRubricResponse>()
+            .HasIndex(r => new { r.EnrollmentId, r.RubricQuestionId, r.TermInstanceId }).IsUnique();
+
+        m.Entity<StudentRubricResponse>()
+            .HasOne(r => r.Enrollment)
+            .WithMany()
+            .HasForeignKey(r => r.EnrollmentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        m.Entity<StudentRubricResponse>()
+            .HasOne(r => r.TermInstance)
+            .WithMany()
+            .HasForeignKey(r => r.TermInstanceId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        m.Entity<StudentRubricResponse>()
+            .HasOne(r => r.RubricQuestion)
+            .WithMany()
+            .HasForeignKey(r => r.RubricQuestionId)
             .OnDelete(DeleteBehavior.NoAction);
     }
 }

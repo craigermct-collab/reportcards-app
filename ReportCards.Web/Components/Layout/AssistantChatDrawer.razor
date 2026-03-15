@@ -177,14 +177,42 @@
 
                         @if (!isUser && AssistantCtx.Current.Mode == AssistantMode.CommentWriter && AssistantCtx.OnCommentAccepted != null)
                         {
+                            var isLatestAi = msg == _messages.LastOrDefault(m => m.Role == "assistant");
                             <div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(0,0,0,0.08);">
-                                <MudButton Size="Size.Small"
-                                           Variant="Variant.Filled"
-                                           Style="background:#1B3A4B; color:white; font-size:0.75rem; font-weight:600; text-transform:none; padding:3px 12px; border-radius:20px;"
-                                           StartIcon="@Icons.Material.Filled.ArrowForward"
-                                           OnClick="@(() => AcceptComment(msg.Content))">
-                                    Use this comment
-                                </MudButton>
+                                <div class="d-flex align-center gap-2 flex-wrap">
+                                    <MudButton Size="Size.Small"
+                                               Variant="Variant.Filled"
+                                               Style="background:#1B3A4B; color:white; font-size:0.75rem; font-weight:600; text-transform:none; padding:3px 12px; border-radius:20px;"
+                                               StartIcon="@Icons.Material.Filled.ArrowForward"
+                                               OnClick="@(() => AcceptComment(msg.Content))">
+                                        Use this comment
+                                    </MudButton>
+                                    @if (isLatestAi)
+                                    {
+                                        <MudTooltip Text="Generate a different version">
+                                            <MudButton Size="Size.Small"
+                                                       Variant="Variant.Outlined"
+                                                       Style="font-size:0.75rem; font-weight:600; text-transform:none; padding:3px 10px; border-radius:20px; border-color:rgba(0,0,0,0.2);"
+                                                       StartIcon="@Icons.Material.Filled.Refresh"
+                                                       Disabled="@_thinking"
+                                                       OnClick="@(() => RegenerateAsync(msg.Content))">
+                                                Try again
+                                            </MudButton>
+                                        </MudTooltip>
+                                    }
+                                </div>
+                                @if (_lastAiResponse != null && isLatestAi && _regenerateCount > 0)
+                                {
+                                    <div style="margin-top:8px; padding:8px 10px; background:rgba(0,0,0,0.04);
+                                                border-radius:8px; border-left:2px solid rgba(0,0,0,0.12);">
+                                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-disabled); font-weight:600; display:block; margin-bottom:2px;">
+                                            Previous version
+                                        </MudText>
+                                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-disabled); line-height:1.5; font-style:italic;">
+                                            @(_lastAiResponse.Length > 160 ? _lastAiResponse[..160] + "…" : _lastAiResponse)
+                                        </MudText>
+                                    </div>
+                                }
                             </div>
                         }
 
@@ -355,6 +383,10 @@
     private bool   _voicePickerOpen = false;
     private string _input           = "";
 
+    // Regenerate support
+    private int     _regenerateCount   = 0;   // how many times "Try Again" has been clicked
+    private string? _lastAiResponse    = null; // previous response to show greyed out
+
     private List<VoiceOption> _voices           = new();
     private string?           _selectedVoice    = null;
 
@@ -387,6 +419,8 @@
         _messages.Clear();
         _pendingActionMessage  = null;
         _executedActionMessage = null;
+        _regenerateCount       = 0;
+        _lastAiResponse        = null;
         _input = AssistantCtx.Current.SuggestedPrompt ?? "";
         _open  = true;
         InvokeAsync(async () =>
@@ -416,6 +450,8 @@
         _messages.Clear();
         _pendingActionMessage  = null;
         _executedActionMessage = null;
+        _regenerateCount       = 0;
+        _lastAiResponse        = null;
         _input = "";
         StateHasChanged();
     }
@@ -590,11 +626,75 @@
 
     private void AcceptComment(string rawText)
     {
-        // Strip any markdown bold/italic so plain text lands in the comment box
         var clean = System.Text.RegularExpressions.Regex.Replace(rawText, @"\*+", "").Trim();
         AssistantCtx.OnCommentAccepted?.Invoke(clean);
         _messages.Add(new ChatMessage("assistant", "✅ Comment copied to the field! Keep chatting to refine it, or close the assistant."));
+        _regenerateCount = 0;
+        _lastAiResponse  = null;
         StateHasChanged();
+    }
+
+    private async Task RegenerateAsync(string previousResponse)
+    {
+        if (_thinking) return;
+        _regenerateCount++;
+        _lastAiResponse = previousResponse;
+        _thinking = true;
+        StateHasChanged();
+        await ScrollToBottomAsync();
+
+        try
+        {
+            // Build a variation instruction that escalates with each retry
+            var variationInstruction = BuildVariationInstruction(_regenerateCount, previousResponse);
+
+            var historyForApi = _messages
+                .Select(m => new ChatMessage(m.Role, m.Content))
+                .ToList();
+
+            var reply = await Assistant.SendAsync(historyForApi, variationInstruction);
+            _messages.Add(reply);
+
+            if (_ttsEnabled && !string.IsNullOrWhiteSpace(reply.Content))
+                try { await JS.InvokeVoidAsync("assistantTts.speak", reply.Content); } catch { }
+        }
+        catch (Exception ex)
+        {
+            _messages.Add(new ChatMessage("assistant", $"⚠️ Something went wrong: {ex.Message}"));
+        }
+        finally
+        {
+            _thinking = false;
+            StateHasChanged();
+            await ScrollToBottomAsync();
+        }
+    }
+
+    private static string BuildVariationInstruction(int attempt, string previousResponse)
+    {
+        var truncated = previousResponse.Length > 120
+            ? previousResponse[..120] + "…"
+            : previousResponse;
+
+        return attempt switch
+        {
+            1 => $"That comment is a good start, but please write a DIFFERENT version. " +
+                 $"Use a different opening sentence and vary the phrasing. " +
+                 $"Previous version started with: \"{truncated[..Math.Min(60, truncated.Length)]}\" — do NOT start with those words. " +
+                 $"Same character limit applies.",
+
+            2 => $"Try again with a more concise approach. Focus on concrete, specific observations " +
+                 $"rather than general statements. Avoid phrases used in the previous two attempts. " +
+                 $"Same student, same subject, same character limit.",
+
+            3 => $"Write a fresh version with a completely different structure — try leading with growth " +
+                 $"and next steps rather than current strengths. Make it feel distinct from previous attempts. " +
+                 $"Same character limit applies.",
+
+            _ => $"Another variation please. Take a completely fresh angle — different tone, " +
+                 $"different structure, different emphasis than all previous attempts. " +
+                 $"Same student, subject, and character limit."
+        };
     }
 
     private async Task ScrollToBottomAsync()

@@ -294,7 +294,21 @@ else
                                 </div>
                             }
                             <MudDivider Class="my-2" />
-                            <MudText Typo="Typo.caption" Style="font-weight:700; color:#6B7A8D; text-transform:uppercase; letter-spacing:0.06em;">Strengths / Next Steps</MudText>
+                            <div class="d-flex align-center gap-2 mb-1">
+                                <MudText Typo="Typo.caption" Style="font-weight:700; color:#6B7A8D; text-transform:uppercase; letter-spacing:0.06em;">Strengths / Next Steps</MudText>
+                                <MudSpacer />
+                                <MudTooltip Text="Launch rubric assessment (all subjects)">
+                                    <MudButton Size="Size.Small"
+                                               Variant="Variant.Outlined"
+                                               Color="Color.Secondary"
+                                               StartIcon="@Icons.Material.Filled.Quiz"
+                                               Style="font-size:11px; text-transform:none; height:22px;"
+                                               @onclick:stopPropagation="true"
+                                               OnClick="@(() => OpenRubricAssessment(enrollment, state, null, null))">
+                                        Rubric
+                                    </MudButton>
+                                </MudTooltip>
+                            </div>
                             <MudTextField T="string?" @bind-Value="ls.StrengthsNextSteps"
                                           Variant="Variant.Outlined" Margin="Margin.Dense"
                                           Lines="3" MaxLength="2000"
@@ -320,6 +334,21 @@ else
                                              Style="font-size:11px; height:20px;">
                                         @subjectGroup.SubjectCode
                                     </MudChip>
+                                }
+                                @if (state.IsKindergarten)
+                                {
+                                    <MudSpacer />
+                                    <MudTooltip Text="Launch rubric assessment for this frame">
+                                        <MudButton Size="Size.Small"
+                                                   Variant="Variant.Outlined"
+                                                   Color="Color.Secondary"
+                                                   StartIcon="@Icons.Material.Filled.Quiz"
+                                                   Style="font-size:11px; text-transform:none; height:26px;"
+                                                   @onclick:stopPropagation="true"
+                                                   OnClick="@(() => OpenRubricAssessment(enrollment, state, subjectGroup.SubjectName, subjectGroup.Rows.FirstOrDefault()))">
+                                            Rubric
+                                        </MudButton>
+                                    </MudTooltip>
                                 }
                             </div>
 
@@ -567,6 +596,107 @@ else
     }
     }
 }
+
+<!-- ── RUBRIC ASSESSMENT DIALOG ─────────────────────────────────────────── -->
+<MudDialog Visible="_rubricDialogVisible"
+           VisibleChanged="@((bool v) => _rubricDialogVisible = v)"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true })">
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.Quiz" Color="Color.Secondary" />
+            <MudText Typo="Typo.h6">Rubric Assessment</MudText>
+            @if (_rubricTargetEnrollment?.Student != null)
+            {
+                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined">
+                    @_rubricTargetEnrollment.Student.FirstName @_rubricTargetEnrollment.Student.LastName
+                </MudChip>
+            }
+            @if (_rubricSubjectScope != null)
+            {
+                <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Variant="Variant.Outlined">
+                    @_rubricSubjectScope
+                </MudChip>
+            }
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (!_rubricQuestions.Any())
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                No rubric questions configured for this class group.
+                Go to <strong>Academics → Rubric Questions</strong> to set them up.
+            </MudAlert>
+        }
+        else
+        {
+            var segments = _rubricQuestions.GroupBy(q => q.Segment ?? "").OrderBy(g => g.Key).ToList();
+            @foreach (var seg in segments)
+            {
+                @if (!string.IsNullOrWhiteSpace(seg.Key))
+                {
+                    <MudText Typo="Typo.overline" Class="mt-3 mb-1 d-block"
+                             Style="color:var(--mud-palette-primary); font-weight:700; letter-spacing:0.08em;">
+                        @seg.Key
+                    </MudText>
+                    <MudDivider Class="mb-2" />
+                }
+                @foreach (var q in seg.OrderBy(x => x.SortOrder))
+                {
+                    var response = _rubricResponses.GetValueOrDefault(q.Id);
+                    <div class="d-flex align-center gap-3 mb-3">
+                        <MudText Typo="Typo.body2" Style="flex:1; font-weight:500;">@q.QuestionText</MudText>
+                        <div style="width:200px; flex-shrink:0;">
+                            @if (q.GradingScale?.ValueType == GradingValueType.OptionList)
+                            {
+                                <MudSelect T="string?"
+                                           Value="@response"
+                                           ValueChanged="@((string? v) => _rubricResponses[q.Id] = v)"
+                                           Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense"
+                                           Clearable="true" Placeholder="Select…"
+                                           AnchorOrigin="Origin.BottomLeft">
+                                    @foreach (var opt in q.GradingScale.Options.OrderBy(o => o.SortOrder))
+                                    {
+                                        <MudSelectItem T="string?" Value="@opt.Label">
+                                            @(opt.Code != null ? $"{opt.Code} – {opt.Label}" : opt.Label)
+                                        </MudSelectItem>
+                                    }
+                                </MudSelect>
+                            }
+                            else
+                            {
+                                <MudTextField T="string?"
+                                              Value="@response"
+                                              ValueChanged="@((string? v) => _rubricResponses[q.Id] = v)"
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Placeholder="Enter value" />
+                            }
+                        </div>
+                    </div>
+                }
+            }
+
+            <MudDivider Class="my-3" />
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-2">
+                <MudText Typo="Typo.caption">
+                    Fill in your responses above, then click <strong>Generate Comment</strong> to get an AI-written comment based on these results.
+                    The comment will open in the AI assistant panel for review.
+                </MudText>
+            </MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _rubricDialogVisible = false)">Cancel</MudButton>
+        @if (_rubricQuestions.Any())
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.AutoAwesome"
+                       Disabled="@(!_rubricResponses.Any(r => r.Value != null))"
+                       OnClick="GenerateRubricCommentAsync">
+                Generate Comment
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
 
 <!-- ── COMMENT TEMPLATE PICKER DIALOG ──────────────────────────────────── -->
 <MudDialog Visible="_templateDialogVisible"
@@ -1318,6 +1448,165 @@ else
 
     // ── COMMENT TEMPLATE PICKER ──────────────────────────────────────
 
+    // ── RUBRIC STATE ───────────────────────────────────────────────
+    private bool                      _rubricDialogVisible;
+    private Enrollment?               _rubricTargetEnrollment;
+    private StudentState?             _rubricTargetState;
+    private string?                   _rubricSubjectScope;    // null = all subjects (Elementary)
+    private GradeRow?                 _rubricTargetRow;       // the row whose comment we'll fill
+    private List<RubricQuestion>      _rubricQuestions  = new();
+    private Dictionary<int, string?>  _rubricResponses  = new(); // questionId → selected value
+
+    private async Task OpenRubricAssessment(Enrollment enrollment, StudentState state, string? subjectScope, GradeRow? targetRow)
+    {
+        _rubricTargetEnrollment = enrollment;
+        _rubricTargetState      = state;
+        _rubricSubjectScope     = subjectScope;
+        _rubricTargetRow        = targetRow;
+        _rubricResponses        = new();
+
+        // Load the ClassGroupType for this enrollment to find the right rubric template
+        var classGroupTypeId = await Db.ClassGroupInstances
+            .Where(c => c.Id == enrollment.ClassGroupInstanceId)
+            .Select(c => c.ClassGroupTypeId)
+            .FirstOrDefaultAsync();
+
+        var template = await Db.RubricTemplates
+            .FirstOrDefaultAsync(t => t.ClassGroupTypeId == classGroupTypeId);
+
+        if (template == null)
+        {
+            _rubricQuestions = new();
+        }
+        else
+        {
+            // Load questions scoped to this subject (or global ones)
+            _rubricQuestions = await Db.RubricQuestions
+                .Include(q => q.GradingScale)
+                    .ThenInclude(gs => gs!.Options)
+                .Where(q => q.RubricTemplateId == template.Id &&
+                            (q.SubjectScope == null ||
+                             (subjectScope != null && q.SubjectScope.ToLower() == subjectScope.ToLower())))
+                .OrderBy(q => q.SortOrder)
+                .ToListAsync();
+
+            // Pre-load any saved responses for this enrollment+term
+            var questionIds = _rubricQuestions.Select(q => q.Id).ToList();
+            var savedResponses = await Db.StudentRubricResponses
+                .Where(r => r.EnrollmentId   == enrollment.Id
+                         && r.TermInstanceId == _selectedTermId
+                         && questionIds.Contains(r.RubricQuestionId))
+                .ToListAsync();
+            foreach (var r in savedResponses)
+                _rubricResponses[r.RubricQuestionId] = r.ResponseValue;
+        }
+
+        _rubricDialogVisible = true;
+        StateHasChanged();
+    }
+
+    private async Task GenerateRubricCommentAsync()
+    {
+        if (_rubricTargetEnrollment == null || _rubricTargetState == null || _selectedTermId == null) return;
+
+        // Save responses to DB
+        var now = DateTimeOffset.UtcNow;
+        foreach (var (questionId, value) in _rubricResponses)
+        {
+            var existing = await Db.StudentRubricResponses
+                .FirstOrDefaultAsync(r => r.EnrollmentId   == _rubricTargetEnrollment.Id
+                                       && r.TermInstanceId == _selectedTermId
+                                       && r.RubricQuestionId == questionId);
+            if (existing != null)
+            {
+                existing.ResponseValue = value;
+                existing.UpdatedAt     = now;
+            }
+            else
+            {
+                Db.StudentRubricResponses.Add(new StudentRubricResponse
+                {
+                    EnrollmentId     = _rubricTargetEnrollment.Id,
+                    TermInstanceId   = _selectedTermId.Value,
+                    RubricQuestionId = questionId,
+                    ResponseValue    = value,
+                    UpdatedAt        = now,
+                });
+            }
+        }
+        await Db.SaveChangesAsync();
+
+        // Build the AI prompt from the rubric responses
+        var student    = _rubricTargetEnrollment.Student;
+        var gradeLabel = _rubricTargetEnrollment.Grade?.Name;
+        var term       = _terms.FirstOrDefault(t => t.Id == _selectedTermId);
+        var subject    = _rubricSubjectScope ?? "all subjects";
+        var charLimit  = _rubricTargetRow != null
+            ? CommentCharLimits.ForSubject(_rubricTargetRow.DisplayName, _templateCharLimits)
+            : CommentCharLimits.ElementaryDefault;
+
+        // Format rubric results into a structured prompt
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Please write a report card comment for {student?.FirstName} {student?.LastName} " +
+                      $"(Grade {gradeLabel}) based on the following rubric assessment results.");
+        sb.AppendLine();
+        sb.AppendLine($"Subject/Area: {subject}");
+        sb.AppendLine($"Term: {term?.SchoolYear?.Name} – {term?.Name}");
+        sb.AppendLine();
+        sb.AppendLine("Rubric Assessment Results:");
+
+        foreach (var q in _rubricQuestions)
+        {
+            var response = _rubricResponses.GetValueOrDefault(q.Id);
+            if (response != null)
+            {
+                var segment = string.IsNullOrWhiteSpace(q.Segment) ? "" : $"[{q.Segment}] ";
+                sb.AppendLine($"  • {segment}{q.QuestionText}: {response}");
+            }
+        }
+
+        sb.AppendLine();
+        sb.AppendLine($"Write a professional, encouraging report card comment based on these results. " +
+                      $"Use the student's first name ({student?.FirstName}). " +
+                      $"The comment MUST be {charLimit} characters or fewer. " +
+                      $"Do not use bullet points — write in flowing prose.");
+
+        var rubricPrompt = sb.ToString();
+
+        // Close dialog and open AI assistant with the rubric prompt
+        _rubricDialogVisible = false;
+        StateHasChanged();
+
+        AssistantCtx.SetContext(
+            new AssistantContext
+            {
+                Mode             = AssistantMode.CommentWriter,
+                Page             = "grade-entry",
+                PageLabel        = $"Rubric: {subject}",
+                StudentName      = student != null ? $"{student.FirstName} {student.LastName}" : null,
+                StudentFirstName = student?.FirstName,
+                GradeLabel       = gradeLabel,
+                Subject          = subject,
+                Term             = term != null ? $"{term.SchoolYear?.Name} – {term.Name}" : null,
+                CommentCharLimit = charLimit,
+                SuggestedPrompt  = rubricPrompt,
+            },
+            onCommentAccepted: text =>
+            {
+                // Drop into the right comment field
+                if (_rubricTargetRow != null)
+                {
+                    _rubricTargetRow.Comment = text;
+                }
+                else if (_rubricTargetState?.LearningSkills != null)
+                {
+                    _rubricTargetState.LearningSkills.StrengthsNextSteps = text;
+                }
+                StateHasChanged();
+            });
+    }
+
+    // ── COMMENT TEMPLATE PICKER ──────────────────────────────────────────
     private List<CommentTemplate> _templateList = new();
     private List<string> _templateSubjects = new();
     private List<string> _templateGrades   = new();

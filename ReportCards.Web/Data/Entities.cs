@@ -903,6 +903,75 @@ public class ReportCardTemplate
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// R) RUBRIC TEMPLATES
+// ═══════════════════════════════════════════════════════════════════
+
+/// <summary>
+/// A rubric template belongs to a ClassGroupType (e.g. one for Kindergarten,
+/// one for Elementary). Admins define questions here; teachers answer them
+/// during grade entry to generate AI-powered comments.
+/// </summary>
+public class RubricTemplate
+{
+    public int Id { get; set; }
+    public required string Name { get; set; }  // e.g. "Kindergarten Assessment Rubric"
+    public string? Description { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public int ClassGroupTypeId { get; set; }
+    public ClassGroupType? ClassGroupType { get; set; }
+
+    public List<RubricQuestion> Questions { get; set; } = new();
+}
+
+/// <summary>
+/// One question in a rubric. The teacher selects a grading scale value for
+/// each question during grade entry. Questions can be scoped to a specific
+/// subject/frame via SubjectScope (null = applies to all subjects).
+/// </summary>
+public class RubricQuestion
+{
+    public int Id { get; set; }
+    public required string QuestionText { get; set; }  // e.g. "How does the student engage during circle time?"
+    public string? Segment { get; set; }               // e.g. "Social Skills" — groups questions visually
+
+    /// <summary>
+    /// Optional subject scope — if set, this question only appears when the
+    /// rubric is launched from that subject/frame. Null = shown for all subjects.
+    /// </summary>
+    public string? SubjectScope { get; set; }
+
+    public int SortOrder { get; set; }
+
+    public int RubricTemplateId { get; set; }
+    public RubricTemplate? RubricTemplate { get; set; }
+
+    /// <summary>The grading scale used to answer this question.</summary>
+    public int GradingScaleId { get; set; }
+    public GradingScale? GradingScale { get; set; }
+}
+
+/// <summary>
+/// One teacher response per student per rubric question per term.
+/// Stores the selected grading scale value label.
+/// </summary>
+public class StudentRubricResponse
+{
+    public int Id { get; set; }
+    public string? ResponseValue { get; set; }  // selected label e.g. "Usually"
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public int EnrollmentId { get; set; }
+    public Enrollment? Enrollment { get; set; }
+
+    public int TermInstanceId { get; set; }
+    public TermInstance? TermInstance { get; set; }
+
+    public int RubricQuestionId { get; set; }
+    public RubricQuestion? RubricQuestion { get; set; }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // G2) REPORT TEMPLATE FIELD MAPPING
 // ═══════════════════════════════════════════════════════════════════
 

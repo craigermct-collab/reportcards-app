@@ -1,0 +1,298 @@
+@page "/rubric-config"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@using Microsoft.EntityFrameworkCore
+@using ReportCards.Web.Data
+@inject SchoolDbContext Db
+@inject ISnackbar Snackbar
+
+<PageTitle>Rubric Questions</PageTitle>
+
+<div class="d-flex align-center gap-3 mb-1">
+    <MudIcon Icon="@Icons.Material.Filled.Quiz"
+             Style="background:#1B4F72; color:white; padding:8px; border-radius:10px; font-size:24px;" />
+    <div>
+        <MudText Typo="Typo.h5" Style="font-family:'DM Serif Display',serif; line-height:1.1;">Rubric Questions</MudText>
+        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+            Configure assessment questions per class group type. Teachers answer these during grade entry to generate AI-powered comments.
+        </MudText>
+    </div>
+</div>
+
+<MudDivider Class="my-4" />
+
+@if (_loading)
+{
+    <div class="d-flex justify-center pa-8">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+    </div>
+}
+else
+{
+    @foreach (var cgt in _classGroupTypes)
+    {
+        var template  = _templates.FirstOrDefault(t => t.ClassGroupTypeId == cgt.Id);
+        var questions = template != null
+            ? _questions.Where(q => q.RubricTemplateId == template.Id).OrderBy(q => q.SortOrder).ToList()
+            : new List<RubricQuestion>();
+
+        <MudCard Elevation="1" Class="mb-6">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.Group" Size="Size.Small" Style="color:#1B4F72;" />
+                        <MudText Typo="Typo.h6">@cgt.Name</MudText>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">
+                            @questions.Count question@(questions.Count != 1 ? "s" : "")
+                        </MudChip>
+                    </div>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="@(() => OpenAddQuestion(cgt))">
+                        Add Question
+                    </MudButton>
+                </CardHeaderActions>
+            </MudCardHeader>
+            <MudCardContent Class="pa-0">
+                @if (!questions.Any())
+                {
+                    <div class="pa-5">
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+                            No questions yet. Click "Add Question" to define the rubric for @cgt.Name.
+                        </MudAlert>
+                    </div>
+                }
+                else
+                {
+                    <MudTable Items="@questions" Dense="true" Hover="true" Elevation="0">
+                        <HeaderContent>
+                            <MudTh Style="width:40px;">#</MudTh>
+                            <MudTh>Question</MudTh>
+                            <MudTh>Segment</MudTh>
+                            <MudTh>Subject Scope</MudTh>
+                            <MudTh>Grading Scale</MudTh>
+                            <MudTh Style="width:90px;"></MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>
+                                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                    @context.SortOrder
+                                </MudText>
+                            </MudTd>
+                            <MudTd>
+                                <MudText Typo="Typo.body2">@context.QuestionText</MudText>
+                            </MudTd>
+                            <MudTd>
+                                @if (!string.IsNullOrWhiteSpace(context.Segment))
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Filled"
+                                             Color="Color.Primary" Style="font-size:11px; height:20px;">
+                                        @context.Segment
+                                    </MudChip>
+                                }
+                            </MudTd>
+                            <MudTd>
+                                @if (!string.IsNullOrWhiteSpace(context.SubjectScope))
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                                             Color="Color.Secondary" Style="font-size:11px; height:20px;">
+                                        @context.SubjectScope
+                                    </MudChip>
+                                }
+                                else
+                                {
+                                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                        All subjects
+                                    </MudText>
+                                }
+                            </MudTd>
+                            <MudTd>
+                                <MudText Typo="Typo.body2">
+                                    @(_scales.FirstOrDefault(s => s.Id == context.GradingScaleId)?.Name ?? "—")
+                                </MudText>
+                            </MudTd>
+                            <MudTd Style="text-align:right;">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                               Color="Color.Primary" OnClick="@(() => OpenEditQuestion(context))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                               Color="Color.Error" OnClick="@(() => DeleteQuestionAsync(context))" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudCardContent>
+        </MudCard>
+    }
+}
+
+<!-- ══ ADD / EDIT QUESTION DIALOG ════════════════════════════════ -->
+<MudDialog @bind-Visible="_questionDialogOpen"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true })">
+    <TitleContent>
+        <div>
+            <MudText Typo="Typo.h6">@(_editingQuestion == null ? "Add Question" : "Edit Question")</MudText>
+            @if (_dialogClassGroupType != null)
+            {
+                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                    @_dialogClassGroupType.Name
+                </MudText>
+            }
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_qText" Label="Question" Variant="Variant.Outlined"
+                      Class="mb-3" FullWidth="true" Lines="2"
+                      Placeholder="e.g. How does the student engage during group activities?" />
+
+        <MudTextField @bind-Value="_qSegment" Label="Segment (optional)" Variant="Variant.Outlined"
+                      Class="mb-3" FullWidth="true"
+                      HelperText="Groups related questions visually, e.g. 'Social Skills', 'Literacy'"
+                      Placeholder="e.g. Social Skills" />
+
+        <MudTextField @bind-Value="_qScope" Label="Subject Scope (optional)" Variant="Variant.Outlined"
+                      Class="mb-3" FullWidth="true"
+                      HelperText="Leave blank to show for all subjects/frames. Enter a subject name to scope it."
+                      Placeholder="e.g. Belonging and Contributing" />
+
+        <MudSelect T="int?" @bind-Value="_qGradingScaleId" Label="Grading Scale"
+                   Variant="Variant.Outlined" FullWidth="true" Class="mb-3"
+                   AnchorOrigin="Origin.BottomLeft">
+            @foreach (var scale in _scales)
+            {
+                <MudSelectItem T="int?" Value="@((int?)scale.Id)">@scale.Name</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudNumericField T="int" @bind-Value="_qSortOrder" Label="Sort Order"
+                         Variant="Variant.Outlined" FullWidth="true" Min="1" Max="999" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _questionDialogOpen = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(string.IsNullOrWhiteSpace(_qText) || _qGradingScaleId == null)"
+                   OnClick="SaveQuestionAsync">
+            @(_editingQuestion == null ? "Add" : "Save")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private bool _loading = true;
+    private List<ClassGroupType>  _classGroupTypes = new();
+    private List<RubricTemplate>  _templates       = new();
+    private List<RubricQuestion>  _questions       = new();
+    private List<GradingScale>    _scales          = new();
+
+    private bool            _questionDialogOpen;
+    private ClassGroupType? _dialogClassGroupType;
+    private RubricQuestion? _editingQuestion;
+    private string          _qText           = "";
+    private string?         _qSegment;
+    private string?         _qScope;
+    private int?            _qGradingScaleId;
+    private int             _qSortOrder      = 10;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        _classGroupTypes = await Db.ClassGroupTypes.OrderBy(c => c.SortOrder).ToListAsync();
+        _templates       = await Db.RubricTemplates.ToListAsync();
+        _questions       = await Db.RubricQuestions.Include(q => q.GradingScale).ToListAsync();
+        _scales          = await Db.GradingScales.Include(s => s.Options).OrderBy(s => s.Name).ToListAsync();
+    }
+
+    private void OpenAddQuestion(ClassGroupType cgt)
+    {
+        _dialogClassGroupType = cgt;
+        _editingQuestion      = null;
+        _qText           = "";
+        _qSegment        = null;
+        _qScope          = null;
+        _qGradingScaleId = null;
+        var template = _templates.FirstOrDefault(t => t.ClassGroupTypeId == cgt.Id);
+        var existing = template != null
+            ? _questions.Where(q => q.RubricTemplateId == template.Id).ToList()
+            : new List<RubricQuestion>();
+        _qSortOrder = existing.Any() ? existing.Max(q => q.SortOrder) + 10 : 10;
+        _questionDialogOpen = true;
+    }
+
+    private void OpenEditQuestion(RubricQuestion q)
+    {
+        _editingQuestion      = q;
+        _dialogClassGroupType = null;
+        _qText           = q.QuestionText;
+        _qSegment        = q.Segment;
+        _qScope          = q.SubjectScope;
+        _qGradingScaleId = q.GradingScaleId;
+        _qSortOrder      = q.SortOrder;
+        _questionDialogOpen  = true;
+    }
+
+    private async Task SaveQuestionAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_qText) || _qGradingScaleId == null) return;
+
+        if (_editingQuestion != null)
+        {
+            var dbQ = await Db.RubricQuestions.FindAsync(_editingQuestion.Id);
+            if (dbQ == null) return;
+            dbQ.QuestionText   = _qText.Trim();
+            dbQ.Segment        = string.IsNullOrWhiteSpace(_qSegment) ? null : _qSegment.Trim();
+            dbQ.SubjectScope   = string.IsNullOrWhiteSpace(_qScope)   ? null : _qScope.Trim();
+            dbQ.GradingScaleId = _qGradingScaleId.Value;
+            dbQ.SortOrder      = _qSortOrder;
+            await Db.SaveChangesAsync();
+            Snackbar.Add("Question updated.", Severity.Success);
+        }
+        else
+        {
+            var cgt      = _dialogClassGroupType!;
+            var template = _templates.FirstOrDefault(t => t.ClassGroupTypeId == cgt.Id);
+            if (template == null)
+            {
+                template = new RubricTemplate
+                {
+                    Name             = $"{cgt.Name} Assessment Rubric",
+                    ClassGroupTypeId = cgt.Id,
+                    UpdatedAt        = DateTimeOffset.UtcNow,
+                };
+                Db.RubricTemplates.Add(template);
+                await Db.SaveChangesAsync();
+                _templates.Add(template);
+            }
+
+            Db.RubricQuestions.Add(new RubricQuestion
+            {
+                QuestionText     = _qText.Trim(),
+                Segment          = string.IsNullOrWhiteSpace(_qSegment) ? null : _qSegment.Trim(),
+                SubjectScope     = string.IsNullOrWhiteSpace(_qScope)   ? null : _qScope.Trim(),
+                GradingScaleId   = _qGradingScaleId.Value,
+                SortOrder        = _qSortOrder,
+                RubricTemplateId = template.Id,
+            });
+            await Db.SaveChangesAsync();
+            Snackbar.Add("Question added.", Severity.Success);
+        }
+
+        _questionDialogOpen = false;
+        await LoadAsync();
+    }
+
+    private async Task DeleteQuestionAsync(RubricQuestion q)
+    {
+        var dbQ = await Db.RubricQuestions.FindAsync(q.Id);
+        if (dbQ == null) return;
+        Db.RubricQuestions.Remove(dbQ);
+        await Db.SaveChangesAsync();
+        Snackbar.Add("Question deleted.", Severity.Info);
+        await LoadAsync();
+    }
+}
