@@ -121,6 +121,39 @@ using (var scope = app.Services.CreateScope())
         });
         await db.SaveChangesAsync();
     }
+
+    // Auto-seed report card field mappings from the seeder.
+    // Upserts any missing entries so new seeder rows are picked up on restart
+    // without needing to manually click Auto-Map All on the mapping page.
+    var rcTemplate = await db.ReportCardTemplates
+        .FirstOrDefaultAsync(t => t.FileName == "elementary-report-card.pdf");
+    if (rcTemplate != null)
+    {
+        var existingMaps = await db.ReportTemplateFieldMaps
+            .Where(m => m.ReportCardTemplateId == rcTemplate.Id)
+            .ToListAsync();
+        var existingKeys = existingMaps
+            .ToLookup(m => (m.ReportDestinationKey, m.PdfFieldName));
+
+        var toAdd = new List<ReportCards.Web.Data.ReportTemplateFieldMap>();
+        foreach (var (destKey, pdfField) in ReportCardFieldMapSeeder.ElementaryReportCardMaps())
+        {
+            if (!existingKeys.Contains((destKey, pdfField)))
+            {
+                toAdd.Add(new ReportCards.Web.Data.ReportTemplateFieldMap
+                {
+                    ReportDestinationKey = destKey,
+                    PdfFieldName         = pdfField,
+                    ReportCardTemplateId = rcTemplate.Id
+                });
+            }
+        }
+        if (toAdd.Count > 0)
+        {
+            db.ReportTemplateFieldMaps.AddRange(toAdd);
+            await db.SaveChangesAsync();
+        }
+    }
 }
 
 if (!app.Environment.IsDevelopment())
