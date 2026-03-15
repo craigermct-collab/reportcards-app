@@ -338,7 +338,6 @@ else
         _imgWidth           = 0;
         _imgHeight          = 0;
         _dirty              = false;
-        _needsImageMeasure  = true;
 
         if (_selectedTemplate == null) return;
 
@@ -359,8 +358,6 @@ else
             .ToListAsync();
         _mappings = saved.Select(m => new MappingEntry(m.ReportDestinationKey, m.PdfFieldName)).ToList();
     }
-
-    private bool _needsImageMeasure = false;
 
     private void SwitchPage(int pageNum)
     {

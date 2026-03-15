@@ -50,7 +50,7 @@ public class PdfFieldReaderService
         // non-standard AcroForm structure (verified via pypdf extraction).
         // These are the Ontario Elementary Report Card header fields that live
         // as widget annotations but are not linked into the /Fields array.
-        var knownSupplements = GetKnownSupplementFields(fileName);
+        var knownSupplements = GetKnownSupplementFields(fileName, templateType);
         foreach (var (name, fieldType) in knownSupplements)
         {
             if (seen.Add(name))
@@ -100,7 +100,7 @@ public class PdfFieldReaderService
     // Fields verified present in the PDF via pypdf but not returned by PdfSharp.
     // Keyed by filename so we can extend for other templates without risk.
 
-    private static IEnumerable<(string Name, string FieldType)> GetKnownSupplementFields(string fileName)
+    private static IEnumerable<(string Name, string FieldType)> GetKnownSupplementFields(string fileName, ReportCardTemplateType? templateType = null)
     {
         // Ontario Elementary Report Card (RC1) — all 128 fields verified via pypdf
         // grouped by their actual page in the PDF.
