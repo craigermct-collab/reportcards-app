@@ -277,15 +277,9 @@ namespace ReportCards.Web.Services
                         {
                             if (!notesAccumulator.ContainsKey(kgNf))
                                 notesAccumulator[kgNf] = new List<string>();
-                            var kgLine = "";
-                            if (!string.IsNullOrWhiteSpace(assess.ValueText))
-                                kgLine = assess.ValueText.Trim();
+                            // KG notes field: comments only, no grade prefix
                             if (!string.IsNullOrWhiteSpace(assess.Comment))
-                                kgLine = string.IsNullOrWhiteSpace(kgLine)
-                                    ? assess.Comment.Trim()
-                                    : kgLine + "\n" + assess.Comment.Trim();
-                            if (!string.IsNullOrWhiteSpace(kgLine))
-                                notesAccumulator[kgNf].Add(kgLine);
+                                notesAccumulator[kgNf].Add(assess.Comment.Trim());
                         }
                         continue;
                     }
