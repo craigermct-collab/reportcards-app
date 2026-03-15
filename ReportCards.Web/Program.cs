@@ -122,6 +122,19 @@ using (var scope = app.Services.CreateScope())
         await db.SaveChangesAsync();
     }
 
+    // Fix any Kindergarten templates that were registered with the wrong TemplateType.
+    // This runs once on startup and is idempotent.
+    var kgTemplates = await db.ReportCardTemplates
+        .Where(t => t.FileName.StartsWith("Kindergarten")
+                 && t.TemplateType != ReportCards.Web.Data.ReportCardTemplateType.KindergartenCommunicationOfLearning)
+        .ToListAsync();
+    if (kgTemplates.Any())
+    {
+        foreach (var t in kgTemplates)
+            t.TemplateType = ReportCards.Web.Data.ReportCardTemplateType.KindergartenCommunicationOfLearning;
+        await db.SaveChangesAsync();
+    }
+
     // Auto-seed report card field mappings from the seeder.
     // Upserts any missing entries so new seeder rows are picked up on restart
     // without needing to manually click Auto-Map All on the mapping page.
