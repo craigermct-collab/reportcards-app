@@ -632,15 +632,11 @@ else
         }
         else
         {
-            @{
-                // Unsegmented questions first, then alphabetical by segment
-                var segments = _rubricQuestions
-                    .GroupBy(q => q.Segment ?? "")
-                    .OrderBy(g => string.IsNullOrWhiteSpace(g.Key) ? "" : g.Key)
-                    .ToList();
-                // Count answered
-                var answeredCount = _rubricResponses.Count(r => r.Value != null);
-            }
+            var segments = _rubricQuestions
+                .GroupBy(q => q.Segment ?? "")
+                .OrderBy(g => string.IsNullOrWhiteSpace(g.Key) ? "" : g.Key)
+                .ToList();
+            var answeredCount = _rubricResponses.Count(r => r.Value != null);
             @foreach (var seg in segments)
             {
                 @if (!string.IsNullOrWhiteSpace(seg.Key))
@@ -752,11 +748,12 @@ else
                         <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Style="color:var(--mud-palette-secondary); font-size:18px;" />
                         <MudText Typo="Typo.subtitle2" Style="font-weight:700; color:var(--mud-palette-secondary); flex:1;">Generated Comment</MudText>
                         @{
-                            var genCharCount = _rubricGeneratedText.Length;
-                            var genIsOver = genCharCount > _rubricCharLimit;
-                            var genColor = genIsOver ? "#C0392B" : "var(--mud-palette-text-secondary)";
+                            var genCharCount    = _rubricGeneratedText.Length;
+                            var genIsOver       = genCharCount > _rubricCharLimit;
+                            var genCounterColor = genIsOver ? "#C0392B" : "var(--mud-palette-text-secondary)";
+                            var genCounterStyle = $"font-family:monospace; color:{genCounterColor}";
                         }
-                        <MudText Typo="Typo.caption" Style="font-family:monospace; color:@genColor;">
+                        <MudText Typo="Typo.caption" Style="@genCounterStyle">
                             @genCharCount / @_rubricCharLimit characters
                         </MudText>
                     </div>
