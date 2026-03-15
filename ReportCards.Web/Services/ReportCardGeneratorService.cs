@@ -217,6 +217,7 @@ namespace ReportCards.Web.Services
             // all roll up to LanguageNotes), we collect them and join rather than overwrite.
             // Key = PDF notes field name, Value = ordered list of "Strand: comment" lines.
             var notesAccumulator = new Dictionary<string, List<string>>();
+            bool isTwoTermCard = template.TemplateType == ReportCardTemplateType.ElementaryReportCard;
 
             foreach (var li in enrollment.LearningItems)
             {
@@ -234,8 +235,6 @@ namespace ReportCards.Web.Services
                 // the strand-specific key. E.g. subject.french.listening → subject.french.notes
                 // subject.language (whole subject) → subject.language.notes
                 var parentNotesKey = DeriveParentNotesKey(destKey);
-
-                bool isTwoTermCard = template.TemplateType == ReportCardTemplateType.ElementaryReportCard;
 
                 if (isTwoTermCard)
                 {
@@ -289,6 +288,63 @@ namespace ReportCards.Web.Services
             // Flush accumulated notes — join multiple strand comments with single newlines
             foreach (var (pdfField, lines) in notesAccumulator)
                 fields[pdfField] = string.Join("\n", lines.Where(l => !string.IsNullOrWhiteSpace(l)));
+
+            // ── Learning Skills ────────────────────────────────────────────────
+            var learningSkills = await _db.LearningSkillsEntries
+                .FirstOrDefaultAsync(l => l.EnrollmentId == enrollmentId && l.TermInstanceId == termInstanceId);
+
+            if (learningSkills != null && isTwoTermCard)
+            {
+                // Helper: write skill value to current term column
+                void SetSkill(string destKey, string? currentVal, string? otherVal)
+                {
+                    var currentSlot   = term.ReportCardTermSlot;
+                    var currentSuffix = currentSlot == ReportCardTermSlot.Term1 ? ".term1" : ".term2";
+                    var otherSuffix   = currentSlot == ReportCardTermSlot.Term1 ? ".term2" : ".term1";
+                    if (currentVal != null && mapByKey.TryGetValue(destKey + currentSuffix, out var cf))
+                        fields[cf] = currentVal;
+                    if (otherVal   != null && mapByKey.TryGetValue(destKey + otherSuffix,   out var of2))
+                        fields[of2] = otherVal;
+                }
+
+                // Load other-term learning skills if this is Term2
+                LearningSkillsEntry? otherTermSkills = null;
+                if (term.ReportCardTermSlot == ReportCardTermSlot.Term2)
+                {
+                    var term1Instance = await _db.TermInstances
+                        .FirstOrDefaultAsync(t => t.SchoolYearId == term.SchoolYearId
+                                              && t.ReportCardTermSlot == ReportCardTermSlot.Term1);
+                    if (term1Instance != null)
+                        otherTermSkills = await _db.LearningSkillsEntries
+                            .FirstOrDefaultAsync(l => l.EnrollmentId == enrollmentId
+                                                   && l.TermInstanceId == term1Instance.Id);
+                }
+
+                SetSkill(ReportDestinationKeys.Responsibility,  learningSkills.Responsibility,  otherTermSkills?.Responsibility);
+                SetSkill(ReportDestinationKeys.Organization,    learningSkills.Organization,    otherTermSkills?.Organization);
+                SetSkill(ReportDestinationKeys.IndependentWork, learningSkills.IndependentWork, otherTermSkills?.IndependentWork);
+                SetSkill(ReportDestinationKeys.Collaboration,   learningSkills.Collaboration,   otherTermSkills?.Collaboration);
+                SetSkill(ReportDestinationKeys.Initiative,      learningSkills.Initiative,      otherTermSkills?.Initiative);
+                SetSkill(ReportDestinationKeys.SelfRegulation,  learningSkills.SelfRegulation,  otherTermSkills?.SelfRegulation);
+
+                if (!string.IsNullOrWhiteSpace(learningSkills.StrengthsNextSteps)
+                    && mapByKey.TryGetValue(ReportDestinationKeys.StrengthsNextSteps, out var snField))
+                    fields[snField] = learningSkills.StrengthsNextSteps;
+            }
+            else if (learningSkills != null) // single-term (progress report)
+            {
+                void SetSingle(string destKey, string? val)
+                {
+                    if (val != null && mapByKey.TryGetValue(destKey, out var f)) fields[f] = val;
+                }
+                SetSingle(ReportDestinationKeys.Responsibility,  learningSkills.Responsibility);
+                SetSingle(ReportDestinationKeys.Organization,    learningSkills.Organization);
+                SetSingle(ReportDestinationKeys.IndependentWork, learningSkills.IndependentWork);
+                SetSingle(ReportDestinationKeys.Collaboration,   learningSkills.Collaboration);
+                SetSingle(ReportDestinationKeys.Initiative,      learningSkills.Initiative);
+                SetSingle(ReportDestinationKeys.SelfRegulation,  learningSkills.SelfRegulation);
+                SetSingle(ReportDestinationKeys.StrengthsNextSteps, learningSkills.StrengthsNextSteps);
+            }
 
             // ── Subject modifier checkboxes ──────────────────────────────────────────
             // Load all StudentSubjectModifiers for this enrollment + term, then map

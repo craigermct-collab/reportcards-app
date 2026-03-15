@@ -69,6 +69,9 @@ public class SchoolDbContext : DbContext
     // Peer review
     public DbSet<EnrollmentPeerReview> EnrollmentPeerReviews => Set<EnrollmentPeerReview>();
 
+    // Learning Skills
+    public DbSet<LearningSkillsEntry> LearningSkillsEntries => Set<LearningSkillsEntry>();
+
     // Comment templates
     public DbSet<CommentTemplate> CommentTemplates => Set<CommentTemplate>();
 
@@ -426,6 +429,22 @@ public class SchoolDbContext : DbContext
             .HasOne(s => s.TermInstance)
             .WithMany()
             .HasForeignKey(s => s.TermInstanceId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        // LearningSkillsEntry — unique per enrollment + term
+        m.Entity<LearningSkillsEntry>()
+            .HasIndex(l => new { l.EnrollmentId, l.TermInstanceId }).IsUnique();
+
+        m.Entity<LearningSkillsEntry>()
+            .HasOne(l => l.Enrollment)
+            .WithMany()
+            .HasForeignKey(l => l.EnrollmentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        m.Entity<LearningSkillsEntry>()
+            .HasOne(l => l.TermInstance)
+            .WithMany()
+            .HasForeignKey(l => l.TermInstanceId)
             .OnDelete(DeleteBehavior.NoAction);
 
         // EnrollmentPeerReview — unique per enrollment + term

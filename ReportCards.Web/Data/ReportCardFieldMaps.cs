@@ -23,7 +23,9 @@ public static class ReportDestinationKeys
     public const string Collaboration       = "skills.collaboration";
     public const string Initiative          = "skills.initiative";
     public const string SelfRegulation      = "skills.selfRegulation";
-    public const string StrengthsNextSteps  = "skills.strengthsNextSteps";
+    public const string StrengthsNextSteps        = "skills.strengthsNextSteps";
+    public const string StrengthsNextStepsTerm1    = "skills.strengthsNextSteps.term1";
+    public const string StrengthsNextStepsTerm2    = "skills.strengthsNextSteps.term2";
 
     public const string Language            = "subject.language";
     public const string LanguageNotes       = "subject.language.notes";
@@ -150,6 +152,7 @@ public static class ReportCardFieldMapSeeder
         yield return (ReportDestinationKeys.Initiative      + ".term2", "Term2Initiative");
         yield return (ReportDestinationKeys.SelfRegulation  + ".term1", "Term1SelfRegulation");
         yield return (ReportDestinationKeys.SelfRegulation  + ".term2", "Term2SelfRegulation");
+        yield return (ReportDestinationKeys.StrengthsNextSteps,          "StrengthsNextSteps");
 
         // ── Page 2: Language ──────────────────────────────────────────
         yield return (ReportDestinationKeys.Language        + ".term1", "LanguageTerm1");

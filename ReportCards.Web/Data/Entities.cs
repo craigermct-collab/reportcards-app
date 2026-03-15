@@ -807,6 +807,39 @@ public class HomeworkAnalysis
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// L) LEARNING SKILLS
+// ═══════════════════════════════════════════════════════════════════
+
+/// <summary>
+/// Stores Learning Skills and Work Habits grades for one student
+/// in one term. One row per enrollment per term.
+/// Uses the Ontario E/G/S/N scale.
+/// </summary>
+public class LearningSkillsEntry
+{
+    public int Id { get; set; }
+
+    public int EnrollmentId { get; set; }
+    public Enrollment? Enrollment { get; set; }
+
+    public int TermInstanceId { get; set; }
+    public TermInstance? TermInstance { get; set; }
+
+    // The six Learning Skills (E / G / S / N or null = not yet graded)
+    public string? Responsibility    { get; set; }
+    public string? Organization      { get; set; }
+    public string? IndependentWork   { get; set; }
+    public string? Collaboration     { get; set; }
+    public string? Initiative        { get; set; }
+    public string? SelfRegulation    { get; set; }
+
+    // Strengths / Next Steps comment (maps to StrengthsNextSteps PDF field)
+    public string? StrengthsNextSteps { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // J) PEER REVIEW
 // ═══════════════════════════════════════════════════════════════════
 
