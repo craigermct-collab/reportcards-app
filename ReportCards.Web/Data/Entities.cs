@@ -889,6 +889,14 @@ public class ReportCardTemplate
     /// <summary>Filename relative to ReportCardTemplates/ folder, e.g. "progress-report.pdf"</summary>
     public required string FileName { get; set; }
 
+    /// <summary>
+    /// Optional JSON dict overriding per-subject comment char limits for this template.
+    /// Keys are subject names (lowercase), values are integer char limits.
+    /// e.g. {"belonging and contributing": 1400, "self-regulation and well-being": 1300}
+    /// Null = use hardcoded defaults from CommentCharLimits.
+    /// </summary>
+    public string? CommentFieldLimitsJson { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public List<ClassGroupInstance> ClassGroupInstances { get; set; } = new();

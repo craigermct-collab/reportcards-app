@@ -435,7 +435,7 @@ else
                                         </div>
                                         <div style="flex:1.4; min-width:0;">
                                             @{
-                                                var charLimit = CommentCharLimits.ForSubject(subjectGroup.SubjectName);
+                                                var charLimit = CommentCharLimits.ForSubject(subjectGroup.SubjectName, _templateCharLimits);
                                                 var charCount = row.Comment?.Length ?? 0;
                                                 var isOver    = charCount > charLimit;
                                                 var isWarning = charCount > (int)(charLimit * 0.90) && !isOver;
@@ -825,6 +825,8 @@ else
 
     private List<TermInstance> _terms       = new();
     private List<Enrollment>   _enrollments = new();
+    // Char limit overrides from the active RC template for the selected term's class group
+    private Dictionary<string, int>? _templateCharLimits = null;
 
     // Keyed by StudentId
     private Dictionary<int, StudentState> _studentStates = new();
@@ -896,8 +898,17 @@ else
         _expandedStudentId = null;
         _enrollments       = new();
         _studentStates     = new();
+        _templateCharLimits = null;
 
         if (_selectedTermId == null) return;
+
+        // Load char limit overrides from the RC template assigned to this term's class group
+        var templateJson = await Db.ClassGroupInstances
+            .Where(c => c.TermInstanceId == _selectedTermId && c.ReportCardTemplate != null)
+            .Select(c => c.ReportCardTemplate!.CommentFieldLimitsJson)
+            .FirstOrDefaultAsync();
+        _templateCharLimits = CommentCharLimits.ParseLimits(templateJson);
+
         await LoadStudentsAsync();
     }
 
@@ -1326,7 +1337,7 @@ else
         var student    = enrollment.Student;
         var gradeLabel = enrollment.Grade?.Name;
         var term       = _terms.FirstOrDefault(t => t.Id == _selectedTermId);
-        var charLimit  = CommentCharLimits.ForSubject(subjectName);
+        var charLimit  = CommentCharLimits.ForSubject(subjectName, _templateCharLimits);
 
         AssistantCtx.SetContext(
             new AssistantContext

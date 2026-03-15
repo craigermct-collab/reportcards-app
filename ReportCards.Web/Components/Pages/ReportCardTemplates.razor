@@ -312,6 +312,31 @@ else
                 Kindergarten Communication of Learning — four frames
             </MudSelectItem>
         </MudSelect>
+
+        @if (_editLimits.Any())
+        {
+            <MudDivider Class="mt-4 mb-3" />
+            <MudText Typo="Typo.subtitle2" Class="mb-1">Comment Character Limits</MudText>
+            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);" Class="mb-3 d-block">
+                Max characters per comment field, based on PDF field size. Adjust if you use a different font or layout.
+            </MudText>
+            @foreach (var subject in _editLimits.Keys.ToList())
+            {
+                var currentVal = _editLimits[subject];
+                <div class="d-flex align-center gap-3 mb-2">
+                    <MudText Typo="Typo.body2" Style="flex:1; text-transform:capitalize;">@subject</MudText>
+                    <MudNumericField T="int"
+                                     Value="@currentVal"
+                                     ValueChanged="@((int v) => _editLimits[subject] = v)"
+                                     Variant="Variant.Outlined"
+                                     Margin="Margin.Dense"
+                                     Min="50" Max="5000"
+                                     Style="width:110px;"
+                                     Adornment="Adornment.End"
+                                     AdornmentText="chars" />
+                </div>
+            }
+        }
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="@CloseEditDialog">Cancel</MudButton>
@@ -411,6 +436,7 @@ else
     private ReportCardTemplateType _editTemplateType = ReportCardTemplateType.ElementaryProgressReport;
     private string?                _editUploadedFileName;
     private string?                _editUploadError;
+    private Dictionary<string, int> _editLimits      = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -524,7 +550,34 @@ else
         _editUploadedFileName = null;
         _editUploadError      = null;
         _editTemplateOpen     = true;
+        // Load char limits — start from stored overrides, fill gaps with hardcoded defaults
+        var stored = CommentCharLimits.ParseLimits(template.CommentFieldLimitsJson) ?? new();
+        _editLimits = GetDefaultLimitsForType(template.TemplateType)
+            .ToDictionary(
+                kv => kv.Key,
+                kv => stored.TryGetValue(kv.Key, out var v) ? v : kv.Value);
     }
+
+    private static Dictionary<string, int> GetDefaultLimitsForType(ReportCardTemplateType type) =>
+        type == ReportCardTemplateType.KindergartenCommunicationOfLearning
+        ? new()
+          {
+              ["belonging and contributing"]              = CommentCharLimits.KgBelonging,
+              ["self-regulation and well-being"]          = CommentCharLimits.KgSelfReg,
+              ["demonstrating literacy and mathematics"]  = CommentCharLimits.KgLiteracy,
+              ["problem solving and innovating"]          = CommentCharLimits.KgProblem,
+          }
+        : new()
+          {
+              ["language"]                = CommentCharLimits.ElementaryLanguage,
+              ["french"]                  = CommentCharLimits.ElementaryFrench,
+              ["native language"]         = CommentCharLimits.ElementaryNativeLang,
+              ["mathematics"]             = CommentCharLimits.ElementaryMath,
+              ["science and technology"]  = CommentCharLimits.ElementarySciTech,
+              ["social studies"]          = CommentCharLimits.ElementarySocialStudies,
+              ["health & physical ed"]    = CommentCharLimits.ElementaryHealthPhysEd,
+              ["the arts"]                = CommentCharLimits.ElementaryArts,
+          };
 
     private void CloseEditDialog()
     {
@@ -579,9 +632,12 @@ else
         var dbTemplate = await Db.ReportCardTemplates.FindAsync(_editingTemplate.Id);
         if (dbTemplate == null) return;
 
-        dbTemplate.Name         = _editName.Trim();
-        dbTemplate.FileName     = _editFileName.Trim();
-        dbTemplate.TemplateType = _editTemplateType;
+        dbTemplate.Name                 = _editName.Trim();
+        dbTemplate.FileName             = _editFileName.Trim();
+        dbTemplate.TemplateType         = _editTemplateType;
+        dbTemplate.CommentFieldLimitsJson = _editLimits.Any()
+            ? System.Text.Json.JsonSerializer.Serialize(_editLimits)
+            : null;
         await Db.SaveChangesAsync();
 
         Snackbar.Add($"'{dbTemplate.Name}' updated.", Severity.Success);

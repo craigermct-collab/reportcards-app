@@ -157,8 +157,31 @@ public static class CommentCharLimits
     public const int ElementaryArts          = 853;  // TheArtsNotes
     public const int ElementaryDefault       = 782;  // fallback
 
-    /// <summary>Returns the char limit for a given subject name, or the default if not found.</summary>
-    public static int ForSubject(string subjectName) =>
+    /// <summary>
+    /// Returns the char limit for a given subject name.
+    /// Checks template-stored overrides first, falls back to hardcoded defaults.
+    /// </summary>
+    public static int ForSubject(string subjectName, Dictionary<string, int>? templateOverrides = null)
+    {
+        if (templateOverrides != null)
+        {
+            var key = subjectName.ToLowerInvariant().Trim();
+            if (templateOverrides.TryGetValue(key, out var overrideVal))
+                return overrideVal;
+        }
+        return ForSubjectDefault(subjectName);
+    }
+
+    /// <summary>Parses CommentFieldLimitsJson from a template entity into a usable dict.</summary>
+    public static Dictionary<string, int>? ParseLimits(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try { return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(json); }
+        catch { return null; }
+    }
+
+    /// <summary>Hardcoded defaults by subject name.</summary>
+    public static int ForSubjectDefault(string subjectName) =>
         subjectName.ToLowerInvariant() switch
         {
             var n when n.Contains("belonging")                             => KgBelonging,
