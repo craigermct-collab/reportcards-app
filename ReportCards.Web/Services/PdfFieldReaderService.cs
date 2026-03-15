@@ -1,6 +1,7 @@
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.AcroForms;
 using PdfSharp.Pdf.IO;
+using ReportCards.Web.Data;
 
 namespace ReportCards.Web.Services;
 
