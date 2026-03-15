@@ -631,22 +631,52 @@ else
         }
         else
         {
-            var segments = _rubricQuestions.GroupBy(q => q.Segment ?? "").OrderBy(g => g.Key).ToList();
+            @{
+                // Unsegmented questions first, then alphabetical by segment
+                var segments = _rubricQuestions
+                    .GroupBy(q => q.Segment ?? "")
+                    .OrderBy(g => string.IsNullOrWhiteSpace(g.Key) ? "" : g.Key)
+                    .ToList();
+                // Count answered
+                var answeredCount = _rubricResponses.Count(r => r.Value != null);
+            }
             @foreach (var seg in segments)
             {
                 @if (!string.IsNullOrWhiteSpace(seg.Key))
                 {
-                    <MudText Typo="Typo.overline" Class="mt-3 mb-1 d-block"
-                             Style="color:var(--mud-palette-primary); font-weight:700; letter-spacing:0.08em;">
-                        @seg.Key
-                    </MudText>
-                    <MudDivider Class="mb-2" />
+                    <div class="d-flex align-center gap-2 mt-4 mb-2">
+                        <div style="height:2px; width:12px; background:var(--mud-palette-primary); border-radius:2px; flex-shrink:0;"></div>
+                        <MudText Typo="Typo.overline"
+                                 Style="color:var(--mud-palette-primary); font-weight:700; letter-spacing:0.1em; font-size:11px;">
+                            @seg.Key
+                        </MudText>
+                        <div style="height:1px; flex:1; background:var(--mud-palette-divider);"></div>
+                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary); font-size:10px;">
+                            @seg.Count() question@(seg.Count() != 1 ? "s" : "")
+                        </MudText>
+                    </div>
                 }
+                <MudPaper Outlined="@(!string.IsNullOrWhiteSpace(seg.Key))" Class="@(!string.IsNullOrWhiteSpace(seg.Key) ? "pa-3 mb-2" : "")" Style="border-radius:8px;">
                 @foreach (var q in seg.OrderBy(x => x.SortOrder))
                 {
                     var response = _rubricResponses.GetValueOrDefault(q.Id);
+                    var isAnswered = response != null;
                     <div class="d-flex align-center gap-3 mb-3">
-                        <MudText Typo="Typo.body2" Style="flex:1; font-weight:500;">@q.QuestionText</MudText>
+                        <div style="flex:1; min-width:0;">
+                            <div class="d-flex align-center gap-1">
+                                @if (isAnswered)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                                             Style="color:#2E7D32; font-size:14px; flex-shrink:0;" />
+                                }
+                                else
+                                {
+                                    <MudIcon Icon="@Icons.Material.Outlined.RadioButtonUnchecked"
+                                             Style="color:var(--mud-palette-text-disabled); font-size:14px; flex-shrink:0;" />
+                                }
+                                <MudText Typo="Typo.body2" Style="font-weight:500;">@q.QuestionText</MudText>
+                            </div>
+                        </div>
                         <div style="width:200px; flex-shrink:0;">
                             @if (q.GradingScale?.ValueType == GradingValueType.OptionList)
                             {
@@ -675,7 +705,13 @@ else
                         </div>
                     </div>
                 }
+                </MudPaper>
             }
+            <div class="d-flex align-center justify-end mt-1 mb-2">
+                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                    @answeredCount / @_rubricQuestions.Count answered
+                </MudText>
+            </div>
 
             <MudDivider Class="my-3" />
             <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-2">
