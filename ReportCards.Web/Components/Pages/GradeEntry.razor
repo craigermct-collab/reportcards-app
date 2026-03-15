@@ -471,10 +471,10 @@ else
                                                 </div>
                                             </div>
                                             <div class="d-flex justify-end mt-1" @onclick:stopPropagation="true">
-                                                <MudTooltip Text="@($"PDF field limit: {charLimit} characters")">
-                                                    <span style="@counterStyle">
-                                                        @charCount / @charLimit
-                                                        @if (isOver) { <span> ⚠ over limit</span> }
+                                                <MudTooltip Text="@($"PDF field holds ~{charLimit} characters")">
+                                                    <span style="font-size:12px; font-family:monospace; color:@counterColor; white-space:nowrap;">
+                                                        @charCount / @charLimit characters
+                                                        @if (isOver) { <span style="font-weight:700;"> ⚠ over limit</span> }
                                                     </span>
                                                 </MudTooltip>
                                             </div>
