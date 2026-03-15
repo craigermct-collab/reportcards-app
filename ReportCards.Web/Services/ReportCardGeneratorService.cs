@@ -471,15 +471,20 @@ namespace ReportCards.Web.Services
                             {
                                 if (cbVal)
                                 {
-                                    // Try to find the export value from the AP dict (normal appearance keys)
-                                    // PDF checkboxes use the export value name (e.g. /Yes, /On, /fieldName)
-                                    // Try /Yes first, then /On as fallback
+                                    // Ontario RC1 PDF uses export value "On" (not "Yes").
+                                    // Try to detect from /AP/N dict; fall back to /On.
                                     var apDict = annot.Elements["/AP"] as PdfDictionary;
-                                    var nDict  = apDict?.Elements["/N"] as PdfDictionary;
-                                    string exportVal = "/Yes"; // default
+                                    PdfDictionary? nDict = null;
+                                    if (apDict != null)
+                                    {
+                                        var nEl = apDict.Elements["/N"];
+                                        nDict = nEl as PdfDictionary;
+                                        if (nDict == null && nEl is PdfSharp.Pdf.Advanced.PdfReference nr)
+                                            nDict = nr.Value as PdfDictionary;
+                                    }
+                                    string exportVal = "/On"; // Ontario RC default
                                     if (nDict != null)
                                     {
-                                        // Find any key that isn't /Off
                                         foreach (var key in nDict.Elements.Keys)
                                             if (key != "/Off") { exportVal = key; break; }
                                     }
