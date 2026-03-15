@@ -26,7 +26,23 @@
         window.getImageDimensions = function (imgId) {
             const img = document.getElementById(imgId);
             if (!img) return [0, 0];
-            return [img.getBoundingClientRect().width, img.getBoundingClientRect().height];
+            // If already loaded and has size, return immediately
+            if (img.complete && img.clientWidth > 0)
+                return [img.clientWidth, img.clientHeight];
+            return [0, 0];
+        };
+
+        window.getImageDimensionsAsync = function (imgId) {
+            return new Promise((resolve) => {
+                const img = document.getElementById(imgId);
+                if (!img) { resolve([0, 0]); return; }
+                if (img.complete && img.clientWidth > 0) {
+                    resolve([img.clientWidth, img.clientHeight]);
+                    return;
+                }
+                img.onload = () => resolve([img.clientWidth, img.clientHeight]);
+                img.onerror = () => resolve([0, 0]);
+            });
         };
 
         window.mappingLines = {

@@ -1,3 +1,10 @@
+// Image dimension helper — used by ReportCardMapping overlay
+window.getImageDimensions = function(elementId) {
+    const img = document.getElementById(elementId);
+    if (!img) return [0, 0];
+    return [img.clientWidth, img.clientHeight];
+};
+
 // File download helper
 window.downloadFileFromBase64 = function(base64, fileName, mimeType) {
     const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
