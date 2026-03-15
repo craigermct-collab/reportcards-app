@@ -215,7 +215,9 @@ else
                     <MudDivider />
                     <div class="pa-4">
 
-                        @* ── Learning Skills ──────────────────────────────────────── *@
+                        @* ── Learning Skills (hidden for Kindergarten — uses Four Frames instead) *@
+                        @if (!state.IsKindergarten)
+                        {
                         <div class="d-flex align-center gap-2 mb-2">
                             <MudIcon Icon="@Icons.Material.Filled.Star" Size="Size.Small" Style="color:#B7950B;" />
                             <MudText Typo="Typo.subtitle1" Style="font-weight:700; color:#1A2B3C;">Learning Skills and Work Habits</MudText>
@@ -301,6 +303,8 @@ else
                                           @onblur="@(() => _ = SaveLearningSkillsAsync(enrollment, state))"
                                           @onclick:stopPropagation="true" />
                         </MudPaper>
+
+                        } @* end @if (!state.IsKindergarten) *@
 
                         @foreach (var subjectGroup in state.Groups)
                         {
@@ -789,6 +793,8 @@ else
         public string? ReviewerName { get; set; }
         public List<SubjectGroup> Groups { get; set; } = new();
         public LearningSkillsState? LearningSkills { get; set; }
+        /// <summary>True for Kindergarten class groups — hides Learning Skills section.</summary>
+        public bool IsKindergarten { get; set; }
 
         public int TotalItems  => Groups.Sum(g => g.Rows.Count);
         public int GradedItems => Groups.Sum(g => g.Rows.Count(r => r.ValueText != null || r.ValueNumber != null));
@@ -989,11 +995,17 @@ else
     private async Task BuildGradeGroupsAsync(StudentState state, int studentId)
     {
         var enrollment = await Db.Enrollments
+            .Include(e => e.ClassGroupInstance)
+                .ThenInclude(c => c.ClassGroupType)
             .FirstOrDefaultAsync(e =>
                 e.StudentId      == studentId &&
                 e.TermInstanceId == _selectedTermId);
 
         if (enrollment == null) return;
+
+        // Flag Kindergarten class groups — they use Four Frames, not Learning Skills
+        state.IsKindergarten = enrollment.ClassGroupInstance?.ClassGroupType?.Name
+            ?.StartsWith("Kindergarten", StringComparison.OrdinalIgnoreCase) == true;
 
         var items = await Db.StudentLearningItems
             .Include(li => li.GradingScale)
