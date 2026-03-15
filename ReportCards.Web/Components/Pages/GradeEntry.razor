@@ -694,7 +694,8 @@ else
                                     <MudIcon Icon="@Icons.Material.Outlined.RadioButtonUnchecked"
                                              Style="color:var(--mud-palette-text-disabled); font-size:14px; flex-shrink:0;" />
                                 }
-                                <MudText Typo="Typo.body2" Style="font-weight:@(isFocused ? "700" : "500"); color:@(isFocused ? "var(--mud-palette-primary)" : "inherit");">@q.QuestionText</MudText>
+                                @{ var qTextStyle = isFocused ? "font-weight:700; color:var(--mud-palette-primary);" : "font-weight:500;"; }
+                                <MudText Typo="Typo.body2" Style="@qTextStyle">@q.QuestionText</MudText>
                             </div>
                         </div>
 
