@@ -435,7 +435,11 @@ else
                                         </div>
                                         <div style="flex:1.4; min-width:0;">
                                             @{
-                                                var charLimit = CommentCharLimits.ForSubject(subjectGroup.SubjectName, _templateCharLimits);
+                                                // For KG, the frame name is on the row (strand level), not the group
+                                                var limitLookupName = row.DisplayName.Length > 5
+                                                    ? row.DisplayName
+                                                    : subjectGroup.SubjectName;
+                                                var charLimit = CommentCharLimits.ForSubject(limitLookupName, _templateCharLimits);
                                                 var charCount = row.Comment?.Length ?? 0;
                                                 var isOver    = charCount > charLimit;
                                                 var isWarning = charCount > (int)(charLimit * 0.90) && !isOver;
@@ -466,7 +470,7 @@ else
                                                         <MudIconButton Icon="@Icons.Material.Filled.AutoAwesome"
                                                                        Size="Size.Small"
                                                                        Color="Color.Secondary"
-                                                                       OnClick="@(() => OpenCommentAssistant(enrollment, row, subjectGroup.SubjectName))" />
+                                                                       OnClick="@(() => OpenCommentAssistant(enrollment, row, subjectGroup.SubjectName, limitLookupName))" />
                                                     </MudTooltip>
                                                 </div>
                                             </div>
@@ -1329,15 +1333,17 @@ else
     private void HandleCommentKeyDown(KeyboardEventArgs e, Enrollment enrollment, GradeRow row, string subjectName)
     {
         if (e.CtrlKey && e.ShiftKey && e.Key == "A")
-            OpenCommentAssistant(enrollment, row, subjectName);
+            OpenCommentAssistant(enrollment, row, subjectName, row.DisplayName);
     }
 
-    private void OpenCommentAssistant(Enrollment enrollment, GradeRow row, string subjectName)
+    private void OpenCommentAssistant(Enrollment enrollment, GradeRow row, string subjectName, string? rowDisplayName = null)
     {
         var student    = enrollment.Student;
         var gradeLabel = enrollment.Grade?.Name;
         var term       = _terms.FirstOrDefault(t => t.Id == _selectedTermId);
-        var charLimit  = CommentCharLimits.ForSubject(subjectName, _templateCharLimits);
+        // Use row display name for KG (frame name) over group name ("Kindergarten")
+        var limitLookupName = (rowDisplayName?.Length ?? 0) > 5 ? rowDisplayName! : subjectName;
+        var charLimit  = CommentCharLimits.ForSubject(limitLookupName, _templateCharLimits);
 
         AssistantCtx.SetContext(
             new AssistantContext
