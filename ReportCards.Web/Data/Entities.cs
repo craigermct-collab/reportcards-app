@@ -871,8 +871,9 @@ public class EnrollmentPeerReview
 /// </summary>
 public enum ReportCardTemplateType
 {
-    ElementaryProgressReport,   // Fall term  — RC2
-    ElementaryReportCard,       // Winter/Spring — RC1
+    ElementaryProgressReport,       // Fall term  — RC2
+    ElementaryReportCard,           // Winter/Spring — RC1
+    KindergartenCommunicationOfLearning, // Kindergarten four-frames card
 }
 
 /// <summary>

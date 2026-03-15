@@ -345,13 +345,13 @@ else
         BuildSourceGroups(_selectedTemplate);
 
         // Load PDF field list
-        _pdfFields = PdfReader.GetFields(_selectedTemplate.FileName);
+        _pdfFields = PdfReader.GetFields(_selectedTemplate.FileName, _selectedTemplate.TemplateType);
 
         // Render PDF pages to images
         _pageImages = PdfRenderer.GetPageImages(_selectedTemplate.FileName, dpi: 120);
 
         // Load field coordinate overlay data
-        _fieldRects = PdfFieldCoordinates.GetForFile(_selectedTemplate.FileName);
+        _fieldRects = PdfFieldCoordinates.GetForFile(_selectedTemplate.FileName, _selectedTemplate.TemplateType);
 
         // Load saved mappings
         var saved = await Db.ReportTemplateFieldMaps
@@ -364,37 +364,24 @@ else
 
     private void SwitchPage(int pageNum)
     {
-        _currentPage      = pageNum;
-        _needsImageMeasure = true;
-        // Don't reset _imgWidth — keep overlay visible during transition
+        _currentPage = pageNum;
+        _imgWidth    = 0;  // Force remeasure on next render
+        _imgHeight   = 0;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if ((firstRender || _needsImageMeasure) && _pageImages.Any())
+        // Measure whenever we have pages but no dimensions yet
+        if (_pageImages.Any() && _imgWidth == 0)
         {
-            _needsImageMeasure = false;
             try
             {
-                // Use async version that waits for img.onload if not yet rendered
-                var dims = await JS.InvokeAsync<double[]>("getImageDimensionsAsync", "pdf-page-img");
+                var dims = await JS.InvokeAsync<double[]>("getImageDimensions", "pdf-page-img");
                 if (dims?.Length == 2 && dims[0] > 0)
                 {
                     _imgWidth  = dims[0];
                     _imgHeight = dims[1];
                     StateHasChanged();
-                }
-                else
-                {
-                    // Fallback: retry once after a short delay
-                    await Task.Delay(300);
-                    dims = await JS.InvokeAsync<double[]>("getImageDimensionsAsync", "pdf-page-img");
-                    if (dims?.Length == 2 && dims[0] > 0)
-                    {
-                        _imgWidth  = dims[0];
-                        _imgHeight = dims[1];
-                        StateHasChanged();
-                    }
                 }
             }
             catch { }
@@ -461,8 +448,7 @@ else
     }
 
     private static bool IsKindergartenTemplate(ReportCardTemplate t) =>
-        t.FileName.StartsWith("Kindergarten", StringComparison.OrdinalIgnoreCase) ||
-        t.FileName.StartsWith("kindergarten", StringComparison.OrdinalIgnoreCase);
+        t.TemplateType == ReportCardTemplateType.KindergartenCommunicationOfLearning;
 
     private async Task SaveMappingsAsync()
     {

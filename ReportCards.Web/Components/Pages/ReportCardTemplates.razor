@@ -301,12 +301,15 @@ else
                       HelperText="Auto-updated on upload, or edit manually" />
         <MudSelect T="ReportCardTemplateType" @bind-Value="_editTemplateType"
                    Label="Generation Mode" Variant="Variant.Outlined" FullWidth="true"
-                   HelperText="Controls how data is written into this PDF — single column vs two-term columns">
+                   HelperText="Controls how data is written into this PDF">
             <MudSelectItem T="ReportCardTemplateType" Value="ReportCardTemplateType.ElementaryProgressReport">
                 Single-Term (Progress Report) — one grade column per subject
             </MudSelectItem>
             <MudSelectItem T="ReportCardTemplateType" Value="ReportCardTemplateType.ElementaryReportCard">
                 Two-Term (Report Card) — Term 1 &amp; Term 2 columns side by side
+            </MudSelectItem>
+            <MudSelectItem T="ReportCardTemplateType" Value="ReportCardTemplateType.KindergartenCommunicationOfLearning">
+                Kindergarten Communication of Learning — four frames
             </MudSelectItem>
         </MudSelect>
     </DialogContent>
@@ -366,12 +369,15 @@ else
                       HelperText="Auto-filled from upload, or enter manually" />
         <MudSelect T="ReportCardTemplateType" @bind-Value="_newTemplateType"
                    Label="Generation Mode" Variant="Variant.Outlined" FullWidth="true"
-                   HelperText="Controls how data is written into this PDF — single column vs two-term columns">
+                   HelperText="Controls how data is written into this PDF">
             <MudSelectItem T="ReportCardTemplateType" Value="ReportCardTemplateType.ElementaryProgressReport">
                 Single-Term (Progress Report) — one grade column per subject
             </MudSelectItem>
             <MudSelectItem T="ReportCardTemplateType" Value="ReportCardTemplateType.ElementaryReportCard">
                 Two-Term (Report Card) — Term 1 &amp; Term 2 columns side by side
+            </MudSelectItem>
+            <MudSelectItem T="ReportCardTemplateType" Value="ReportCardTemplateType.KindergartenCommunicationOfLearning">
+                Kindergarten Communication of Learning — four frames
             </MudSelectItem>
         </MudSelect>
     </DialogContent>

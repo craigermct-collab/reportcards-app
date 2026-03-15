@@ -21,7 +21,7 @@ public class PdfFieldReaderService
         _logger = logger;
     }
 
-    public List<PdfFieldInfo> GetFields(string fileName)
+    public List<PdfFieldInfo> GetFields(string fileName, ReportCardTemplateType? templateType = null)
     {
         var path = Path.Combine(_env.ContentRootPath, TemplatesFolder, fileName);
         if (!File.Exists(path))
@@ -105,8 +105,9 @@ public class PdfFieldReaderService
         // grouped by their actual page in the PDF.
         // PdfSharp's AcroForm field tree only returns ~56; the rest are widget
         // annotations not linked into the /Fields array.
-        // Kindergarten Communication of Learning — matches any Kindergarten PDF filename
-        if (fileName.StartsWith("Kindergarten", StringComparison.OrdinalIgnoreCase))
+        // Kindergarten Communication of Learning — keyed on template type, filename-independent
+        if (templateType == ReportCardTemplateType.KindergartenCommunicationOfLearning
+            || fileName.StartsWith("Kindergarten", StringComparison.OrdinalIgnoreCase)) // fallback
         {
             // All fields verified via full widget annotation scan (pypdf)
             // Text fields

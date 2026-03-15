@@ -207,11 +207,13 @@ public static class PdfFieldCoordinates
     };
 
     /// <summary>Get field rects for a specific PDF filename.</summary>
-    public static List<FieldRect> GetForFile(string fileName)
+    public static List<FieldRect> GetForFile(string fileName, ReportCardTemplateType? templateType = null)
     {
-        if (fileName.Equals("elementary-report-card.pdf", StringComparison.OrdinalIgnoreCase))
+        if (fileName.Equals("elementary-report-card.pdf", StringComparison.OrdinalIgnoreCase)
+            || templateType == ReportCardTemplateType.ElementaryReportCard)
             return ElementaryReportCard;
-        if (fileName.StartsWith("Kindergarten", StringComparison.OrdinalIgnoreCase))
+        if (templateType == ReportCardTemplateType.KindergartenCommunicationOfLearning
+            || fileName.StartsWith("Kindergarten", StringComparison.OrdinalIgnoreCase))
             return KindergartenCommunicationOfLearning;
         return new();
     }
