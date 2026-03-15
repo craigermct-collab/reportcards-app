@@ -360,7 +360,8 @@ else
     private async Task SaveQuestionAsync()
     {
         if (string.IsNullOrWhiteSpace(_qText) || _qGradingScaleId == null) return;
-
+        try
+        {
         if (_editingQuestion != null)
         {
             var dbQ = await Db.RubricQuestions.FindAsync(_editingQuestion.Id);
@@ -405,16 +406,35 @@ else
 
         _questionDialogOpen = false;
         await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Save failed: {ex.Message}", Severity.Error);
+        }
     }
 
     private async Task DeleteQuestionAsync(RubricQuestion q)
     {
-        var dbQ = await Db.RubricQuestions.FindAsync(q.Id);
-        if (dbQ == null) return;
-        Db.RubricQuestions.Remove(dbQ);
-        await Db.SaveChangesAsync();
-        Snackbar.Add("Question deleted.", Severity.Info);
-        await LoadAsync();
+        try
+        {
+            // Delete any saved student responses for this question first (FK constraint)
+            var responses = await Db.StudentRubricResponses
+                .Where(r => r.RubricQuestionId == q.Id)
+                .ToListAsync();
+            if (responses.Any())
+                Db.StudentRubricResponses.RemoveRange(responses);
+
+            var dbQ = await Db.RubricQuestions.FindAsync(q.Id);
+            if (dbQ == null) return;
+            Db.RubricQuestions.Remove(dbQ);
+            await Db.SaveChangesAsync();
+            Snackbar.Add("Question deleted.", Severity.Info);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Delete failed: {ex.Message}", Severity.Error);
+        }
     }
 
     // ── IMPORT ────────────────────────────────────────────────────

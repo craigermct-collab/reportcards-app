@@ -514,6 +514,6 @@ public class SchoolDbContext : DbContext
             .HasOne(r => r.RubricQuestion)
             .WithMany()
             .HasForeignKey(r => r.RubricQuestionId)
-            .OnDelete(DeleteBehavior.NoAction);
+            .OnDelete(DeleteBehavior.Cascade); // cascade so deleting a question cleans up responses
     }
 }
