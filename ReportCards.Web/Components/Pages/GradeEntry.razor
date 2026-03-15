@@ -10,6 +10,7 @@
 @inject CommentTemplateService CommentSvc
 @inject IDialogService DialogService
 @inject AssistantContextService AssistantCtx
+@inject ReportCards.Web.Services.AssistantService Assistant
 
 <PageTitle>Grade Entry</PageTitle>
 
@@ -602,7 +603,7 @@ else
 <!-- ── RUBRIC ASSESSMENT DIALOG ─────────────────────────────────────────── -->
 <MudDialog Visible="_rubricDialogVisible"
            VisibleChanged="@((bool v) => _rubricDialogVisible = v)"
-           Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true })">
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true })">
     <TitleContent>
         <div class="d-flex align-center gap-2">
             <MudIcon Icon="@Icons.Material.Filled.Quiz" Color="Color.Secondary" />
@@ -714,25 +715,112 @@ else
             </div>
 
             <MudDivider Class="my-3" />
-            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-2">
-                <MudText Typo="Typo.caption">
-                    Fill in your responses above, then click <strong>Generate Comment</strong> to get an AI-written comment based on these results.
-                    The comment will open in the AI assistant panel for review.
-                </MudText>
-            </MudAlert>
+
+            @* ── Generate button ── *@
+            <div class="d-flex justify-end mb-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Filled.AutoAwesome"
+                           Disabled="@(!_rubricResponses.Any(r => r.Value != null) || _rubricIsGenerating)"
+                           OnClick="GenerateRubricCommentAsync">
+                    @if (_rubricIsGenerating)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        <span>Generating…</span>
+                    }
+                    else
+                    {
+                        <span>@(_rubricGeneratedText == null ? "Generate Comment" : "Regenerate")</span>
+                    }
+                </MudButton>
+            </div>
+
+            @* ── Result panel ── *@
+            @if (_rubricIsGenerating)
+            {
+                <MudPaper Outlined="true" Class="pa-4" Style="border-radius:10px; border:2px solid var(--mud-palette-secondary);">
+                    <div class="d-flex align-center gap-2 mb-3">
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Secondary" />
+                        <MudText Typo="Typo.body2" Style="font-weight:600; color:var(--mud-palette-secondary);">Writing comment…</MudText>
+                    </div>
+                    <div style="height:80px; background:var(--mud-palette-background-grey); border-radius:6px; animation:pulse 1.5s infinite;"></div>
+                </MudPaper>
+            }
+            else if (_rubricGeneratedText != null)
+            {
+                <MudPaper Outlined="true" Class="pa-4" Style="border-radius:10px; border:2px solid var(--mud-palette-secondary);">
+                    <div class="d-flex align-center gap-2 mb-2">
+                        <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Style="color:var(--mud-palette-secondary); font-size:18px;" />
+                        <MudText Typo="Typo.subtitle2" Style="font-weight:700; color:var(--mud-palette-secondary); flex:1;">Generated Comment</MudText>
+                        @{
+                            var genCharCount = _rubricGeneratedText.Length;
+                            var genIsOver = genCharCount > _rubricCharLimit;
+                            var genColor = genIsOver ? "#C0392B" : "var(--mud-palette-text-secondary)";
+                        }
+                        <MudText Typo="Typo.caption" Style="font-family:monospace; color:@genColor;">
+                            @genCharCount / @_rubricCharLimit characters
+                        </MudText>
+                    </div>
+
+                    @if (_rubricIsEditing)
+                    {
+                        <MudTextField T="string"
+                                      @bind-Value="_rubricGeneratedText"
+                                      Variant="Variant.Outlined"
+                                      Lines="6"
+                                      FullWidth="true"
+                                      AutoGrow="true"
+                                      Style="font-size:14px; line-height:1.6;"
+                                      Class="mb-3" />
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body1"
+                                 Style="line-height:1.7; font-size:14px; white-space:pre-wrap; color:#1A2B3C;"
+                                 Class="mb-3">
+                            @_rubricGeneratedText
+                        </MudText>
+                    }
+
+                    @* Previous version *@
+                    @if (_rubricPreviousText != null && _rubricRegenCount > 0)
+                    {
+                        <div style="padding:8px 12px; background:rgba(0,0,0,0.04); border-radius:6px; border-left:2px solid rgba(0,0,0,0.12); margin-bottom:12px;">
+                            <MudText Typo="Typo.caption" Style="font-weight:700; color:var(--mud-palette-text-disabled); display:block; margin-bottom:2px;">Previous version</MudText>
+                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-disabled); font-style:italic; line-height:1.5;">
+                                @(_rubricPreviousText.Length > 180 ? _rubricPreviousText[..180] + "…" : _rubricPreviousText)
+                            </MudText>
+                        </div>
+                    }
+
+                    @* Action buttons *@
+                    <div class="d-flex align-center gap-2 flex-wrap">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Success"
+                                   StartIcon="@Icons.Material.Filled.CheckCircle"
+                                   Style="font-weight:700;"
+                                   OnClick="AcceptRubricCommentAsync">
+                            Accept — Apply to Field
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Secondary"
+                                   StartIcon="@Icons.Material.Filled.Refresh"
+                                   Disabled="@_rubricIsGenerating"
+                                   OnClick="RegenerateRubricCommentAsync">
+                            Try Again
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Default"
+                                   StartIcon="@(_rubricIsEditing ? Icons.Material.Filled.Done : Icons.Material.Filled.Edit)"
+                                   OnClick="@(() => _rubricIsEditing = !_rubricIsEditing)">
+                            @(_rubricIsEditing ? "Done Editing" : "Edit")
+                        </MudButton>
+                    </div>
+                </MudPaper>
+            }
         }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="@(() => _rubricDialogVisible = false)">Cancel</MudButton>
-        @if (_rubricQuestions.Any())
-        {
-            <MudButton Variant="Variant.Filled" Color="Color.Secondary"
-                       StartIcon="@Icons.Material.Filled.AutoAwesome"
-                       Disabled="@(!_rubricResponses.Any(r => r.Value != null))"
-                       OnClick="GenerateRubricCommentAsync">
-                Generate Comment
-            </MudButton>
-        }
+        <MudButton OnClick="@(() => _rubricDialogVisible = false)">Close</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -1490,10 +1578,17 @@ else
     private bool                      _rubricDialogVisible;
     private Enrollment?               _rubricTargetEnrollment;
     private StudentState?             _rubricTargetState;
-    private string?                   _rubricSubjectScope;    // null = all subjects (Elementary)
-    private GradeRow?                 _rubricTargetRow;       // the row whose comment we'll fill
+    private string?                   _rubricSubjectScope;
+    private GradeRow?                 _rubricTargetRow;
     private List<RubricQuestion>      _rubricQuestions  = new();
-    private Dictionary<int, string?>  _rubricResponses  = new(); // questionId → selected value
+    private Dictionary<int, string?>  _rubricResponses  = new();
+    // Inline result panel state
+    private string?  _rubricGeneratedText  = null;  // null = not yet generated
+    private bool     _rubricIsGenerating   = false;
+    private bool     _rubricIsEditing      = false; // teacher editing the text directly
+    private int      _rubricRegenCount     = 0;
+    private string?  _rubricPreviousText   = null;  // for "previous version" display
+    private int      _rubricCharLimit      = 0;
 
     private async Task OpenRubricAssessment(Enrollment enrollment, StudentState state, string? subjectScope, GradeRow? targetRow)
     {
@@ -1502,6 +1597,14 @@ else
         _rubricSubjectScope     = subjectScope;
         _rubricTargetRow        = targetRow;
         _rubricResponses        = new();
+        _rubricGeneratedText    = null;
+        _rubricIsGenerating     = false;
+        _rubricIsEditing        = false;
+        _rubricRegenCount       = 0;
+        _rubricPreviousText     = null;
+        _rubricCharLimit        = targetRow != null
+            ? CommentCharLimits.ForSubject(targetRow.DisplayName, _templateCharLimits)
+            : CommentCharLimits.ElementaryDefault;
 
         // Load the ClassGroupType for this enrollment to find the right rubric template
         var classGroupTypeId = await Db.ClassGroupInstances
@@ -1543,105 +1646,122 @@ else
         StateHasChanged();
     }
 
-    private async Task GenerateRubricCommentAsync()
+    private string BuildRubricPrompt(int attempt = 0)
     {
-        if (_rubricTargetEnrollment == null || _rubricTargetState == null || _selectedTermId == null) return;
-
-        // Save responses to DB
-        var now = DateTimeOffset.UtcNow;
-        foreach (var (questionId, value) in _rubricResponses)
-        {
-            var existing = await Db.StudentRubricResponses
-                .FirstOrDefaultAsync(r => r.EnrollmentId   == _rubricTargetEnrollment.Id
-                                       && r.TermInstanceId == _selectedTermId
-                                       && r.RubricQuestionId == questionId);
-            if (existing != null)
-            {
-                existing.ResponseValue = value;
-                existing.UpdatedAt     = now;
-            }
-            else
-            {
-                Db.StudentRubricResponses.Add(new StudentRubricResponse
-                {
-                    EnrollmentId     = _rubricTargetEnrollment.Id,
-                    TermInstanceId   = _selectedTermId.Value,
-                    RubricQuestionId = questionId,
-                    ResponseValue    = value,
-                    UpdatedAt        = now,
-                });
-            }
-        }
-        await Db.SaveChangesAsync();
-
-        // Build the AI prompt from the rubric responses
-        var student    = _rubricTargetEnrollment.Student;
+        var student    = _rubricTargetEnrollment!.Student;
         var gradeLabel = _rubricTargetEnrollment.Grade?.Name;
         var term       = _terms.FirstOrDefault(t => t.Id == _selectedTermId);
         var subject    = _rubricSubjectScope ?? "all subjects";
-        var charLimit  = _rubricTargetRow != null
-            ? CommentCharLimits.ForSubject(_rubricTargetRow.DisplayName, _templateCharLimits)
-            : CommentCharLimits.ElementaryDefault;
 
-        // Format rubric results into a structured prompt
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"Please write a report card comment for {student?.FirstName} {student?.LastName} " +
-                      $"(Grade {gradeLabel}) based on the following rubric assessment results.");
+
+        if (attempt == 0)
+        {
+            sb.AppendLine($"Please write a report card comment for {student?.FirstName} {student?.LastName} " +
+                          $"(Grade {gradeLabel}) based on the following rubric assessment results.");
+        }
+        else
+        {
+            var variationHint = attempt switch
+            {
+                1 => "Write a DIFFERENT version with a different opening sentence and varied phrasing.",
+                2 => "Try a more concise approach focusing on specific, concrete observations.",
+                3 => "Lead with growth and next steps rather than current strengths.",
+                _ => "Take a completely fresh angle — different tone, structure, and emphasis."
+            };
+            sb.AppendLine($"{variationHint} Still for {student?.FirstName} {student?.LastName} (Grade {gradeLabel}).");
+        }
+
         sb.AppendLine();
         sb.AppendLine($"Subject/Area: {subject}");
         sb.AppendLine($"Term: {term?.SchoolYear?.Name} – {term?.Name}");
         sb.AppendLine();
         sb.AppendLine("Rubric Assessment Results:");
-
         foreach (var q in _rubricQuestions)
         {
             var response = _rubricResponses.GetValueOrDefault(q.Id);
             if (response != null)
             {
-                var segment = string.IsNullOrWhiteSpace(q.Segment) ? "" : $"[{q.Segment}] ";
-                sb.AppendLine($"  • {segment}{q.QuestionText}: {response}");
+                var seg = string.IsNullOrWhiteSpace(q.Segment) ? "" : $"[{q.Segment}] ";
+                sb.AppendLine($"  • {seg}{q.QuestionText}: {response}");
             }
         }
-
         sb.AppendLine();
-        sb.AppendLine($"Write a professional, encouraging report card comment based on these results. " +
+        sb.AppendLine($"Write a professional, encouraging report card comment. " +
                       $"Use the student's first name ({student?.FirstName}). " +
-                      $"The comment MUST be {charLimit} characters or fewer. " +
-                      $"Do not use bullet points — write in flowing prose.");
+                      $"MUST be {_rubricCharLimit} characters or fewer. " +
+                      $"No bullet points — flowing prose only. Reply with ONLY the comment text, nothing else.");
 
-        var rubricPrompt = sb.ToString();
+        return sb.ToString();
+    }
 
-        // Close dialog and open AI assistant with the rubric prompt
-        _rubricDialogVisible = false;
+    private async Task GenerateRubricCommentAsync()
+    {
+        if (_rubricTargetEnrollment == null || _rubricTargetState == null || _selectedTermId == null) return;
+
+        // Save responses to DB first
+        var now = DateTimeOffset.UtcNow;
+        foreach (var (questionId, value) in _rubricResponses)
+        {
+            var existing = await Db.StudentRubricResponses
+                .FirstOrDefaultAsync(r => r.EnrollmentId     == _rubricTargetEnrollment.Id
+                                       && r.TermInstanceId   == _selectedTermId
+                                       && r.RubricQuestionId == questionId);
+            if (existing != null) { existing.ResponseValue = value; existing.UpdatedAt = now; }
+            else Db.StudentRubricResponses.Add(new StudentRubricResponse
+            {
+                EnrollmentId = _rubricTargetEnrollment.Id, TermInstanceId = _selectedTermId.Value,
+                RubricQuestionId = questionId, ResponseValue = value, UpdatedAt = now,
+            });
+        }
+        await Db.SaveChangesAsync();
+
+        // Call AI inline — stay in dialog
+        _rubricIsGenerating  = true;
+        _rubricPreviousText  = _rubricGeneratedText;
+        _rubricGeneratedText = null;
+        _rubricIsEditing     = false;
         StateHasChanged();
 
-        AssistantCtx.SetContext(
-            new AssistantContext
-            {
-                Mode             = AssistantMode.CommentWriter,
-                Page             = "grade-entry",
-                PageLabel        = $"Rubric: {subject}",
-                StudentName      = student != null ? $"{student.FirstName} {student.LastName}" : null,
-                StudentFirstName = student?.FirstName,
-                GradeLabel       = gradeLabel,
-                Subject          = subject,
-                Term             = term != null ? $"{term.SchoolYear?.Name} – {term.Name}" : null,
-                CommentCharLimit = charLimit,
-                SuggestedPrompt  = rubricPrompt,
-            },
-            onCommentAccepted: text =>
-            {
-                // Drop into the right comment field
-                if (_rubricTargetRow != null)
-                {
-                    _rubricTargetRow.Comment = text;
-                }
-                else if (_rubricTargetState?.LearningSkills != null)
-                {
-                    _rubricTargetState.LearningSkills.StrengthsNextSteps = text;
-                }
-                StateHasChanged();
-            });
+        try
+        {
+            var prompt   = BuildRubricPrompt(_rubricRegenCount);
+            var context  = AssistantCtx.Current;
+            var reply    = await Assistant.SendAsync(new List<ChatMessage>(), prompt);
+            var raw      = reply.Content ?? "";
+            // Strip markdown bold/italic
+            _rubricGeneratedText = System.Text.RegularExpressions.Regex.Replace(raw, @"\*+", "").Trim();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"AI error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _rubricIsGenerating = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RegenerateRubricCommentAsync()
+    {
+        _rubricRegenCount++;
+        await GenerateRubricCommentAsync();
+    }
+
+    private void AcceptRubricCommentAsync()
+    {
+        var text = _rubricGeneratedText?.Trim();
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        if (_rubricTargetRow != null)
+            _rubricTargetRow.Comment = text;
+        else if (_rubricTargetState?.LearningSkills != null)
+            _rubricTargetState.LearningSkills.StrengthsNextSteps = text;
+
+        _rubricDialogVisible = false;
+        StateHasChanged();
+        Snackbar.Add("Comment applied!", Severity.Success);
     }
 
     // ── COMMENT TEMPLATE PICKER ──────────────────────────────────────────
