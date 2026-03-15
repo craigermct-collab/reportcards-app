@@ -469,12 +469,28 @@ namespace ReportCards.Web.Services
                             // Set checkbox
                             else if (data.Checkboxes.TryGetValue(fieldName, out var cbVal))
                             {
-                                annot.Elements["/V"] = cbVal
-                                    ? new PdfSharp.Pdf.PdfName("/Yes")
-                                    : new PdfSharp.Pdf.PdfName("/Off");
-                                annot.Elements["/AS"] = cbVal
-                                    ? new PdfSharp.Pdf.PdfName("/Yes")
-                                    : new PdfSharp.Pdf.PdfName("/Off");
+                                if (cbVal)
+                                {
+                                    // Try to find the export value from the AP dict (normal appearance keys)
+                                    // PDF checkboxes use the export value name (e.g. /Yes, /On, /fieldName)
+                                    // Try /Yes first, then /On as fallback
+                                    var apDict = annot.Elements["/AP"] as PdfDictionary;
+                                    var nDict  = apDict?.Elements["/N"] as PdfDictionary;
+                                    string exportVal = "/Yes"; // default
+                                    if (nDict != null)
+                                    {
+                                        // Find any key that isn't /Off
+                                        foreach (var key in nDict.Elements.Keys)
+                                            if (key != "/Off") { exportVal = key; break; }
+                                    }
+                                    annot.Elements["/V"]  = new PdfSharp.Pdf.PdfName(exportVal);
+                                    annot.Elements["/AS"] = new PdfSharp.Pdf.PdfName(exportVal);
+                                }
+                                else
+                                {
+                                    annot.Elements["/V"]  = new PdfSharp.Pdf.PdfName("/Off");
+                                    annot.Elements["/AS"] = new PdfSharp.Pdf.PdfName("/Off");
+                                }
                                 annot.Elements["/MK"] = new PdfDictionary();
                             }
                         }

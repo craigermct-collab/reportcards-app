@@ -237,6 +237,28 @@ app.MapGet("/debug/pdf-fields/{filename}", (string filename, IWebHostEnvironment
     return Results.Ok(new { nameTests, rawFields });
 });
 
+app.MapGet("/debug/modifier-maps/{enrollmentId:int}/{termId:int}", async (int enrollmentId, int termId, SchoolDbContext db) =>
+{
+    var mods = await db.StudentSubjectModifiers
+        .Include(m => m.CurriculumClassTemplate)
+        .Where(m => m.EnrollmentId == enrollmentId && m.TermInstanceId == termId)
+        .Select(m => new { m.Id, SubjectName = m.CurriculumClassTemplate!.Name, m.CurriculumClassTemplateId, m.EnabledOptionsJson })
+        .ToListAsync();
+
+    var template = await db.ReportCardTemplates.FirstOrDefaultAsync(t => t.FileName == "elementary-report-card.pdf");
+    var maps = template == null ? new List<object>() : await db.ReportTemplateFieldMaps
+        .Where(m => m.ReportCardTemplateId == template.Id && m.ReportDestinationKey.Contains("scienceAndTech"))
+        .Select(m => new { m.ReportDestinationKey, m.PdfFieldName })
+        .Cast<object>().ToListAsync();
+
+    var allEnrollments = await db.Enrollments
+        .Include(e => e.Student)
+        .Select(e => new { e.Id, Name = e.Student!.FirstName + " " + e.Student.LastName, e.TermInstanceId })
+        .ToListAsync();
+
+    return Results.Ok(new { modifiers = mods, scienceAndTechMaps = maps, templateId = template?.Id, allEnrollments });
+});
+
 app.MapGet("/health/db", async (IConfiguration config) =>
 {
     var cs = config.GetConnectionString("DefaultConnection");
