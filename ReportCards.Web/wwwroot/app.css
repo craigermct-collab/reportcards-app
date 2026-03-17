@@ -49,3 +49,28 @@ h1:focus {
 .darker-border-checkbox.form-check-input {
     border-color: #929292;
 }
+
+/* ── Sidebar nav active item ───────────────────────────────────────────────
+   MudBlazor applies .active to the selected MudNavLink. On the dark sidebar
+   the default highlight (primary at low opacity) makes the text unreadable.
+   We override it with a bright left-border pill style that's clearly visible
+   on the dark background without obscuring the label text.
+──────────────────────────────────────────────────────────────────────────── */
+.mud-drawer .mud-nav-link.active {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    color: #ffffff !important;
+    border-left: 3px solid #ffffff;
+    border-radius: 0 8px 8px 0;
+    font-weight: 700;
+}
+
+.mud-drawer .mud-nav-link.active .mud-nav-link-icon {
+    color: #ffffff !important;
+    opacity: 1 !important;
+}
+
+/* Non-active links — slightly lighter on hover */
+.mud-drawer .mud-nav-link:not(.active):hover {
+    background-color: rgba(255, 255, 255, 0.08) !important;
+    color: rgba(255, 255, 255, 0.95) !important;
+}
