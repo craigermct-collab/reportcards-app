@@ -313,7 +313,7 @@ else
                             </div>
                             <MudTextField T="string?" @bind-Value="ls.StrengthsNextSteps"
                                           Variant="Variant.Outlined" Margin="Margin.Dense"
-                                          Lines="3" MaxLength="2000"
+                                          Lines="3" AutoGrow="true" MaxLength="2000"
                                           Placeholder="Strengths and next steps for improvement…"
                                           Style="margin-top:4px;"
                                           @onblur="@(() => _ = SaveLearningSkillsAsync(enrollment, state))"
@@ -483,7 +483,8 @@ else
                                                               @bind-Value="row.Comment"
                                                               Variant="Variant.Outlined"
                                                               Margin="Margin.Dense"
-                                                              Lines="2"
+                                                              Lines="3"
+                                                              AutoGrow="true"
                                                               MaxLength="2000"
                                                               Placeholder="Comment… (Ctrl+Shift+A for AI)"
                                                               Style="font-size:13px; flex:1;"
