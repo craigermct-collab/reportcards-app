@@ -132,3 +132,107 @@ window.assistantUi = {
         if (el) el.scrollTop = el.scrollHeight;
     }
 };
+
+// ── Comment Template Editor ───────────────────────────────────────────────────
+
+window.commentTemplateEditor = {
+    // Inserts `token` at the cursor position in the textarea with the given id.
+    // Returns the full updated value so Blazor can sync its bound string.
+    insertAtCursor(id, token) {
+        const el = document.getElementById(id);
+        if (!el) return null;
+        const start = el.selectionStart ?? el.value.length;
+        const end   = el.selectionEnd   ?? el.value.length;
+        const before = el.value.substring(0, start);
+        const after  = el.value.substring(end);
+        el.value = before + token + after;
+        // Restore cursor to just after the inserted token
+        const cursor = start + token.length;
+        el.selectionStart = cursor;
+        el.selectionEnd   = cursor;
+        el.focus();
+        // Fire an input event so any framework listeners pick up the change
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        return el.value;
+    },
+
+    // ── Microphone / Speech-to-Text ──────────────────────────────────────────
+    _mic: null,
+    _micListening: false,
+    _micInterim: "",   // interim transcript held between result events
+    _micAnchor: 0,     // position in textarea where this mic session started
+
+    isMicSupported() {
+        return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    },
+
+    startMic(id, dotNetHelper) {
+        if (this._micListening) return;
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            dotNetHelper.invokeMethodAsync("OnMicError", "Speech recognition is not supported in this browser.");
+            return;
+        }
+
+        const el = document.getElementById(id);
+        if (!el) return;
+
+        // Record where in the textarea dictation will be inserted
+        this._micAnchor  = el.selectionStart ?? el.value.length;
+        this._micInterim = "";
+
+        this._mic = new SpeechRecognition();
+        this._mic.lang           = "en-US";
+        this._mic.interimResults = true;
+        this._mic.continuous     = true;   // keep going until stop() is called
+        this._mic.maxAlternatives = 1;
+
+        this._mic.onstart = () => {
+            this._micListening = true;
+            dotNetHelper.invokeMethodAsync("OnMicStarted");
+        };
+
+        this._mic.onresult = (event) => {
+            let interim = "";
+            let finalText = "";
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const t = event.results[i][0].transcript;
+                if (event.results[i].isFinal) finalText += t;
+                else interim += t;
+            }
+
+            // Rebuild textarea: everything before anchor + finalised text so far + interim
+            const base   = el.value.substring(0, this._micAnchor);
+            const after  = "";  // nothing appended after during live dictation
+            const live   = finalText ? finalText : interim;
+            el.value = base + live;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+
+            if (finalText) {
+                // Advance anchor so next utterance appends after this one
+                this._micAnchor = el.value.length;
+                dotNetHelper.invokeMethodAsync("OnMicResult", el.value);
+            }
+        };
+
+        this._mic.onerror = (event) => {
+            this._micListening = false;
+            dotNetHelper.invokeMethodAsync("OnMicError", event.error);
+        };
+
+        this._mic.onend = () => {
+            this._micListening = false;
+            dotNetHelper.invokeMethodAsync("OnMicEnded");
+        };
+
+        this._mic.start();
+    },
+
+    stopMic() {
+        if (this._mic && this._micListening) this._mic.stop();
+    },
+
+    isMicListening() {
+        return this._micListening;
+    }
+};

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ReportCards.Web.Data;
 
@@ -11,9 +12,11 @@ using ReportCards.Web.Data;
 namespace ReportCards.Web.Migrations
 {
     [DbContext(typeof(SchoolDbContext))]
-    partial class SchoolDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260315184845_AddCommentFieldLimits")]
+    partial class AddCommentFieldLimits
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -780,71 +783,6 @@ namespace ReportCards.Web.Migrations
                     b.ToTable("ReportTemplateFieldMaps");
                 });
 
-            modelBuilder.Entity("ReportCards.Web.Data.RubricQuestion", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("GradingScaleId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("QuestionText")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("RubricTemplateId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Segment")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int");
-
-                    b.Property<string>("SubjectScope")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("GradingScaleId");
-
-                    b.HasIndex("RubricTemplateId");
-
-                    b.ToTable("RubricQuestions");
-                });
-
-            modelBuilder.Entity("ReportCards.Web.Data.RubricTemplate", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ClassGroupTypeId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClassGroupTypeId")
-                        .IsUnique();
-
-                    b.ToTable("RubricTemplates");
-                });
-
             modelBuilder.Entity("ReportCards.Web.Data.SchoolAiConfig", b =>
                 {
                     b.Property<int>("Id")
@@ -1076,41 +1014,6 @@ namespace ReportCards.Web.Migrations
                     b.HasIndex("YearSubjectOfferingId");
 
                     b.ToTable("StudentLearningItems");
-                });
-
-            modelBuilder.Entity("ReportCards.Web.Data.StudentRubricResponse", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("EnrollmentId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ResponseValue")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("RubricQuestionId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("TermInstanceId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RubricQuestionId");
-
-                    b.HasIndex("TermInstanceId");
-
-                    b.HasIndex("EnrollmentId", "RubricQuestionId", "TermInstanceId")
-                        .IsUnique();
-
-                    b.ToTable("StudentRubricResponses");
                 });
 
             modelBuilder.Entity("ReportCards.Web.Data.StudentSubjectModifier", b =>
@@ -1771,36 +1674,6 @@ namespace ReportCards.Web.Migrations
                     b.Navigation("TermInstance");
                 });
 
-            modelBuilder.Entity("ReportCards.Web.Data.RubricQuestion", b =>
-                {
-                    b.HasOne("ReportCards.Web.Data.GradingScale", "GradingScale")
-                        .WithMany()
-                        .HasForeignKey("GradingScaleId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("ReportCards.Web.Data.RubricTemplate", "RubricTemplate")
-                        .WithMany("Questions")
-                        .HasForeignKey("RubricTemplateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("GradingScale");
-
-                    b.Navigation("RubricTemplate");
-                });
-
-            modelBuilder.Entity("ReportCards.Web.Data.RubricTemplate", b =>
-                {
-                    b.HasOne("ReportCards.Web.Data.ClassGroupType", "ClassGroupType")
-                        .WithMany()
-                        .HasForeignKey("ClassGroupTypeId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("ClassGroupType");
-                });
-
             modelBuilder.Entity("ReportCards.Web.Data.SchoolCalendarException", b =>
                 {
                     b.HasOne("ReportCards.Web.Data.SchoolYear", "SchoolYear")
@@ -1853,33 +1726,6 @@ namespace ReportCards.Web.Migrations
                     b.Navigation("YearClassOffering");
 
                     b.Navigation("YearSubjectOffering");
-                });
-
-            modelBuilder.Entity("ReportCards.Web.Data.StudentRubricResponse", b =>
-                {
-                    b.HasOne("ReportCards.Web.Data.Enrollment", "Enrollment")
-                        .WithMany()
-                        .HasForeignKey("EnrollmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ReportCards.Web.Data.RubricQuestion", "RubricQuestion")
-                        .WithMany()
-                        .HasForeignKey("RubricQuestionId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("ReportCards.Web.Data.TermInstance", "TermInstance")
-                        .WithMany()
-                        .HasForeignKey("TermInstanceId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("Enrollment");
-
-                    b.Navigation("RubricQuestion");
-
-                    b.Navigation("TermInstance");
                 });
 
             modelBuilder.Entity("ReportCards.Web.Data.StudentSubjectModifier", b =>
@@ -2154,11 +2000,6 @@ namespace ReportCards.Web.Migrations
             modelBuilder.Entity("ReportCards.Web.Data.ReportCardTemplate", b =>
                 {
                     b.Navigation("ClassGroupInstances");
-                });
-
-            modelBuilder.Entity("ReportCards.Web.Data.RubricTemplate", b =>
-                {
-                    b.Navigation("Questions");
                 });
 
             modelBuilder.Entity("ReportCards.Web.Data.SchoolYear", b =>

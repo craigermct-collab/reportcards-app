@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\CraigM\\reportcards-app\\ReportCards.Web\\ReportCards.Web.csproj": {}
+    "c:\\Users\\CraigM\\reportcards-app\\ReportCards.Web\\ReportCards.Web.csproj": {}
   },
   "projects": {
-    "C:\\Users\\CraigM\\reportcards-app\\ReportCards.Web\\ReportCards.Web.csproj": {
+    "c:\\Users\\CraigM\\reportcards-app\\ReportCards.Web\\ReportCards.Web.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\CraigM\\reportcards-app\\ReportCards.Web\\ReportCards.Web.csproj",
+        "projectUniqueName": "c:\\Users\\CraigM\\reportcards-app\\ReportCards.Web\\ReportCards.Web.csproj",
         "projectName": "ReportCards.Web",
-        "projectPath": "C:\\Users\\CraigM\\reportcards-app\\ReportCards.Web\\ReportCards.Web.csproj",
+        "projectPath": "c:\\Users\\CraigM\\reportcards-app\\ReportCards.Web\\ReportCards.Web.csproj",
         "packagesPath": "C:\\Users\\CraigM\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\CraigM\\reportcards-app\\ReportCards.Web\\obj\\",
+        "outputPath": "c:\\Users\\CraigM\\reportcards-app\\ReportCards.Web\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -85,9 +85,21 @@
               "target": "Package",
               "version": "[7.15.0, )"
             },
+            "PDFtoImage": {
+              "target": "Package",
+              "version": "[4.0.0, )"
+            },
             "PdfSharp": {
               "target": "Package",
               "version": "[6.2.0, )"
+            },
+            "SkiaSharp.NativeAssets.Linux.NoDependencies": {
+              "target": "Package",
+              "version": "[2.88.9, )"
+            },
+            "SkiaSharp.NativeAssets.Win32": {
+              "target": "Package",
+              "version": "[2.88.9, )"
             }
           },
           "imports": [

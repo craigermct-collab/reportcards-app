@@ -72,8 +72,11 @@
     }
 
 .nav-item[b-pgykvjynw1]  a.active {
-    background-color: rgba(255,255,255,0.37);
+    background-color: rgba(255,255,255,0.18);
     color: white;
+    border-left: 3px solid #F39C12;
+    padding-left: calc(1rem - 3px);
+    font-weight: 600;
 }
 
 .nav-item[b-pgykvjynw1]  .nav-link:hover {
