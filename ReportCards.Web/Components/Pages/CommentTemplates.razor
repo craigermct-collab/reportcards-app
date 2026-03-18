@@ -364,15 +364,6 @@ else
         try { await LoadDropdownOptionsAsync(); } catch { }
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            _micSupported = await JS.InvokeAsync<bool>("commentTemplateEditor.isMicSupported");
-            StateHasChanged();
-        }
-    }
-
     public void Dispose()
     {
         if (_micListening) JS.InvokeVoidAsync("commentTemplateEditor.stopMic");
