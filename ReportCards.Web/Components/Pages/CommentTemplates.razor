@@ -4,7 +4,7 @@
 @using Microsoft.EntityFrameworkCore
 @using ReportCards.Web.Data
 @using ReportCards.Web.Services
-@inject SchoolDbContext Db
+@inject IDbContextFactory<SchoolDbContext> DbFactory
 @inject CommentTemplateService TemplateSvc
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
@@ -449,7 +449,8 @@ else
     private async Task LoadAsync()
     {
         _loading = true;
-        _templates = await Db.CommentTemplates
+        await using var db = DbFactory.CreateDbContext();
+        _templates = await db.CommentTemplates
             .OrderBy(t => t.Subject)
             .ThenBy(t => t.GradeLabel)
             .ThenBy(t => t.Category)
@@ -465,22 +466,20 @@ else
 
     private async Task LoadDropdownOptionsAsync()
     {
-        // Subjects → distinct names from CurriculumClassTemplates
-        _subjectOptions = await Db.CurriculumClassTemplates
+        await using var db = DbFactory.CreateDbContext();
+        _subjectOptions = await db.CurriculumClassTemplates
             .Select(c => c.Name)
             .Distinct()
             .OrderBy(n => n)
             .ToListAsync();
 
-        // Grades → from Grades table ordered by SortOrder
-        _gradeOptions = await Db.Grades
+        _gradeOptions = await db.Grades
             .OrderBy(g => g.SortOrder)
             .ThenBy(g => g.Name)
             .Select(g => g.Name)
             .Distinct()
             .ToListAsync();
 
-        // Categories are hardcoded above — merge in any already-used custom ones
         var usedCategories = _templates
             .Where(t => t.Category != null)
             .Select(t => t.Category!)
@@ -544,10 +543,11 @@ else
     private async Task SaveTemplateAsync()
     {
         if (string.IsNullOrWhiteSpace(_form.TemplateText)) return;
+        await using var db = DbFactory.CreateDbContext();
 
         if (_editingTemplate == null)
         {
-            var newTemplate = new CommentTemplate
+            db.CommentTemplates.Add(new CommentTemplate
             {
                 Title        = string.IsNullOrWhiteSpace(_form.Title)     ? null : _form.Title.Trim(),
                 Subject      = string.IsNullOrWhiteSpace(_form.Subject)    ? null : _form.Subject.Trim(),
@@ -555,20 +555,23 @@ else
                 Category     = string.IsNullOrWhiteSpace(_form.Category)   ? null : _form.Category.Trim(),
                 TemplateText = _form.TemplateText.Trim(),
                 SortOrder    = 0,
-            };
-            Db.CommentTemplates.Add(newTemplate);
-            await Db.SaveChangesAsync();
+            });
+            await db.SaveChangesAsync();
             Snackbar.Add("Template added.", Severity.Success);
         }
         else
         {
-            _editingTemplate.Title        = string.IsNullOrWhiteSpace(_form.Title)     ? null : _form.Title.Trim();
-            _editingTemplate.Subject      = string.IsNullOrWhiteSpace(_form.Subject)    ? null : _form.Subject.Trim();
-            _editingTemplate.GradeLabel   = string.IsNullOrWhiteSpace(_form.GradeLabel) ? null : _form.GradeLabel.Trim();
-            _editingTemplate.Category     = string.IsNullOrWhiteSpace(_form.Category)   ? null : _form.Category.Trim();
-            _editingTemplate.TemplateText = _form.TemplateText.Trim();
-            _editingTemplate.UpdatedAt    = DateTimeOffset.UtcNow;
-            await Db.SaveChangesAsync();
+            var existing = await db.CommentTemplates.FindAsync(_editingTemplate.Id);
+            if (existing != null)
+            {
+                existing.Title        = string.IsNullOrWhiteSpace(_form.Title)     ? null : _form.Title.Trim();
+                existing.Subject      = string.IsNullOrWhiteSpace(_form.Subject)    ? null : _form.Subject.Trim();
+                existing.GradeLabel   = string.IsNullOrWhiteSpace(_form.GradeLabel) ? null : _form.GradeLabel.Trim();
+                existing.Category     = string.IsNullOrWhiteSpace(_form.Category)   ? null : _form.Category.Trim();
+                existing.TemplateText = _form.TemplateText.Trim();
+                existing.UpdatedAt    = DateTimeOffset.UtcNow;
+                await db.SaveChangesAsync();
+            }
             Snackbar.Add("Template saved.", Severity.Success);
         }
 
@@ -642,8 +645,9 @@ else
     // ── Delete ────────────────────────────────────────────────────────────────
     private async Task DeleteAsync(CommentTemplate template)
     {
-        Db.CommentTemplates.Remove(template);
-        await Db.SaveChangesAsync();
+        await using var db = DbFactory.CreateDbContext();
+        var existing = await db.CommentTemplates.FindAsync(template.Id);
+        if (existing != null) { db.CommentTemplates.Remove(existing); await db.SaveChangesAsync(); }
         _templates.Remove(template);
         Snackbar.Add("Template deleted.", Severity.Success);
     }
