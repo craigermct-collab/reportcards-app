@@ -214,18 +214,20 @@ else
     </MudTable>
 }
 
-@* ── Add / Edit Drawer ──────────────────────────────────────────────────── *@
-<MudDrawer @bind-Open="_dialogOpen"
-           Anchor="Anchor.End"
-           Elevation="0"
-           Variant="DrawerVariant.Temporary"
-           DisableOverlay="true"
-           Width="600px"
-           Style="background:var(--mud-palette-surface); border-left:1px solid var(--mud-palette-divider); box-shadow:-4px 0 32px rgba(0,0,0,0.15);">
-    <MudDrawerHeader Style="border-bottom:1px solid var(--mud-palette-divider); padding:16px 20px;">
+@* ── Add / Edit Panel ───────────────────────────────────────────────────── *@
+@if (_dialogOpen)
+{
+<div style="position:fixed; top:0; right:0; width:min(600px,100vw); height:100vh;
+            background:var(--mud-palette-surface);
+            border-left:1px solid var(--mud-palette-divider);
+            box-shadow:-4px 0 32px rgba(0,0,0,0.15);
+            z-index:1300;
+            display:flex; flex-direction:column;"
+     @onclick:stopPropagation="true">
+    <div style="padding:16px 20px; border-bottom:1px solid var(--mud-palette-divider); display:flex; align-items:center; gap:12px; flex-shrink:0;">
         <MudText Typo="Typo.h6" Style="flex:1;">@(_editingTemplate == null ? "Add Comment Template" : "Edit Comment Template")</MudText>
         <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="CloseDialog" Size="Size.Small" />
-    </MudDrawerHeader>
+    </div>
 
     <div style="flex:1; overflow-y:auto; padding:20px;">
         <MudGrid Spacing="2">
@@ -373,7 +375,8 @@ else
             @(_editingTemplate == null ? "Add Template" : "Save Changes")
         </MudButton>
     </div>
-</MudDrawer>
+</div>
+}
 
 @code {
     // ── State ────────────────────────────────────────────────────────────────
