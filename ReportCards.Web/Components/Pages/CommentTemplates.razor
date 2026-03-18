@@ -10,6 +10,7 @@
 @inject IJSRuntime JS
 @implements IDisposable
 
+@* ── Header ───────────────────────────────────────────────────────────────── *@
 <div class="d-flex align-center gap-3 mb-1">
     <MudText Typo="Typo.h4" Style="font-family:'DM Serif Display',serif;">Comment Templates</MudText>
     <MudSpacer />
@@ -21,24 +22,151 @@
     </MudButton>
 </div>
 <MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
-    Import and manage comment templates. Use placeholder buttons in the editor to insert substitution tokens.
+    Import and manage comment templates.
 </MudText>
 
-@* ── Import Section ──────────────────────────────────────────────────────── *@
-<MudExpansionPanels Class="mb-6" Elevation="1">
+@* ── Inline Add/Edit Form (shown above table when open) ───────────────────── *@
+@if (_dialogOpen)
+{
+    <MudPaper Elevation="3" Class="mb-6 pa-4" Style="border:1px solid var(--mud-palette-primary);">
+        <div class="d-flex align-center mb-4">
+            <MudText Typo="Typo.h6">@(_editingTemplate == null ? "Add Comment Template" : "Edit Comment Template")</MudText>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="CloseDialog" Size="Size.Small" />
+        </div>
 
-    @* XML Import *@
+        <MudGrid Spacing="2">
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.Title"
+                              Label="Title / Short Name"
+                              Placeholder="e.g. Strong Reader — Strengths"
+                              Variant="Variant.Outlined"
+                              FullWidth="true" />
+            </MudItem>
+
+            <MudItem xs="12" sm="4">
+                <MudSelect T="string" @bind-Value="_form.Subject"
+                           Label="Subject"
+                           Variant="Variant.Outlined"
+                           Clearable="true"
+                           FullWidth="true"
+                           AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var s in _subjectOptions)
+                    {
+                        <MudSelectItem T="string" Value="s">@s</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="4">
+                <MudSelect T="string" @bind-Value="_form.GradeLabel"
+                           Label="Grade"
+                           Variant="Variant.Outlined"
+                           Clearable="true"
+                           FullWidth="true"
+                           AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var g in _gradeOptions)
+                    {
+                        <MudSelectItem T="string" Value="g">@g</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="4">
+                <MudSelect T="string" @bind-Value="_form.Category"
+                           Label="Category"
+                           Variant="Variant.Outlined"
+                           Clearable="true"
+                           FullWidth="true"
+                           AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var c in _categoryOptions)
+                    {
+                        <MudSelectItem T="string" Value="c">@c</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            @* Placeholder buttons *@
+            <MudItem xs="12">
+                <MudText Typo="Typo.caption" Class="mb-1" Style="color:var(--mud-palette-text-secondary); display:block;">
+                    Click to insert placeholder at cursor:
+                </MudText>
+                <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                    @foreach (var ph in _placeholders)
+                    {
+                        <MudButton Variant="Variant.Outlined"
+                                   Size="Size.Small"
+                                   Style="font-family:monospace; font-size:0.78rem; text-transform:none; min-width:0;"
+                                   title="@ph.Description"
+                                   OnClick="@(() => InsertPlaceholderAsync(ph.Token))">
+                            @ph.Token
+                        </MudButton>
+                    }
+                </div>
+            </MudItem>
+
+            @* Comment textarea *@
+            <MudItem xs="12">
+                <div class="d-flex align-center justify-space-between mb-1">
+                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">Comment Text *</MudText>
+                    <div class="d-flex align-center gap-1">
+                        @if (_micListening)
+                        {
+                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-error);">● Listening…</MudText>
+                        }
+                        @if (_micSupported)
+                        {
+                            <MudIconButton Icon="@(_micListening ? Icons.Material.Filled.Stop : Icons.Material.Filled.Mic)"
+                                           Size="Size.Small"
+                                           Color="@(_micListening ? Color.Error : Color.Primary)"
+                                           OnClick="ToggleMicAsync" />
+                        }
+                    </div>
+                </div>
+                <textarea id="comment-template-textarea"
+                          style="width:100%; min-height:160px; padding:12px; font-size:0.875rem; line-height:1.6;
+                                 border:1px solid var(--mud-palette-lines-inputs); border-radius:4px;
+                                 background:var(--mud-palette-surface); color:var(--mud-palette-text-primary);
+                                 resize:vertical; font-family:inherit; box-sizing:border-box;"
+                          placeholder="Type your comment here, or use the mic button to dictate."
+                          spellcheck="true"
+                          @bind="_form.TemplateText"
+                          @bind:event="oninput"></textarea>
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudAlert Severity="Severity.Info" Dense="true">
+                    <code>~Name</code> → first name &nbsp;·&nbsp;
+                    <code>~h/s/e</code>/<code>~H/s/e</code> → he/she/they &nbsp;·&nbsp;
+                    <code>~h/s/r</code>/<code>~H/s/r</code> → his/her/their &nbsp;·&nbsp;
+                    <code>~him/her</code> → him/her/them
+                </MudAlert>
+            </MudItem>
+        </MudGrid>
+
+        <div class="d-flex justify-end gap-3 mt-4">
+            <MudButton Variant="Variant.Text" OnClick="CloseDialog">Cancel</MudButton>
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       OnClick="SaveTemplateAsync"
+                       Disabled="string.IsNullOrWhiteSpace(_form.TemplateText)">
+                @(_editingTemplate == null ? "Add Template" : "Save Changes")
+            </MudButton>
+        </div>
+    </MudPaper>
+}
+
+@* ── Import panels ────────────────────────────────────────────────────────── *@
+<MudExpansionPanels Class="mb-6" Elevation="1">
     <MudExpansionPanel Text="Import from ETeach XML" Icon="@Icons.Material.Filled.Code">
         <MudText Typo="Typo.body2" Class="mb-3">
-            Export your comment library from ETeach as XML, then upload the file here.
-            Existing templates with matching source codes will be updated; new ones will be added.
+            Export your comment library from ETeach as XML and upload it here.
+            Existing templates with matching source codes will be updated.
         </MudText>
         <div class="d-flex align-center gap-3 flex-wrap">
             <MudFileUpload T="IBrowserFile" FilesChanged="OnXmlFileSelected" Accept=".xml">
                 <ActivatorContent>
-                    <MudButton Variant="Variant.Outlined"
-                               StartIcon="@Icons.Material.Filled.UploadFile"
-                               Color="Color.Primary">
+                    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.UploadFile" Color="Color.Primary">
                         Choose XML File
                     </MudButton>
                 </ActivatorContent>
@@ -46,11 +174,9 @@
             @if (_selectedXmlFile != null)
             {
                 <MudText Typo="Typo.body2">@_selectedXmlFile.Name (@FormatBytes(_selectedXmlFile.Size))</MudText>
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Primary"
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
                            StartIcon="@Icons.Material.Filled.CloudUpload"
-                           OnClick="ImportXmlAsync"
-                           Disabled="_importing">
+                           OnClick="ImportXmlAsync" Disabled="_importing">
                     @(_importing ? "Importing…" : "Import")
                 </MudButton>
             }
@@ -58,27 +184,19 @@
         @if (_xmlImportResult != null)
         {
             <MudAlert Class="mt-3" Severity="Severity.Success" Dense="true">
-                Import complete — @_xmlImportResult.Value.Inserted added,
-                @_xmlImportResult.Value.Updated updated,
-                @_xmlImportResult.Value.Skipped skipped.
+                Import complete — @_xmlImportResult.Value.Inserted added, @_xmlImportResult.Value.Updated updated, @_xmlImportResult.Value.Skipped skipped.
             </MudAlert>
         }
     </MudExpansionPanel>
 
-    @* XLSX Bulk Import *@
     <MudExpansionPanel Text="Bulk Import from Excel (.xlsx)" Icon="@Icons.Material.Filled.TableChart">
         <MudText Typo="Typo.body2" Class="mb-2">
-            Upload a spreadsheet with columns: <strong>Title</strong>, <strong>Subject</strong>,
-            <strong>Grade</strong>, <strong>Category</strong>, <strong>TemplateText</strong>.
-            The first row must be a header row with these exact column names (case-insensitive).
-            Rows missing TemplateText will be skipped.
+            Upload a spreadsheet with columns: <strong>Title, Subject, Grade, Category, TemplateText</strong> (header row required, case-insensitive).
         </MudText>
         <div class="d-flex align-center gap-3 flex-wrap">
             <MudFileUpload T="IBrowserFile" FilesChanged="OnXlsxFileSelected" Accept=".xlsx">
                 <ActivatorContent>
-                    <MudButton Variant="Variant.Outlined"
-                               StartIcon="@Icons.Material.Filled.UploadFile"
-                               Color="Color.Secondary">
+                    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.UploadFile" Color="Color.Secondary">
                         Choose Excel File
                     </MudButton>
                 </ActivatorContent>
@@ -86,11 +204,9 @@
             @if (_selectedXlsxFile != null)
             {
                 <MudText Typo="Typo.body2">@_selectedXlsxFile.Name (@FormatBytes(_selectedXlsxFile.Size))</MudText>
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Secondary"
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary"
                            StartIcon="@Icons.Material.Filled.CloudUpload"
-                           OnClick="ImportXlsxAsync"
-                           Disabled="_importing">
+                           OnClick="ImportXlsxAsync" Disabled="_importing">
                     @(_importing ? "Importing…" : "Import")
                 </MudButton>
             }
@@ -98,9 +214,7 @@
         @if (_xlsxImportResult != null)
         {
             <MudAlert Class="mt-3" Severity="Severity.Success" Dense="true">
-                Import complete — @_xlsxImportResult.Value.Inserted added,
-                @_xlsxImportResult.Value.Updated updated,
-                @_xlsxImportResult.Value.Skipped skipped.
+                Import complete — @_xlsxImportResult.Value.Inserted added, @_xlsxImportResult.Value.Updated updated, @_xlsxImportResult.Value.Skipped skipped.
             </MudAlert>
         }
         @if (!string.IsNullOrEmpty(_xlsxImportError))
@@ -108,59 +222,42 @@
             <MudAlert Class="mt-3" Severity="Severity.Error" Dense="true">@_xlsxImportError</MudAlert>
         }
     </MudExpansionPanel>
-
 </MudExpansionPanels>
 
-@* ── Filter Bar ──────────────────────────────────────────────────────────── *@
+@* ── Filter bar ───────────────────────────────────────────────────────────── *@
 <div class="d-flex gap-3 mb-4 flex-wrap align-end">
     <MudTextField @bind-Value="_searchText"
-                  Label="Search"
-                  Placeholder="keyword…"
-                  Adornment="Adornment.Start"
-                  AdornmentIcon="@Icons.Material.Filled.Search"
-                  Variant="Variant.Outlined"
-                  Immediate="true"
-                  Style="min-width:220px" />
+                  Label="Search" Placeholder="keyword…"
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                  Variant="Variant.Outlined" Immediate="true" Style="min-width:220px;" />
 
-    <MudSelect T="string" @bind-Value="_filterSubject"
-               Label="Subject" Variant="Variant.Outlined"
-               Clearable="true"
-               Style="min-width:180px"
+    <MudSelect T="string" @bind-Value="_filterSubject" Label="Subject"
+               Variant="Variant.Outlined" Clearable="true" Style="min-width:180px;"
                AnchorOrigin="Origin.BottomCenter">
         @foreach (var s in _subjects)
-        {
-            <MudSelectItem T="string" Value="s">@s</MudSelectItem>
-        }
+        { <MudSelectItem T="string" Value="s">@s</MudSelectItem> }
     </MudSelect>
 
-    <MudSelect T="string" @bind-Value="_filterGrade"
-               Label="Grade" Variant="Variant.Outlined"
-               Clearable="true"
-               Style="min-width:140px"
+    <MudSelect T="string" @bind-Value="_filterGrade" Label="Grade"
+               Variant="Variant.Outlined" Clearable="true" Style="min-width:140px;"
                AnchorOrigin="Origin.BottomCenter">
         @foreach (var g in _grades)
-        {
-            <MudSelectItem T="string" Value="g">@g</MudSelectItem>
-        }
+        { <MudSelectItem T="string" Value="g">@g</MudSelectItem> }
     </MudSelect>
 
-    <MudSelect T="string" @bind-Value="_filterCategory"
-               Label="Category" Variant="Variant.Outlined"
-               Clearable="true"
-               Style="min-width:160px"
+    <MudSelect T="string" @bind-Value="_filterCategory" Label="Category"
+               Variant="Variant.Outlined" Clearable="true" Style="min-width:160px;"
                AnchorOrigin="Origin.BottomCenter">
         @foreach (var c in _categories)
-        {
-            <MudSelectItem T="string" Value="c">@c</MudSelectItem>
-        }
+        { <MudSelectItem T="string" Value="c">@c</MudSelectItem> }
     </MudSelect>
 
-    <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary); align-self:center">
+    <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary); align-self:center;">
         @FilteredTemplates.Count() template@(FilteredTemplates.Count() == 1 ? "" : "s")
     </MudText>
 </div>
 
-@* ── Template Table ──────────────────────────────────────────────────────── *@
+@* ── Template table ───────────────────────────────────────────────────────── *@
 @if (_loading)
 {
     <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
@@ -173,234 +270,53 @@ else if (!_templates.Any())
 }
 else
 {
-    <MudTable Items="@FilteredTemplates"
-              Dense="true"
-              Hover="true"
-              Striped="true"
-              Elevation="1"
-              FixedHeader="true"
-              Height="600px">
+    <MudTable Items="@FilteredTemplates" Dense="true" Hover="true" Striped="true"
+              Elevation="1" FixedHeader="true" Height="600px">
         <HeaderContent>
-            <MudTh Style="min-width:160px">Title</MudTh>
+            <MudTh Style="min-width:160px;">Title</MudTh>
             <MudTh>Subject</MudTh>
             <MudTh>Grade</MudTh>
             <MudTh>Category</MudTh>
             <MudTh>Comment Text</MudTh>
-            <MudTh Style="width:80px"></MudTh>
+            <MudTh Style="width:80px;"></MudTh>
         </HeaderContent>
         <RowTemplate>
-            <MudTd>
-                <MudText Typo="Typo.body2" Style="font-weight:500;">@(context.Title ?? context.SourceCode ?? "—")</MudText>
-            </MudTd>
+            <MudTd><MudText Typo="Typo.body2" Style="font-weight:500;">@(context.Title ?? context.SourceCode ?? "—")</MudText></MudTd>
             <MudTd>@(context.Subject ?? "—")</MudTd>
             <MudTd>@(context.GradeLabel ?? "—")</MudTd>
             <MudTd>@(context.Category ?? "—")</MudTd>
+            <MudTd><MudText Typo="Typo.body2" Style="white-space:pre-wrap; max-width:500px;">@context.TemplateText</MudText></MudTd>
             <MudTd>
-                <MudText Typo="Typo.body2" Style="white-space:pre-wrap; max-width:600px;">@context.TemplateText</MudText>
-            </MudTd>
-            <MudTd>
-                <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                               Size="Size.Small"
-                               Color="Color.Default"
-                               aria-label="Edit"
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                OnClick="@(() => OpenEditDialog(context))" />
-                <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                               Size="Size.Small"
-                               Color="Color.Error"
-                               aria-label="Delete"
-                               OnClick="@(() => DeleteAsync(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                               Color="Color.Error" OnClick="@(() => DeleteAsync(context))" />
             </MudTd>
         </RowTemplate>
     </MudTable>
 }
 
-@* ── Add / Edit Panel ───────────────────────────────────────────────────── *@
-@if (_dialogOpen)
-{
-<div style="position:fixed; top:0; right:0; width:min(600px,100vw); height:100vh;
-            background:var(--mud-palette-surface);
-            border-left:1px solid var(--mud-palette-divider);
-            box-shadow:-4px 0 32px rgba(0,0,0,0.15);
-            z-index:1300;
-            display:flex; flex-direction:column;">
-    <div style="padding:16px 20px; border-bottom:1px solid var(--mud-palette-divider); display:flex; align-items:center; gap:12px; flex-shrink:0;">
-        <MudText Typo="Typo.h6" Style="flex:1;">@(_editingTemplate == null ? "Add Comment Template" : "Edit Comment Template")</MudText>
-        <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="CloseDialog" Size="Size.Small" />
-    </div>
-
-    <div style="flex:1; overflow-y:auto; padding:20px;">
-        <MudGrid Spacing="2">
-
-            @* Title *@
-            <MudItem xs="12">
-                <MudTextField @bind-Value="_form.Title"
-                              Label="Title / Short Name"
-                              Placeholder="e.g. Strong Reader — Strengths"
-                              Variant="Variant.Outlined"
-                              FullWidth="true" />
-            </MudItem>
-
-            @* Subject dropdown *@
-            <MudItem xs="12" sm="4">
-                <MudSelect T="string" @bind-Value="_form.Subject"
-                           Label="Subject"
-                           Variant="Variant.Outlined"
-                           Clearable="true"
-                           FullWidth="true"
-                           AnchorOrigin="Origin.BottomCenter"
-                           Placeholder="All subjects">
-                    @foreach (var s in _subjectOptions)
-                    {
-                        <MudSelectItem T="string" Value="s">@s</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-
-            @* Grade dropdown *@
-            <MudItem xs="12" sm="4">
-                <MudSelect T="string" @bind-Value="_form.GradeLabel"
-                           Label="Grade"
-                           Variant="Variant.Outlined"
-                           Clearable="true"
-                           FullWidth="true"
-                           AnchorOrigin="Origin.BottomCenter"
-                           Placeholder="All grades">
-                    @foreach (var g in _gradeOptions)
-                    {
-                        <MudSelectItem T="string" Value="g">@g</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-
-            @* Category dropdown *@
-            <MudItem xs="12" sm="4">
-                <MudSelect T="string" @bind-Value="_form.Category"
-                           Label="Category"
-                           Variant="Variant.Outlined"
-                           Clearable="true"
-                           FullWidth="true"
-                           AnchorOrigin="Origin.BottomCenter"
-                           Placeholder="Uncategorized">
-                    @foreach (var c in _categoryOptions)
-                    {
-                        <MudSelectItem T="string" Value="c">@c</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-
-            @* Placeholder chip bar *@
-            <MudItem xs="12">
-                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary); display:block; margin-bottom:6px;">
-                    Click a placeholder to insert it at the cursor:
-                </MudText>
-                <div style="display:flex; flex-wrap:wrap; gap:6px;">
-                    @foreach (var ph in _placeholders)
-                    {
-                        <MudButton Variant="Variant.Outlined"
-                                   Size="Size.Small"
-                                   Style="font-family:monospace; font-size:0.78rem; padding:2px 10px; min-width:0; text-transform:none;"
-                                   OnClick="@(() => InsertPlaceholderAsync(ph.Token))"
-                                   title="@ph.Description">
-                            @ph.Token
-                        </MudButton>
-                    }
-                </div>
-            </MudItem>
-
-            @* Comment text *@
-            <MudItem xs="12">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">Comment Text *</MudText>
-                    <div style="display:flex; align-items:center; gap:6px;">
-                        @if (_micListening)
-                        {
-                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-error); animation:pulse 1.2s infinite;">● Listening…</MudText>
-                        }
-                        @if (!_micSupported)
-                        {
-                            <MudTooltip Text="Speech recognition not supported in this browser">
-                                <MudIconButton Icon="@Icons.Material.Filled.MicOff"
-                                               Size="Size.Small"
-                                               Disabled="true" />
-                            </MudTooltip>
-                        }
-                        else
-                        {
-                            <MudTooltip Text="@(_micListening ? "Stop dictation" : "Start dictation — speak your comment")">  
-                                <MudIconButton Icon="@(_micListening ? Icons.Material.Filled.Stop : Icons.Material.Filled.Mic)"
-                                               Size="Size.Small"
-                                               Color="@(_micListening ? Color.Error : Color.Primary)"
-                                               Style="@(_micListening ? "animation:pulse 1.2s infinite;" : "")"
-                                               OnClick="ToggleMicAsync" />
-                            </MudTooltip>
-                        }
-                    </div>
-                </div>
-                <textarea id="comment-template-textarea"
-                          style="width:100%; min-height:180px; padding:12px; font-size:0.875rem; line-height:1.6; border:1px solid @(_micListening ? "var(--mud-palette-error)" : "var(--mud-palette-lines-inputs)"); border-radius:4px; background:var(--mud-palette-surface); color:var(--mud-palette-text-primary); resize:vertical; font-family:inherit; box-sizing:border-box; transition:border-color 0.2s;"
-                          placeholder="Type your comment here, or click the mic button to dictate."
-                          spellcheck="true"
-                          @bind="_form.TemplateText"
-                          @bind:event="oninput"></textarea>
-                @if (string.IsNullOrWhiteSpace(_form.TemplateText))
-                {
-                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-error);">Comment text is required.</MudText>
-                }
-            </MudItem>
-
-            @* Placeholder reference *@
-            <MudItem xs="12">
-                <MudAlert Severity="Severity.Info" Dense="true">
-                    <strong>Substitutions:</strong>&nbsp;
-                    <code>~Name</code> → first name (Title case) &nbsp;·&nbsp;
-                    <code>~name</code> → first name (lowercase) &nbsp;·&nbsp;
-                    <code>~h/s/e</code> → he/she/they &nbsp;·&nbsp;
-                    <code>~H/s/e</code> → He/She/They &nbsp;·&nbsp;
-                    <code>~h/s/r</code> → his/her/their &nbsp;·&nbsp;
-                    <code>~H/s/r</code> → His/Her/Their &nbsp;·&nbsp;
-                    <code>~him/her</code> → him/her/them
-                </MudAlert>
-            </MudItem>
-
-        </MudGrid>
-    </div>
-
-    <div style="padding:16px 20px; border-top:1px solid var(--mud-palette-divider); display:flex; justify-content:flex-end; gap:12px;">
-        <MudButton Variant="Variant.Text" OnClick="CloseDialog">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled"
-                   Color="Color.Primary"
-                   OnClick="SaveTemplateAsync"
-                   Disabled="string.IsNullOrWhiteSpace(_form.TemplateText)">
-            @(_editingTemplate == null ? "Add Template" : "Save Changes")
-        </MudButton>
-    </div>
-</div>
-}
-
 @code {
-    // ── State ────────────────────────────────────────────────────────────────
+    // ── State ─────────────────────────────────────────────────────────────────
     private bool _loading = true;
     private bool _importing = false;
-
     private List<CommentTemplate> _templates = new();
+
     private IBrowserFile? _selectedXmlFile;
     private IBrowserFile? _selectedXlsxFile;
     private (int Inserted, int Updated, int Skipped)? _xmlImportResult;
     private (int Inserted, int Updated, int Skipped)? _xlsxImportResult;
     private string? _xlsxImportError;
 
-    // Filter state
     private string _searchText = "";
     private string? _filterSubject;
     private string? _filterGrade;
     private string? _filterCategory;
 
-    // Distinct values for filter bar (from existing templates)
     private List<string> _subjects    = new();
     private List<string> _grades      = new();
     private List<string> _categories  = new();
 
-    // Dropdown options for the add/edit drawer (from DB reference tables)
     private List<string> _subjectOptions  = new();
     private List<string> _gradeOptions    = new();
     private List<string> _categoryOptions = new()
@@ -409,28 +325,23 @@ else
         "Work Habits", "Learning Skills", "Achievement", "Other"
     };
 
-    // ── Placeholder definitions ───────────────────────────────────────────────
+    // ── Placeholders ───────────────────────────────────────────────────────────
     private record PlaceholderDef(string Token, string Description);
     private static readonly List<PlaceholderDef> _placeholders = new()
     {
-        new("~Name",    "Student first name — Title case (e.g. Emma)"),
-        new("~name",    "Student first name — lowercase (e.g. emma)"),
-        new("~H/s/e",   "Subject pronoun — Title case (He / She / They)"),
-        new("~h/s/e",   "Subject pronoun — lowercase (he / she / they)"),
-        new("~H/s/r",   "Possessive pronoun — Title case (His / Her / Their)"),
-        new("~h/s/r",   "Possessive pronoun — lowercase (his / her / their)"),
-        new("~him/her", "Object pronoun (him / her / them)"),
+        new("~Name",    "First name — Title case"),
+        new("~name",    "First name — lowercase"),
+        new("~H/s/e",   "He / She / They"),
+        new("~h/s/e",   "he / she / they"),
+        new("~H/s/r",   "His / Her / Their"),
+        new("~h/s/r",   "his / her / their"),
+        new("~him/her", "him / her / them"),
     };
 
-    // ── Dialog state ─────────────────────────────────────────────────────────
+    // ── Form state ─────────────────────────────────────────────────────────────
     private bool _dialogOpen = false;
-    private CommentTemplate? _editingTemplate = null;
+    private CommentTemplate? _editingTemplate;
     private TemplateForm _form = new();
-
-    // ── Mic state ─────────────────────────────────────────────────────────────
-    private bool _micSupported = true;   // assume true until JS says otherwise
-    private bool _micListening = false;
-    private DotNetObjectReference<CommentTemplates>? _micRef;
 
     private class TemplateForm
     {
@@ -441,258 +352,16 @@ else
         public string  TemplateText { get; set; } = "";
     }
 
-    // ── Lifecycle ────────────────────────────────────────────────────────────
+    // ── Mic state ──────────────────────────────────────────────────────────────
+    private bool _micSupported  = true;
+    private bool _micListening  = false;
+    private DotNetObjectReference<CommentTemplates>? _micRef;
+
+    // ── Lifecycle ──────────────────────────────────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
-        try { await LoadDropdownOptionsAsync(); }
-        catch { /* non-fatal — dropdowns fall back to empty lists */ }
-    }
-
-    private async Task LoadAsync()
-    {
-        _loading = true;
-        await using var db = DbFactory.CreateDbContext();
-        _templates = await db.CommentTemplates
-            .OrderBy(t => t.Subject)
-            .ThenBy(t => t.GradeLabel)
-            .ThenBy(t => t.Category)
-            .ThenBy(t => t.SortOrder)
-            .ToListAsync();
-
-        _subjects   = _templates.Where(t => t.Subject    != null).Select(t => t.Subject!).Distinct().OrderBy(x => x).ToList();
-        _grades     = _templates.Where(t => t.GradeLabel != null).Select(t => t.GradeLabel!).Distinct().OrderBy(x => x).ToList();
-        _categories = _templates.Where(t => t.Category   != null).Select(t => t.Category!).Distinct().OrderBy(x => x).ToList();
-
-        _loading = false;
-    }
-
-    private async Task LoadDropdownOptionsAsync()
-    {
-        await using var db = DbFactory.CreateDbContext();
-        _subjectOptions = await db.CurriculumClassTemplates
-            .Select(c => c.Name)
-            .Distinct()
-            .OrderBy(n => n)
-            .ToListAsync();
-
-        _gradeOptions = await db.Grades
-            .OrderBy(g => g.SortOrder)
-            .ThenBy(g => g.Name)
-            .Select(g => g.Name)
-            .Distinct()
-            .ToListAsync();
-
-        var usedCategories = _templates
-            .Where(t => t.Category != null)
-            .Select(t => t.Category!)
-            .Distinct()
-            .Where(c => !_categoryOptions.Contains(c))
-            .OrderBy(c => c);
-        _categoryOptions = _categoryOptions.Concat(usedCategories).ToList();
-    }
-
-    // ── Filtered view ─────────────────────────────────────────────────────────
-    private IEnumerable<CommentTemplate> FilteredTemplates => _templates.Where(t =>
-    {
-        if (_filterSubject  != null && t.Subject    != _filterSubject)  return false;
-        if (_filterGrade    != null && t.GradeLabel != _filterGrade)    return false;
-        if (_filterCategory != null && t.Category   != _filterCategory) return false;
-        if (!string.IsNullOrWhiteSpace(_searchText) &&
-            !t.TemplateText.Contains(_searchText, StringComparison.OrdinalIgnoreCase) &&
-            !(t.Title?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false) &&
-            !(t.SourceCode?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false))
-            return false;
-        return true;
-    });
-
-    // ── Placeholder insertion ─────────────────────────────────────────────────
-    private async Task InsertPlaceholderAsync(string token)
-    {
-        // Use JS to insert at cursor position in the native textarea
-        var updated = await JS.InvokeAsync<string>(
-            "commentTemplateEditor.insertAtCursor",
-            "comment-template-textarea",
-            token);
-
-        if (updated != null)
-            _form.TemplateText = updated;
-    }
-
-    // ── Dialog helpers ────────────────────────────────────────────────────────
-    private void OpenAddDialog()
-    {
-        _editingTemplate = null;
-        _form = new TemplateForm();
-        _dialogOpen = true;
-        Snackbar.Add("Opening template editor…", Severity.Info);
-    }
-
-    private void OpenEditDialog(CommentTemplate t)
-    {
-        _editingTemplate = t;
-        _form = new TemplateForm
-        {
-            Title        = t.Title,
-            Subject      = t.Subject,
-            GradeLabel   = t.GradeLabel,
-            Category     = t.Category,
-            TemplateText = t.TemplateText
-        };
-        _dialogOpen = true;
-    }
-
-    private void CloseDialog() => _dialogOpen = false;
-
-    private async Task SaveTemplateAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_form.TemplateText)) return;
-        await using var db = DbFactory.CreateDbContext();
-
-        if (_editingTemplate == null)
-        {
-            db.CommentTemplates.Add(new CommentTemplate
-            {
-                Title        = string.IsNullOrWhiteSpace(_form.Title)     ? null : _form.Title.Trim(),
-                Subject      = string.IsNullOrWhiteSpace(_form.Subject)    ? null : _form.Subject.Trim(),
-                GradeLabel   = string.IsNullOrWhiteSpace(_form.GradeLabel) ? null : _form.GradeLabel.Trim(),
-                Category     = string.IsNullOrWhiteSpace(_form.Category)   ? null : _form.Category.Trim(),
-                TemplateText = _form.TemplateText.Trim(),
-                SortOrder    = 0,
-            });
-            await db.SaveChangesAsync();
-            Snackbar.Add("Template added.", Severity.Success);
-        }
-        else
-        {
-            var existing = await db.CommentTemplates.FindAsync(_editingTemplate.Id);
-            if (existing != null)
-            {
-                existing.Title        = string.IsNullOrWhiteSpace(_form.Title)     ? null : _form.Title.Trim();
-                existing.Subject      = string.IsNullOrWhiteSpace(_form.Subject)    ? null : _form.Subject.Trim();
-                existing.GradeLabel   = string.IsNullOrWhiteSpace(_form.GradeLabel) ? null : _form.GradeLabel.Trim();
-                existing.Category     = string.IsNullOrWhiteSpace(_form.Category)   ? null : _form.Category.Trim();
-                existing.TemplateText = _form.TemplateText.Trim();
-                existing.UpdatedAt    = DateTimeOffset.UtcNow;
-                await db.SaveChangesAsync();
-            }
-            Snackbar.Add("Template saved.", Severity.Success);
-        }
-
-        _dialogOpen = false;
-        await LoadAsync();
-    }
-
-    // ── XML Import ────────────────────────────────────────────────────────────
-    private void OnXmlFileSelected(IBrowserFile file)
-    {
-        _selectedXmlFile = file;
-        _xmlImportResult = null;
-    }
-
-    private async Task ImportXmlAsync()
-    {
-        if (_selectedXmlFile == null) return;
-        _importing = true;
-        _xmlImportResult = null;
-        try
-        {
-            await using var stream = _selectedXmlFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
-            _xmlImportResult = await TemplateSvc.ImportXmlAsync(stream);
-            _selectedXmlFile = null;
-            Snackbar.Add($"XML import: {_xmlImportResult.Value.Inserted} added, {_xmlImportResult.Value.Updated} updated.", Severity.Success);
-            await LoadAsync();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Import failed: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            _importing = false;
-        }
-    }
-
-    // ── XLSX Import ───────────────────────────────────────────────────────────
-    private void OnXlsxFileSelected(IBrowserFile file)
-    {
-        _selectedXlsxFile = file;
-        _xlsxImportResult = null;
-        _xlsxImportError  = null;
-    }
-
-    private async Task ImportXlsxAsync()
-    {
-        if (_selectedXlsxFile == null) return;
-        _importing = true;
-        _xlsxImportResult = null;
-        _xlsxImportError  = null;
-        try
-        {
-            await using var stream = _selectedXlsxFile.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
-            _xlsxImportResult = await TemplateSvc.ImportXlsxAsync(stream);
-            _selectedXlsxFile = null;
-            Snackbar.Add($"Excel import: {_xlsxImportResult.Value.Inserted} added, {_xlsxImportResult.Value.Updated} updated.", Severity.Success);
-            await LoadAsync();
-        }
-        catch (Exception ex)
-        {
-            _xlsxImportError = $"Import failed: {ex.Message}";
-            Snackbar.Add(_xlsxImportError, Severity.Error);
-        }
-        finally
-        {
-            _importing = false;
-        }
-    }
-
-    // ── Delete ────────────────────────────────────────────────────────────────
-    private async Task DeleteAsync(CommentTemplate template)
-    {
-        await using var db = DbFactory.CreateDbContext();
-        var existing = await db.CommentTemplates.FindAsync(template.Id);
-        if (existing != null) { db.CommentTemplates.Remove(existing); await db.SaveChangesAsync(); }
-        _templates.Remove(template);
-        Snackbar.Add("Template deleted.", Severity.Success);
-    }
-
-    // ── Mic ─────────────────────────────────────────────────────────────────
-    private async Task ToggleMicAsync()
-    {
-        if (_micListening)
-        {
-            await JS.InvokeVoidAsync("commentTemplateEditor.stopMic");
-        }
-        else
-        {
-            _micRef ??= DotNetObjectReference.Create(this);
-            await JS.InvokeVoidAsync("commentTemplateEditor.startMic", "comment-template-textarea", _micRef);
-        }
-    }
-
-    [JSInvokable] public void OnMicStarted() { _micListening = true;  InvokeAsync(StateHasChanged); }
-    [JSInvokable] public void OnMicEnded()   { _micListening = false; InvokeAsync(StateHasChanged); }
-
-    [JSInvokable]
-    public void OnMicResult(string fullText)
-    {
-        _form.TemplateText = fullText;
-        InvokeAsync(StateHasChanged);
-    }
-
-    [JSInvokable]
-    public void OnMicError(string error)
-    {
-        _micListening = false;
-        var msg = error switch
-        {
-            "not-allowed"  => "Microphone access was denied. Please allow microphone access in your browser.",
-            "no-speech"    => "No speech detected. Try again.",
-            "network"      => "Network error during speech recognition.",
-            _              => $"Speech recognition error: {error}"
-        };
-        Snackbar.Add(msg, Severity.Warning);
-        InvokeAsync(StateHasChanged);
+        try { await LoadDropdownOptionsAsync(); } catch { }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -710,11 +379,188 @@ else
         _micRef?.Dispose();
     }
 
-    // ── Helpers ─────────────────────────────────────────────────────────────
-    private static string FormatBytes(long bytes)
+    // ── Data loading ───────────────────────────────────────────────────────────
+    private async Task LoadAsync()
     {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-        return $"{bytes / (1024.0 * 1024):F1} MB";
+        _loading = true;
+        await using var db = DbFactory.CreateDbContext();
+        _templates = await db.CommentTemplates
+            .OrderBy(t => t.Subject).ThenBy(t => t.GradeLabel)
+            .ThenBy(t => t.Category).ThenBy(t => t.SortOrder)
+            .ToListAsync();
+
+        _subjects   = _templates.Where(t => t.Subject    != null).Select(t => t.Subject!).Distinct().OrderBy(x => x).ToList();
+        _grades     = _templates.Where(t => t.GradeLabel != null).Select(t => t.GradeLabel!).Distinct().OrderBy(x => x).ToList();
+        _categories = _templates.Where(t => t.Category   != null).Select(t => t.Category!).Distinct().OrderBy(x => x).ToList();
+        _loading = false;
     }
+
+    private async Task LoadDropdownOptionsAsync()
+    {
+        await using var db = DbFactory.CreateDbContext();
+        _subjectOptions = await db.CurriculumClassTemplates
+            .Select(c => c.Name).Distinct().OrderBy(n => n).ToListAsync();
+        _gradeOptions = await db.Grades
+            .OrderBy(g => g.SortOrder).ThenBy(g => g.Name)
+            .Select(g => g.Name).Distinct().ToListAsync();
+
+        var extra = _templates
+            .Where(t => t.Category != null).Select(t => t.Category!)
+            .Distinct().Where(c => !_categoryOptions.Contains(c)).OrderBy(c => c);
+        _categoryOptions = _categoryOptions.Concat(extra).ToList();
+    }
+
+    // ── Filtering ──────────────────────────────────────────────────────────────
+    private IEnumerable<CommentTemplate> FilteredTemplates => _templates.Where(t =>
+    {
+        if (_filterSubject  != null && t.Subject    != _filterSubject)  return false;
+        if (_filterGrade    != null && t.GradeLabel != _filterGrade)    return false;
+        if (_filterCategory != null && t.Category   != _filterCategory) return false;
+        if (!string.IsNullOrWhiteSpace(_searchText) &&
+            !t.TemplateText.Contains(_searchText, StringComparison.OrdinalIgnoreCase) &&
+            !(t.Title?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false))
+            return false;
+        return true;
+    });
+
+    // ── Dialog ─────────────────────────────────────────────────────────────────
+    private void OpenAddDialog()
+    {
+        _editingTemplate = null;
+        _form = new TemplateForm();
+        _dialogOpen = true;
+    }
+
+    private void OpenEditDialog(CommentTemplate t)
+    {
+        _editingTemplate = t;
+        _form = new TemplateForm
+        {
+            Title = t.Title, Subject = t.Subject,
+            GradeLabel = t.GradeLabel, Category = t.Category,
+            TemplateText = t.TemplateText
+        };
+        _dialogOpen = true;
+    }
+
+    private void CloseDialog()
+    {
+        _dialogOpen = false;
+        if (_micListening) JS.InvokeVoidAsync("commentTemplateEditor.stopMic");
+    }
+
+    private async Task SaveTemplateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_form.TemplateText)) return;
+        await using var db = DbFactory.CreateDbContext();
+
+        if (_editingTemplate == null)
+        {
+            db.CommentTemplates.Add(new CommentTemplate
+            {
+                Title        = NullIfBlank(_form.Title),
+                Subject      = NullIfBlank(_form.Subject),
+                GradeLabel   = NullIfBlank(_form.GradeLabel),
+                Category     = NullIfBlank(_form.Category),
+                TemplateText = _form.TemplateText.Trim(),
+            });
+            await db.SaveChangesAsync();
+            Snackbar.Add("Template added.", Severity.Success);
+        }
+        else
+        {
+            var existing = await db.CommentTemplates.FindAsync(_editingTemplate.Id);
+            if (existing != null)
+            {
+                existing.Title        = NullIfBlank(_form.Title);
+                existing.Subject      = NullIfBlank(_form.Subject);
+                existing.GradeLabel   = NullIfBlank(_form.GradeLabel);
+                existing.Category     = NullIfBlank(_form.Category);
+                existing.TemplateText = _form.TemplateText.Trim();
+                existing.UpdatedAt    = DateTimeOffset.UtcNow;
+                await db.SaveChangesAsync();
+            }
+            Snackbar.Add("Template saved.", Severity.Success);
+        }
+
+        _dialogOpen = false;
+        await LoadAsync();
+    }
+
+    // ── Placeholder insertion ──────────────────────────────────────────────────
+    private async Task InsertPlaceholderAsync(string token)
+    {
+        var updated = await JS.InvokeAsync<string>(
+            "commentTemplateEditor.insertAtCursor", "comment-template-textarea", token);
+        if (updated != null) _form.TemplateText = updated;
+    }
+
+    // ── Mic ────────────────────────────────────────────────────────────────────
+    private async Task ToggleMicAsync()
+    {
+        if (_micListening) { await JS.InvokeVoidAsync("commentTemplateEditor.stopMic"); return; }
+        _micRef ??= DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("commentTemplateEditor.startMic", "comment-template-textarea", _micRef);
+    }
+
+    [JSInvokable] public void OnMicStarted() { _micListening = true;  InvokeAsync(StateHasChanged); }
+    [JSInvokable] public void OnMicEnded()   { _micListening = false; InvokeAsync(StateHasChanged); }
+    [JSInvokable] public void OnMicResult(string v) { _form.TemplateText = v; InvokeAsync(StateHasChanged); }
+    [JSInvokable] public void OnMicError(string e)
+    {
+        _micListening = false;
+        Snackbar.Add(e == "not-allowed" ? "Microphone access denied." : $"Mic error: {e}", Severity.Warning);
+        InvokeAsync(StateHasChanged);
+    }
+
+    // ── Imports ────────────────────────────────────────────────────────────────
+    private void OnXmlFileSelected(IBrowserFile f)  { _selectedXmlFile  = f; _xmlImportResult  = null; }
+    private void OnXlsxFileSelected(IBrowserFile f) { _selectedXlsxFile = f; _xlsxImportResult = null; _xlsxImportError = null; }
+
+    private async Task ImportXmlAsync()
+    {
+        if (_selectedXmlFile == null) return;
+        _importing = true;
+        try
+        {
+            await using var stream = _selectedXmlFile.OpenReadStream(50 * 1024 * 1024);
+            _xmlImportResult = await TemplateSvc.ImportXmlAsync(stream);
+            _selectedXmlFile = null;
+            Snackbar.Add($"XML: {_xmlImportResult.Value.Inserted} added, {_xmlImportResult.Value.Updated} updated.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Import failed: {ex.Message}", Severity.Error); }
+        finally { _importing = false; }
+    }
+
+    private async Task ImportXlsxAsync()
+    {
+        if (_selectedXlsxFile == null) return;
+        _importing = true; _xlsxImportError = null;
+        try
+        {
+            await using var stream = _selectedXlsxFile.OpenReadStream(20 * 1024 * 1024);
+            _xlsxImportResult = await TemplateSvc.ImportXlsxAsync(stream);
+            _selectedXlsxFile = null;
+            Snackbar.Add($"Excel: {_xlsxImportResult.Value.Inserted} added, {_xlsxImportResult.Value.Updated} updated.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { _xlsxImportError = ex.Message; Snackbar.Add($"Import failed: {ex.Message}", Severity.Error); }
+        finally { _importing = false; }
+    }
+
+    // ── Delete ─────────────────────────────────────────────────────────────────
+    private async Task DeleteAsync(CommentTemplate template)
+    {
+        await using var db = DbFactory.CreateDbContext();
+        var existing = await db.CommentTemplates.FindAsync(template.Id);
+        if (existing != null) { db.CommentTemplates.Remove(existing); await db.SaveChangesAsync(); }
+        _templates.Remove(template);
+        Snackbar.Add("Template deleted.", Severity.Success);
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    private static string? NullIfBlank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+    private static string FormatBytes(long b) =>
+        b < 1024 ? $"{b} B" : b < 1024 * 1024 ? $"{b / 1024.0:F1} KB" : $"{b / (1024.0 * 1024):F1} MB";
 }
